@@ -1,0 +1,8 @@
+import InnoDI
+@DIContainer(generateOwned: true) struct Container {
+    @Provide(.shared, factory: 1) var synchronous: Int
+    @Provide(.shared, asyncFactory: { () async in 1 }) var service: Int
+}
+func invalid(_ owner: Container._InnoDIOwner) async throws {
+    try await owner.prepare(.synchronous)
+}

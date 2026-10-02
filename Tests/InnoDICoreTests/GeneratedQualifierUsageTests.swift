@@ -65,7 +65,10 @@ struct GeneratedQualifierUsageTests {
             }
             """
         )
-        #expect(sync.memberBodies == [.init("InnoDI", namespace: .typeOrValue)])
+        #expect(sync.memberBodies == [
+            .init("InnoDI", namespace: .typeOrValue),
+            .init("Swift", namespace: .typeOnly),
+        ])
 
         let async = try containerUsage(
             """
@@ -171,6 +174,70 @@ struct GeneratedQualifierUsageTests {
         #expect(unresolved.memberBodies == [
             .init("InnoDI", namespace: .typeOrValue),
         ])
+    }
+
+    @Test("Dependency-order forward edges do not generate unresolved fallbacks", arguments: [false, true])
+    func dependencyOrderForwardQualifier(isAsync: Bool) throws {
+        let factoryLabel = isAsync ? "asyncFactory" : "factory"
+        let effect = isAsync ? "async" : ""
+        let members = """
+            @Provide(.shared, \(factoryLabel): { (later: Int) \(effect) in later }) var first: Int
+            @Provide(.shared, \(factoryLabel): { () \(effect) in 1 }) var later: Int
+            """
+        let dependencyOrder = try containerUsage("""
+            @DIContainer(validateDAG: false, initializationOrder: ContainerInitializationOrder.dependency)
+            struct Container { \(members) }
+            """)
+        let declarationOrder = try containerUsage("""
+            @DIContainer(validateDAG: false)
+            struct Container { \(members) }
+            """)
+        #expect(!dependencyOrder.memberBodies.contains(.init("InnoDI", namespace: .typeOrValue)))
+        #expect(declarationOrder.memberBodies.contains(.init("InnoDI", namespace: .typeOrValue)))
+    }
+
+    @Test("Dependency-order qualifier analysis retains actual fallback requirements", arguments: [
+        "@Provide(.shared, factory: { (missing: Int) in missing }) var first: Int",
+        "@Provide(.shared, factory: { (transient: Int) in transient }) var first: Int; @Provide(.transient, factory: 1) var transient: Int",
+    ])
+    func dependencyOrderFallbackQualifier(_ members: String) throws {
+        let usage = try containerUsage("""
+            @DIContainer(validateDAG: false, initializationOrder: ContainerInitializationOrder.dependency)
+            struct Container { \(members) }
+            """)
+        #expect(usage.memberBodies.contains(.init("InnoDI", namespace: .typeOrValue)))
+    }
+
+    @Test("Dependency-order Type.self wiring does not claim fallback qualifiers")
+    func dependencyOrderWithQualifier() throws {
+        let usage = try containerUsage("""
+            @DIContainer(validateDAG: false, initializationOrder: ContainerInitializationOrder.dependency)
+            struct Container {
+                @Provide(.shared, Service.self, with: [\\Self.later]) var service: Service
+                @Provide(.shared, factory: 1) var later: Int
+            }
+            """)
+        #expect(!usage.memberBodies.contains(.init("InnoDI", namespace: .typeOrValue)))
+    }
+
+    @Test("Opt-in does not mistake a storage-prefixed recovery name for a topo edge")
+    func dependencyOrderStorageFallbackQualifier() throws {
+        let usage = try containerUsage("""
+            @DIContainer(validateDAG: false, initializationOrder: ContainerInitializationOrder.dependency)
+            struct Container {
+                @Provide(.shared, factory: { (_storage_later: Int) in _storage_later }) var first: Int
+                @Provide(.shared, factory: 1) var later: Int
+            }
+            """)
+        #expect(usage.memberBodies.contains(.init("InnoDI", namespace: .typeOrValue)))
+        let inputUsage = try containerUsage("""
+            @DIContainer(validateDAG: false, initializationOrder: ContainerInitializationOrder.dependency)
+            struct Container {
+                @Provide(.shared, factory: { (_storage_input: Int) in _storage_input }) var first: Int
+                @Input var input: Int
+            }
+            """)
+        #expect(!inputUsage.memberBodies.contains(.init("InnoDI", namespace: .typeOrValue)))
     }
 
     @Test("Sync dependencies mirror generated storage-name normalization")

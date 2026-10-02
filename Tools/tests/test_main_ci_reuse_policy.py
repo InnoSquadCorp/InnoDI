@@ -253,6 +253,20 @@ class AdmissionTests(unittest.TestCase):
             with self.subTest(kind=kind), self.assertRaises(p.Rejected):
                 proven(t)
 
+    def test_minimum_toolchain_package_step_is_mandatory(self):
+        for outcome in ("missing", "skipped", "failure", "cancelled", "duplicate"):
+            t = Transcript()
+            job = next(j for j in t.jobs if j["name"] == "Swift 6.2 compatibility")
+            step = next(s for s in job["steps"] if s["name"] == "Run minimum-toolchain package contracts")
+            if outcome == "missing":
+                job["steps"].remove(step)
+            elif outcome == "duplicate":
+                job["steps"].append(copy.deepcopy(step))
+            else:
+                step["conclusion"] = outcome
+            with self.subTest(outcome=outcome), self.assertRaises(p.Rejected):
+                proven(t)
+
     def test_only_explicit_informational_step_skips_are_allowed(self):
         t = Transcript()
         proven(t)  # Fixture contains Pages/origin/Swift 6.2 canary skips.

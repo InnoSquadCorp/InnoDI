@@ -644,9 +644,15 @@ extension SimpleDiagnostic {
         )
     }
 
-    static func provideUnavailableDependencyReference(memberName: String, dependencyName: String) -> Self {
+    static func provideUnavailableDependencyReference(
+        memberName: String,
+        dependencyName: String,
+        dependencyOrdered: Bool = false
+    ) -> Self {
         Self(
-            "Dependency '\(dependencyName)' referenced by '\(memberName)' is not available in this declaration order or scope.",
+            dependencyOrdered
+                ? "Dependency '\(dependencyName)' referenced by '\(memberName)' is not available in this construction scope."
+                : "Dependency '\(dependencyName)' referenced by '\(memberName)' is not available in this declaration order or scope.",
             code: .provideUnavailableDependencyReference
         )
     }
@@ -700,6 +706,13 @@ extension SimpleDiagnostic {
         )
     }
 
+    static func containerInitializationOrderTokenRequired() -> Self {
+        Self(
+            "initializationOrder: requires ContainerInitializationOrder.declaration or ContainerInitializationOrder.dependency (optionally qualified by InnoDI); specify the argument only once.",
+            code: .containerInitializationOrderTokenRequired
+        )
+    }
+
     static func containerBoolLiteralRequired(label: String) -> Self {
         Self(
             "@DIContainer \(label): requires a literal true or false. Use conditional compilation to choose different attribute spellings per build configuration.",
@@ -727,6 +740,18 @@ extension SimpleDiagnostic {
             "A nested 'Overrides' \(kind) is already declared, so @DIContainer cannot synthesize its required override API. Rename the user declaration; custom Overrides types are unsupported in InnoDI 6.0.",
             code: .containerOverridesNameConflict
         )
+    }
+
+    static func containerOwnedNameConflict(name: String = "makeOwned") -> Self {
+        Self("generateOwned: true synthesizes \(name)(...), but a direct declaration already uses '\(name)'. Rename that declaration.", code: .containerOwnedNameConflict)
+    }
+
+    static func containerOwnedUnsupported(_ shape: String) -> Self {
+        Self("generateOwned: true does not yet support \(shape). Use supported input/shared providers or remove generateOwned: true to retain the legacy container API.", code: .containerOwnedUnsupported)
+    }
+
+    static func containerOwnedRequiresDAG() -> Self {
+        Self("generateOwned: true requires validateDAG: true so every owned lifecycle edge is validated.", code: .containerOwnedRequiresDAG)
     }
 
     static func containerPrewarmNameConflict() -> Self {

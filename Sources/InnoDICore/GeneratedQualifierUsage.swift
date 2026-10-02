@@ -67,6 +67,17 @@ package struct GeneratedQualifierUsage {
             memberBodies.insert(.init("Swift"))
         }
 
+        // Owned construction names concrete runtime support in expressions,
+        // even for an input-only/empty container. Literal false emits nothing
+        // new and must not reserve any additional qualifier.
+        if options?.generateOwned == true, containerGenerationIsLocallyViable {
+            memberBodies.formUnion([
+                .init("InnoDI", namespace: .typeOrValue),
+                .init("_Concurrency", namespace: .typeOrValue),
+                .init("Swift"),
+            ])
+        }
+
         let validProvides = members.compactMap(\.provide)
         let inputNames = Set(
             validProvides.filter { $0.scope == .input }.map(\.name)
@@ -97,6 +108,14 @@ package struct GeneratedQualifierUsage {
                     namespace: containerGenerationIsLocallyViable ? .typeOrValue : .typeOnly
                 )
             )
+        }
+
+        // Synchronous selective prewarming emits `Swift.PartialKeyPath` and
+        // the selection-only enum's `Swift.Sendable` conformance. Both are
+        // type lookups: same-spelled value declarations remain safe.
+        if containerGenerationIsLocallyViable,
+           syncShared.contains(where: { $0.initialization == .onDemand }) {
+            memberBodies.insert(.init("Swift"))
         }
 
         let validTargetsByName = Dictionary(
@@ -134,7 +153,8 @@ package struct GeneratedQualifierUsage {
             syncShared: syncShared,
             asyncShared: asyncShared,
             deferredTargetNames: deferredTargetNames,
-            validTargetsByName: validTargetsByName
+            validTargetsByName: validTargetsByName,
+            initializationOrder: options?.initializationOrder ?? .declaration
            ) {
             memberBodies.insert(
                 .init("InnoDI", namespace: .typeOrValue)
@@ -352,10 +372,21 @@ private func emitsUnresolvedFallback(
     syncShared: [ManagedProvideMember],
     asyncShared: [ManagedProvideMember],
     deferredTargetNames: Set<String>,
-    validTargetsByName: [String: ManagedProvideMember]
+    validTargetsByName: [String: ManagedProvideMember],
+    initializationOrder: ContainerInitializationOrderValue
 ) -> Bool {
+    let orderedSync: [ManagedProvideMember]
+    let orderedAsync: [ManagedProvideMember]
+    do {
+        orderedSync = try constructionOrder(syncShared, policy: initializationOrder)
+        orderedAsync = try constructionOrder(asyncShared, policy: initializationOrder)
+    } catch {
+        // Invalid plans are rejected independently before codegen. Keep the
+        // qualifier requirement conservative for source-analysis recovery.
+        return true
+    }
     var availableSyncNames = inputNames
-    for member in syncShared.sorted(by: sourceOrder) {
+    for member in orderedSync {
         if member.references.contains(where: { reference in
             dependencyRequiresFallback(
                 reference,
@@ -377,7 +408,7 @@ private func emitsUnresolvedFallback(
     }
 
     var availableAsyncNames = availableSyncNames
-    for member in asyncShared.sorted(by: sourceOrder) {
+    for member in orderedAsync {
         if member.references.contains(where: { reference in
             dependencyRequiresFallback(
                 reference,
@@ -392,6 +423,25 @@ private func emitsUnresolvedFallback(
         availableAsyncNames.insert(member.name)
     }
     return false
+}
+
+/// Reuse the exact syntax-free ordering primitive used by macro codegen.
+/// Availability still walks a prefix of that order, preserving the existing
+/// storage-prefix fallback normalization without inventing normalized edges.
+private func constructionOrder(
+    _ members: [ManagedProvideMember],
+    policy: ContainerInitializationOrderValue
+) throws -> [ManagedProvideMember] {
+    let sourceOrdered = members.sorted(by: sourceOrder)
+    guard policy == .dependency else { return sourceOrdered }
+    let nodes = sourceOrdered.map { member in
+        InitializationOrderNode(
+            name: member.name,
+            hardDependencies: member.references.filter { $0.kind == .hard }.map(\.name)
+                + member.withDependencies
+        )
+    }
+    return try stableInitializationOrder(nodes).map { sourceOrdered[$0] }
 }
 
 private func dependencyRequiresFallback(

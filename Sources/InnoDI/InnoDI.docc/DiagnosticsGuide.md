@@ -179,7 +179,10 @@ Most frequently-hit codes:
 - `provide.unresolved-factory-parameter` — a named parameter on the root
   factory closure doesn't match any container member or `with:` key path.
 - `provide.unavailable-dependency-reference` — a factory references a member
-  that is declared later and is unavailable at that construction point.
+  unavailable under the selected initialization policy or construction scope.
+  The default declaration policy rejects forward shared references. Opt-in
+  dependency order admits compatible shared providers, but never makes a hard
+  transient dependency injectable; use supported deferred or manual wiring.
 - `provide.async-dependency-requires-async-consumer` — a synchronous factory
   consumes an async provider through an explicit sibling edge. Move the
   consumer to `asyncFactory:`. This check also runs with `validateDAG: false`.
@@ -259,6 +262,19 @@ Most frequently-hit codes:
   an error; rename the custom declaration. A diagnostic-only recovery
   initializer prevents mounted child containers from producing unrelated
   Swift argument errors.
+- `container.owned-name-conflict` — `generateOwned: true` would introduce
+  `makeOwned(...)` or `makeOwnedWithOverrides(...)`, but a direct declaration
+  already uses that name. Rename
+  the authored declaration or remove the owned opt-in.
+- `container.owned-unsupported` — the owned prototype cannot reproduce the
+  annotated shape: async transient providers, assisted inputs/factories,
+  collection providers, transient children, feature-root helpers, and custom
+  global actors or per-member actor isolation are not supported yet. Synchronous
+  transients and eligible synchronous Lazy/Provider edges are supported. See
+  <doc:OwnedContainers> for the non-Sendable deferred-capture boundary, or retain
+  the legacy API by removing `generateOwned: true`.
+- `container.owned-requires-dag` — owned construction requires
+  `validateDAG: true`; its lifecycle graph must have validated dependencies.
 - `container.prewarm-name-conflict` — an on-demand container already has a
   direct value or function named `prewarm`. Rename it so the generated
   selective prewarm API remains unambiguous.
@@ -275,7 +291,12 @@ Most frequently-hit codes:
 - `container.role-token-required` — `@DIContainerRole role:` is not one of
   `ContainerRole.local`, `ContainerRole.component`, or `ContainerRole.root`.
   Use the named token rather than a string literal or variable.
-- `container.bool-literal-required` — `root:`, `validateDAG:`, or `mainActor:`
+- `container.initialization-order-token-required` — `initializationOrder:` is
+  not exactly `ContainerInitializationOrder.declaration` or
+  `ContainerInitializationOrder.dependency` (optionally qualified by `InnoDI`),
+  or the argument occurs more than once. Use one named token; string literals,
+  shorthand members, aliases and computed expressions are unsupported.
+- `container.bool-literal-required` — `root:`, `validateDAG:`, `mainActor:`, or `generateOwned:`
   was not literal `true` or `false`; use conditional compilation to choose
   different attribute spellings.
 - `container.duplicate-member-name` — two direct managed instance members use
@@ -292,6 +313,9 @@ Most frequently-hit codes:
   support declarations (`_storage_`, `_override_`, `_innoDI`, or `_InnoDI`).
   Rename the declaration. This includes plain variables, functions, nested
   nominal types, typealiases, and declarations inside a top-level `#if`.
+  The typed-prewarm selection name `_InnoDIPrewarmProvider` uses this existing
+  compiler-owned namespace; ordinary payload types named `PrewarmProvider`
+  are not reserved.
 - `container.reserved-module-name` — the container, an enclosing nominal, or a
   direct declaration named `InnoDI`, or a direct nested type/typealias named
   `Swift` or `_Concurrency`, shadows a module qualifier used by generated

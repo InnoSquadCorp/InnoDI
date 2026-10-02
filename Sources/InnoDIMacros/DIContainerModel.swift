@@ -232,6 +232,11 @@ struct SubContainerMemberModel {
 }
 
 struct DIContainerExpansionModel {
+    /// The original lexical Self, used only for types moved into owned support declarations.
+    let explicitlyMainActor: Bool
+
+    var ownedMainActor: Bool { options.mainActor || explicitlyMainActor }
+
     let options: DIContainerAttributeInfo
     let accessLevel: String?
     let members: [ProvideMemberModel]
@@ -242,7 +247,7 @@ struct DIContainerExpansionModel {
     }
 
     /// Eager and on-demand asynchronous `.shared` members in declaration
-    /// order. Both kinds may reference earlier asynchronous members.
+    /// order. The opt-in initialization plan may reorder construction only.
     var asyncSharedMembers: [ProvideMemberModel] {
         sharedMembers.filter(\.isAsyncFactory)
     }
@@ -383,8 +388,8 @@ struct ProvideMemberModel {
     }
 
     /// Closure parameter names that represent hard (non-lazy, non-provider)
-    /// edges — the ones that continue to constrain declaration order and
-    /// participate in cycle detection.
+    /// edges — the ones that constrain initialization order and participate
+    /// in cycle detection.
     var hardClosureDependencies: [String] {
         deduplicateStrings(
             closureParameterReferences

@@ -593,7 +593,8 @@ extension DIContainerValidator {
                         makeUnavailableDependencyDiagnostic(
                             member: member,
                             dependencyName: dependency,
-                            referencedMember: referencedMember
+                            referencedMember: referencedMember,
+                            initializationOrder: resolutionContext.initializationOrder
                         )
                     )
                     hadErrors = true
@@ -648,7 +649,8 @@ extension DIContainerValidator {
                     makeUnavailableDependencyDiagnostic(
                         member: member,
                         dependencyName: dependency,
-                        referencedMember: referencedMember
+                        referencedMember: referencedMember,
+                        initializationOrder: resolutionContext.initializationOrder
                     )
                 )
                 hadErrors = true

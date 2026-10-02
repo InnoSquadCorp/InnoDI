@@ -1,3 +1,4 @@
+import InnoDICore
 import SwiftSyntax
 
 /// Availability state for one dependency name at a specific declaration index.
@@ -5,94 +6,58 @@ import SwiftSyntax
 /// `unknown` means the container never declares the name, while `unavailable`
 /// means the name exists but declaration-order or scope rules prevent it from
 /// being injected at the current member.
-enum DependencyReferenceStatus {
-    case available
-    case unknown
-    case unavailable
-}
+typealias DependencyReferenceStatus = DependencyAvailabilityIndex.Status
 
-/// Shared declaration-order resolver used by macro diagnostics and graph
-/// collection.
-///
-/// This type is the source of truth for which dependencies are injectable at a
-/// given member index. Fix-it suggestions, unknown/unavailable diagnostics, and
-/// graph edge extraction all route through the same availability matrix so
-/// diagnostics never suggest names that the generated container cannot legally
-/// reference.
+/// Macro adapter for the shared, syntax-independent availability rule.
+/// Diagnostics and injectable edge selection use the index; ownership edge
+/// selection deliberately retains unavailable references to detect cycles.
 struct DependencyResolutionContext {
     let members: [ProvideMemberModel]
-    let knownNames: Set<String>
+    private let availability: DependencyAvailabilityIndex
+    let initializationOrder: ContainerInitializationOrderValue
+    var knownNames: Set<String> { availability.knownNames }
 
-    init(members: [ProvideMemberModel]) {
+    init(
+        members: [ProvideMemberModel],
+        initializationOrder: ContainerInitializationOrderValue = .declaration
+    ) {
         self.members = members
-        self.knownNames = Set(members.map(\.name))
-    }
-
-    /// Returns the dependency names that are injectable at `index`.
-    ///
-    /// `.shared` members follow declaration-order rules, async shared members
-    /// can also see earlier async shared dependencies plus all sync shared
-    /// dependencies, and `.transient` members can reference any known name.
-    func availableNames(forMemberAt index: Int) -> Set<String> {
-        guard members.indices.contains(index) else { return [] }
-        let member = members[index]
-
-        switch member.scope {
-        case .input:
-            return []
-        case .shared:
-            let inputNames = Set(members.lazy.filter { $0.scope == .input }.map(\.name))
-            let syncSharedNames = Set(
-                members[..<index]
-                    .lazy
-                    .filter { $0.scope == .shared && !$0.isAsyncFactory }
-                    .map(\.name)
-            )
-
-            if member.isAsyncFactory {
-                let allSyncSharedNames = Set(
-                    members.lazy.filter { $0.scope == .shared && !$0.isAsyncFactory }.map(\.name)
-                )
-                let priorAsyncSharedNames = Set(
-                    members[..<index]
-                        .lazy
-                        .filter { $0.scope == .shared && $0.isAsyncFactory }
-                        .map(\.name)
-                )
-                return inputNames
-                    .union(allSyncSharedNames)
-                    .union(priorAsyncSharedNames)
+        self.initializationOrder = initializationOrder
+        self.availability = DependencyAvailabilityIndex(members: members.map { member in
+            let kind: DependencyAvailabilityIndex.Kind
+            switch member.scope {
+            case .input: kind = .input
+            case .transient: kind = .transient
+            case .shared:
+                kind = member.isAsyncFactory ? .asynchronousShared : .synchronousShared
             }
-
-            return inputNames.union(syncSharedNames)
-        case .transient:
-            return knownNames
-        }
+            return .init(name: member.name, kind: kind)
+        })
     }
 
-    /// Classifies a dependency reference using the same declaration-order rules
-    /// as container validation.
+    func availableNames(forMemberAt index: Int) -> Set<String> {
+        availability.availableNames(
+            forMemberAt: index,
+            allowForwardSharedReferences: initializationOrder == .dependency
+        )
+    }
+
     func status(of dependencyName: String, forMemberAt index: Int) -> DependencyReferenceStatus {
-        guard knownNames.contains(dependencyName) else {
-            return .unknown
-        }
-
-        if availableNames(forMemberAt: index).contains(dependencyName) {
-            return .available
-        }
-
-        return .unavailable
+        availability.status(
+            of: dependencyName,
+            forMemberAt: index,
+            allowForwardSharedReferences: initializationOrder == .dependency
+        )
     }
 
     /// Graph edges that are both declared and currently injectable.
     func graphDependencies(forMemberAt index: Int) -> [String] {
         guard members.indices.contains(index) else { return [] }
         let member = members[index]
-        let availableNames = availableNames(forMemberAt: index)
 
         return deduplicateStrings(
             member.graphDependencyCandidates.filter { name in
-                knownNames.contains(name) && availableNames.contains(name)
+                status(of: name, forMemberAt: index) == .available
             }
         )
     }

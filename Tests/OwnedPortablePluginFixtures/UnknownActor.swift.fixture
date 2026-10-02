@@ -1,0 +1,6 @@
+import InnoDI
+@globalActor actor Domain { static let shared = Domain() }
+@Domain @DIContainer(generateOwned: true) struct Scoped {
+    @Input var number: Int
+}
+nonisolated func ownedRead(_ owner: Scoped._InnoDIOwner) -> Int { owner.container.number }

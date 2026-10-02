@@ -144,7 +144,9 @@ internal func makeUnresolvedFactoryParameterDiagnostic(
             Note(
                 node: Syntax(member.attribute),
                 message: SimpleNote(
-                    "Closest matching member exists, but declaration order still makes it unavailable here: \(candidates.unavailable.joined(separator: ", ")).",
+                    resolutionContext.initializationOrder == .dependency
+                        ? "Closest matching member exists, but its scope makes it unavailable here: \(candidates.unavailable.joined(separator: ", "))."
+                        : "Closest matching member exists, but declaration order still makes it unavailable here: \(candidates.unavailable.joined(separator: ", ")).",
                     code: .provideUnresolvedFactoryParameter,
                     suffix: "candidate-unavailable"
                 )
@@ -302,7 +304,9 @@ internal func makeUnresolvedWithDependencyDiagnostic(
             Note(
                 node: Syntax(member.attribute),
                 message: SimpleNote(
-                    "Closest matching member exists, but declaration order still makes it unavailable here: \(candidates.unavailable.joined(separator: ", ")).",
+                    resolutionContext.initializationOrder == .dependency
+                        ? "Closest matching member exists, but its scope makes it unavailable here: \(candidates.unavailable.joined(separator: ", "))."
+                        : "Closest matching member exists, but declaration order still makes it unavailable here: \(candidates.unavailable.joined(separator: ", ")).",
                     code: .provideUnresolvedWithDependency,
                     suffix: "candidate-unavailable"
                 )
@@ -342,15 +346,19 @@ internal func makeUnresolvedWithDependencyDiagnostic(
 internal func makeUnavailableDependencyDiagnostic(
     member: ProvideMemberModel,
     dependencyName: String,
-    referencedMember: ProvideMemberModel?
+    referencedMember: ProvideMemberModel?,
+    initializationOrder: ContainerInitializationOrderValue = .declaration
 ) -> Diagnostic {
+    let dependencyOrdered = initializationOrder == .dependency
     var notes = [
         Note(
             node: Syntax(member.attribute),
             message: SimpleNote(
-                "Shared members can only reference inputs and dependencies that are already available in declaration order. Transient members can reference any container member.",
+                dependencyOrdered
+                    ? "Shared members can directly reference inputs and shared providers with compatible effects. A transient dependency requires a supported deferred Lazy<T> or Provider<T> handle, or explicit manual wiring; changing declaration order cannot make it injectable."
+                    : "Shared members can only reference inputs and dependencies that are already available in declaration order. Transient members can reference any container member.",
                 code: .provideUnavailableDependencyReference,
-                suffix: "declaration-order"
+                suffix: dependencyOrdered ? "scope" : "declaration-order"
             )
         )
     ]
@@ -371,7 +379,9 @@ internal func makeUnavailableDependencyDiagnostic(
             Note(
                 node: Syntax(member.bindingSyntax),
                 message: SimpleNote(
-                    "Declare '\(dependencyName)' before '\(member.name)', or switch to explicit transient/manual wiring if declaration order cannot change.",
+                    dependencyOrdered
+                        ? "Use an input or shared provider with compatible effects for '\(dependencyName)', or switch to supported deferred/manual wiring."
+                        : "Declare '\(dependencyName)' before '\(member.name)', or switch to explicit transient/manual wiring if declaration order cannot change.",
                     code: .provideUnavailableDependencyReference,
                     suffix: "resolution"
                 )
@@ -383,7 +393,8 @@ internal func makeUnavailableDependencyDiagnostic(
         node: Syntax(member.attribute),
         message: SimpleDiagnostic.provideUnavailableDependencyReference(
             memberName: member.name,
-            dependencyName: dependencyName
+            dependencyName: dependencyName,
+            dependencyOrdered: dependencyOrdered
         ),
         notes: notes
     )

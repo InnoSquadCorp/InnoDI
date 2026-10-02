@@ -340,10 +340,12 @@ internal func overrideCheckStmt(overrideName: String) -> CodeBlockItemSyntax {
 /// public runtime helper just to support macro expansion in downstream
 /// modules. Generated code mutates the cell during initialization, then only
 /// resolves it through escaped `Lazy<T>` / `Provider<T>` closures.
+/// Owned construction requests the non-Sendable variant and finishes binding
+/// before admitting async work; Swift rejects invalid cross-isolation captures.
 ///
 /// ## Concurrency contract
 ///
-/// `_InnoDIDeferredCell` is intentionally unsynchronized — the previous public
+/// The legacy default `_InnoDIDeferredCell` is intentionally unsynchronized — the previous public
 /// `_LazyCell` used `NSLock`, but the inlined cell is only ever stitched into
 /// macro-emitted init bodies that observe a single, strict ordering:
 ///
@@ -362,8 +364,8 @@ internal func overrideCheckStmt(overrideName: String) -> CodeBlockItemSyntax {
 /// supported producer of these calls and it never spawns concurrent work
 /// inside init bodies. If you find yourself constructing this cell by hand,
 /// add explicit synchronization.
-internal func makeDeferredCellSupportDecl() -> DeclSyntax {
-    """
+internal func makeDeferredCellSupportDecl(uncheckedSendable: Bool = true) -> DeclSyntax {
+    let declaration: DeclSyntax = """
         final class _InnoDIDeferredCell<T>: @unchecked Swift.Sendable {
             private var value: T?
             private var resolver: (() -> T)?
@@ -387,6 +389,11 @@ internal func makeDeferredCellSupportDecl() -> DeclSyntax {
             }
         }
     """
+    // The ordinary initializer keeps its existing declaration unchanged.
+    // Owned factories must not use that legacy escape hatch: a deferred cell
+    // captured by a Sendable factory must remain visible to Swift's checker.
+    guard !uncheckedSendable else { return declaration }
+    return DeclSyntax(declaration.cast(ClassDeclSyntax.self).with(\.inheritanceClause, nil))
 }
 
 /// Builds a `let _innoDILazyCell_<name> = _InnoDIDeferredCell<Type>()` local

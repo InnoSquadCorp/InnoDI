@@ -67,6 +67,7 @@ visibility, deterministic macro expansion, and build-time graph validation.
 - <doc:lock-safety>
 - <doc:DAGValidation>
 - <doc:AsyncPreparation>
+- <doc:OwnedContainers>
 - <doc:RuntimeTracing>
 - <doc:PluginOptOut>
 - <doc:MigrationGuide>
@@ -76,7 +77,7 @@ visibility, deterministic macro expansion, and build-time graph validation.
 - <doc:DIContainer>
 - <doc:Provide>
 - ``Input(_:escaping:)``
-- ``DIContainerRole(role:mainActor:validateDAG:)``
+- ``DIContainerRole(role:mainActor:validateDAG:initializationOrder:generateOwned:)``
 
 ### Experimental
 
@@ -88,7 +89,7 @@ visibility, deterministic macro expansion, and build-time graph validation.
 
 ### Symbols
 
-- ``DIContainer(validateDAG:)``
+- ``DIContainer(validateDAG:initializationOrder:generateOwned:)``
 - ``Provide(_:_:with:initialization:effect:collection:factory:asyncFactory:)``
 - ``DIScope``
 - ``Lazy``

@@ -10,7 +10,7 @@ struct FixtureApp {
             callback: { staticCalls += 1 }
         )
         precondition(repositoryFactory.calls == 1)
-        try! parent.prewarm(\AppContainer.repository)
+        parent.prewarm(.repository)
         precondition(repositoryFactory.calls == 1)
         let first = parent.session(
             sessionID: 1,

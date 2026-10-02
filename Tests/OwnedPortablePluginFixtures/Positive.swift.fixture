@@ -1,0 +1,311 @@
+import InnoDI
+import Synchronization
+
+final class LocalValue {}
+enum Owner: Sendable { case service }
+enum OwnedView: Sendable { case service }
+enum OwnedProvider: Sendable { case service }
+
+@DIContainer(generateOwned: true) struct Empty {}
+@DIContainer(generateOwned: true) struct Caller {
+    @Input var local: LocalValue
+    @Provide(.shared, initialization: .onDemand, factory: { (local: LocalValue) in local }) var lazy: LocalValue
+}
+@DIContainer(initializationOrder: ContainerInitializationOrder.dependency, generateOwned: true)
+struct Chain {
+    @Input var seed: Int
+    @Provide(.shared, asyncFactory: { (first: Int) async in first + 1 }) var second: Int
+    @Provide(.shared, asyncFactory: { (seed: Int) async in seed }) var first: Int
+    @Provide(.shared, asyncFactory: { () async in Owner.service }) var ownerPayload: Owner
+    @Provide(.shared, asyncFactory: { () async in OwnedView.service }) var viewPayload: OwnedView
+    @Provide(.shared, asyncFactory: { () async in OwnedProvider.service }) var providerPayload: OwnedProvider
+}
+@DIContainerRole(role: ContainerRole.local, mainActor: true, generateOwned: true)
+struct Isolated {
+    enum Value: Sendable { case service }
+    @MainActor static func build() -> Value { .service }
+    @Input var local: LocalValue
+    @Provide(.shared, initialization: .onDemand, factory: { (local: LocalValue) in local }) var lazy: LocalValue
+    @Provide(.shared, asyncFactory: { () async -> Self.Value in Self.build() }) var service: Value
+    static func makeFresh(_ local: LocalValue) -> LocalValue { LocalValue() }
+    @Provide(.transient, factory: { (local: LocalValue) in Self.makeFresh(local) }) var fresh: LocalValue
+}
+@DIContainer struct Child { @Input var seed: Int }
+@DIContainer(generateOwned: true) struct Borrowing {
+    @Input var seed: Int
+    @SubContainer(scope: .shared, with: [\Self.seed]) var child: Child
+}
+actor Gate {
+    private var calls = 0
+    private var started: [CheckedContinuation<Void, Never>] = []
+    private var release: CheckedContinuation<Void, Never>?
+    func run() async -> Int {
+        calls += 1
+        if calls == 1 {
+            let pending = started; started.removeAll()
+            for waiter in pending { waiter.resume() }
+            await withCheckedContinuation { release = $0 }
+            return 111
+        }
+        return 222
+    }
+    func waitForStart() async {
+        if calls > 0 { return }
+        await withCheckedContinuation { started.append($0) }
+    }
+    func releaseFirst() { release?.resume(); release = nil }
+}
+@DIContainer(generateOwned: true) struct Controlled {
+    @Input var gate: Gate
+    @Provide(.shared, asyncFactory: { (gate: Gate) async in await gate.run() }) var a: Int
+    @Provide(.shared, asyncFactory: { () async in 9 }) var ready: Int
+}
+@main struct Check {
+    @MainActor static func main() async throws {
+        let empty = try await Empty.makeOwned(); await empty.close()
+        let value = LocalValue()
+        let legacy = Caller(local: value)
+        legacy.prewarm(.lazy)
+        precondition(legacy.lazy === value)
+        let caller = try await Caller.makeOwned(local: value)
+        let escaped = caller.container
+        precondition(escaped.lazy === value)
+        await caller.close()
+        precondition(escaped.lazy === value)
+        let chain = try await Chain.makeOwned(seed: 4)
+        let report = try await chain.prepare(.second)
+        precondition(report.isReady)
+        let second = try await chain.container.second
+        precondition(second == 5)
+        let _: Owner = try await chain.container.ownerPayload
+        let _: OwnedView = try await chain.container.viewPayload
+        let _: OwnedProvider = try await chain.container.providerPayload
+        let copy = chain
+        await copy.close()
+        do { _ = try await chain.container.second; preconditionFailure("closed read") }
+        catch DIAsyncScopeError.closed(providerID: "second") {}
+        let overridden = try await Chain.makeOwned(seed: 4, second: 42)
+        let selected = try await overridden.prepare(.second)
+        precondition(selected.entries.map(\.providerID) == ["second"])
+        let replacement = try await overridden.container.second
+        precondition(replacement == 42)
+        await overridden.close()
+        let isolated = try await Isolated.makeOwned(local: value)
+        let _: Isolated.Value = try await isolated.container.service
+        precondition(isolated.container.lazy === value)
+        let isolatedFirst = isolated.container.fresh
+        await isolated.close()
+        precondition(isolatedFirst !== isolated.container.fresh)
+        let parent = try await Borrowing.makeOwned(seed: 9)
+        let child = parent.container.child
+        await parent.close()
+        precondition(child.seed == 9)
+        let gate = Gate()
+        let controlled = try await Controlled.makeOwned(gate: gate)
+        await gate.waitForStart()
+        let ready = try await controlled.container.ready
+        precondition(ready == 9)
+        await controlled.cancel(.a, .ready)
+        let cancelled = await controlled.status(.a)
+        let stillReady = await controlled.status(.ready)
+        precondition(cancelled.state == .cancelled && stillReady.state == .ready)
+        let retry = try await controlled.retry(.a)
+        precondition(retry.isReady)
+        let generation = await controlled.status(.a)
+        let newValue = try await controlled.container.a
+        precondition(generation.generation == 1 && newValue == 222)
+        await gate.releaseFirst()
+        await controlled.close()
+        try await verifySynchronousTransients()
+        try await verifyForwardTransientWithNilOverride()
+        try await verifyOwnedOverridesBuilder()
+        print("real plugin owned coexistence passed")
+    }
+}
+
+final class OverrideCounter: Sendable {
+    private let count = Mutex(0)
+    func made() -> Int { count.withLock { $0 += 1; return $0 } }
+    var value: Int { count.withLock { $0 } }
+}
+enum OverridePreflightFailure: Error { case rejected }
+@DIContainer(generateOwned: true) struct OverridePreflight {
+    @Input var counter: OverrideCounter
+    @Provide(.shared, effect: .sideEffect, factory: { (counter: OverrideCounter) in counter.made() }) var sync: Int
+    @Provide(.shared, asyncFactory: { (counter: OverrideCounter) async in counter.made() }) var asyncValue: Int
+}
+@DIContainer(generateOwned: true) struct ClosureInput {
+    @Input var action: () -> Int
+}
+@DIContainer struct TrailingChild {
+    @Provide(.shared, factory: 2) var service: Int
+}
+@DIContainer(generateOwned: true) struct TrailingParent {
+    @Provide(.shared, factory: 1) var service: Int
+    @SubContainer(scope: .shared, with: []) var child: TrailingChild
+}
+@MainActor func verifyOwnedOverridesBuilder() async throws {
+    let empty = try await Empty.makeOwnedWithOverrides { _ in }
+    await empty.close()
+    let closureInput = try await ClosureInput.makeOwnedWithOverrides(action: { 12 }) { _ in }
+    precondition(closureInput.container.action() == 12)
+    await closureInput.close()
+    let oldTrailingInput = try await ClosureInput.makeOwned { 13 }
+    precondition(oldTrailingInput.container.action() == 13)
+    await oldTrailingInput.close()
+    let parent = try await Borrowing.makeOwnedWithOverrides(seed: 2) { $0.child = Child(seed: 7) }
+    precondition(parent.container.child.seed == 7)
+    await parent.close()
+    let noChildChange = try await Borrowing.makeOwnedWithOverrides(seed: 2) { _ in }
+    precondition(noChildChange.container.child.seed == 2)
+    await noChildChange.close()
+    // This pre-existing call applies the child's override closure. A same-name
+    // overload silently changed it into a parent override and was rejected.
+    let oldChildTrailing = try await TrailingParent.makeOwned { $0.service = 9 }
+    precondition(oldChildTrailing.container.service == 1 && oldChildTrailing.container.child.service == 9)
+    await oldChildTrailing.close()
+    let parentBuilder = try await TrailingParent.makeOwnedWithOverrides { $0.service = 9 }
+    precondition(parentBuilder.container.service == 9 && parentBuilder.container.child.service == 2)
+    await parentBuilder.close()
+    let local = LocalValue()
+    let isolated = try await Isolated.makeOwnedWithOverrides(local: LocalValue()) { $0.fresh = local }
+    precondition(isolated.container.fresh === local)
+    await isolated.close()
+    let counter = OverrideCounter()
+    do {
+        _ = try await OverridePreflight.makeOwnedWithOverrides(counter: counter) { _ in
+            throw OverridePreflightFailure.rejected
+        }
+        preconditionFailure("throwing override preflight returned an owner")
+    } catch OverridePreflightFailure.rejected {}
+    precondition(counter.value == 0)
+    let cancelled = Task {
+        withUnsafeCurrentTask { $0?.cancel() }
+        do {
+            _ = try await OverridePreflight.makeOwnedWithOverrides(counter: counter) { _ in
+                _ = counter.made()
+            }
+            preconditionFailure("cancelled construction ran")
+        } catch is CancellationError {}
+    }
+    try await cancelled.value
+    precondition(counter.value == 0) // neither builder closure nor live factories
+    var preset = OverridePreflight.Overrides()
+    precondition(preset.missingEffectOverrides.count == 1)
+    preset.sync = 21; preset.asyncValue = 22
+    precondition(preset.missingEffectOverrides.isEmpty)
+    let owner = try await OverridePreflight.makeOwnedWithOverrides(counter: counter) { $0 = preset }
+    let asyncValue = try await owner.container.asyncValue
+    precondition(owner.container.sync == 21 && asyncValue == 22 && counter.value == 0)
+    await owner.close()
+    let transientCounter = TransientCounter()
+    let nilOwner = try await ForwardTransient.makeOwnedWithOverrides(counter: transientCounter) { $0.leaf = .some(nil) }
+    precondition(nilOwner.container.result.leaf == nil && transientCounter.made == 0)
+    await nilOwner.close()
+    print("real plugin owned Overrides builder passed")
+}
+
+// A nominal name is not a reliable spelling of Self inside its nested view.
+struct WitnessNamespace {
+    @DIContainer(generateOwned: true)
+    struct Same {
+        struct Same {}
+        @Input var factory: () -> Self
+        @Input var transform: (Self) -> Self
+        @Input var children: [Self]
+        static func identity(_ value: Self) -> Self { value }
+    }
+}
+func verifyOuterSelf(_ owner: WitnessNamespace.Same._InnoDIOwner) {
+    let _: () -> WitnessNamespace.Same = owner.container.factory
+    let _: (WitnessNamespace.Same) -> WitnessNamespace.Same = owner.container.transform
+    let _: [WitnessNamespace.Same] = owner.container.children
+}
+
+
+final class TransientCounter: Sendable {
+    private let state = Mutex((made: 0, released: 0))
+    func make() { state.withLock { $0.made += 1 } }
+    func release() { state.withLock { $0.released += 1 } }
+    var made: Int { state.withLock { $0.made } }
+    var released: Int { state.withLock { $0.released } }
+}
+final class TransientNode {
+    let children: [TransientNode]
+    private let counter: TransientCounter
+    init(_ counter: TransientCounter, _ children: [TransientNode] = []) {
+        self.counter = counter; self.children = children; counter.make()
+    }
+    deinit { counter.release() }
+}
+@DIContainer(generateOwned: true) struct MixedTransient {
+    @Input var counter: TransientCounter
+    @Provide(.shared, initialization: .onDemand, factory: { (counter: TransientCounter) in TransientNode(counter) }) var root: TransientNode
+    @Provide(.transient, factory: { (counter: TransientCounter, root: TransientNode) in TransientNode(counter, [root]) }) var leaf: TransientNode
+    @Provide(.transient, factory: { (counter: TransientCounter, leaf: TransientNode) in TransientNode(counter, [leaf]) }) var left: TransientNode
+    @Provide(.transient, factory: { (counter: TransientCounter, leaf: TransientNode) in TransientNode(counter, [leaf]) }) var right: TransientNode
+    @Provide(.transient, factory: { (counter: TransientCounter, left: TransientNode, right: TransientNode) in TransientNode(counter, [left, right]) }) var diamond: TransientNode
+    @Provide(.shared, asyncFactory: { () async in 42 }) var ownedAsync: Int
+}
+@MainActor func verifySynchronousTransients() async throws {
+    let counter = TransientCounter()
+    do {
+        let owner = try await MixedTransient.makeOwned(counter: counter)
+        let view = owner.container
+        precondition(counter.made == 0)
+        let first = view.diamond
+        precondition(counter.made == 6)
+        precondition(first.children[0].children[0] !== first.children[1].children[0])
+        precondition(first.children[0].children[0].children[0] === view.root)
+        let second = view.diamond
+        precondition(first !== second && counter.made == 11)
+        await owner.close()
+        let third = view.diamond
+        precondition(third !== second && counter.made == 16)
+        do { _ = try await view.ownedAsync; preconditionFailure("closed async read") }
+        catch DIAsyncScopeError.closed(providerID: "ownedAsync") {}
+    }
+    precondition(counter.made == counter.released)
+    let overridden = TransientCounter()
+    do {
+        let replacement = TransientNode(overridden)
+        let owner = try await MixedTransient.makeOwned(counter: overridden, diamond: replacement)
+        precondition(owner.container.diamond === replacement)
+        precondition(owner.container.diamond === replacement)
+        precondition(overridden.made == 1) // no live diamond, leaf, or lazy root
+        await owner.close()
+        precondition(owner.container.diamond === replacement)
+    }
+    precondition(overridden.made == overridden.released)
+}
+
+
+struct ForwardPayload {
+    let leaf: TransientNode?
+    init(leaf: TransientNode?) { self.leaf = leaf }
+}
+@DIContainer(generateOwned: true) struct ForwardTransient {
+    @Input var counter: TransientCounter
+    @Provide(.transient, ForwardPayload.self, with: [\Self.leaf]) var result: ForwardPayload
+    @Provide(.transient, factory: { (root: TransientNode) in Optional.some(root) }) var leaf: TransientNode?
+    @Provide(.shared, initialization: .onDemand, factory: { (counter: TransientCounter) in TransientNode(counter) }) var root: TransientNode
+}
+@MainActor func verifyForwardTransientWithNilOverride() async throws {
+    let counter = TransientCounter()
+    do {
+        let owner = try await ForwardTransient.makeOwned(counter: counter)
+        precondition(counter.made == 0)
+        let first = owner.container.result
+        precondition(first.leaf != nil && counter.made == 1)
+        precondition(first.leaf === owner.container.result.leaf)
+        await owner.close()
+        precondition(first.leaf === owner.container.result.leaf)
+    }
+    precondition(counter.released == 1)
+    let overridden = TransientCounter()
+    let owner = try await ForwardTransient.makeOwned(counter: overridden, leaf: .some(nil))
+    precondition(owner.container.result.leaf == nil && overridden.made == 0)
+    precondition(owner.container.leaf == nil && overridden.made == 0)
+    await owner.close()
+    precondition(owner.container.result.leaf == nil && overridden.made == 0)
+}

@@ -323,6 +323,14 @@ public struct DIAsyncPreparationPlan: Sendable {
         }
     }
 
+    // Owner cleanup already owns the validated complete graph. It must not
+    // perform another throwing selection step after closing admission.
+    func closeAll() async {
+        for id in topologicalOrder.reversed() {
+            await providers[id]?.close()
+        }
+    }
+
     private func transitiveSelection(
         _ requested: [String]
     ) throws -> Set<String> {
@@ -391,8 +399,22 @@ public struct DIAsyncPreparationPlan: Sendable {
 /// It also releases the scope's factory captures. Already-running work retains
 /// its own captures until it returns, even if it ignores cancellation.
 /// ``retry()`` is available after failure and advances to a clean generation.
+/// ``start()`` admits work without waiting for its value or adding a waiter.
 public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryParticipant {
     public typealias Operation = @Sendable () async throws -> Value
+
+    // Allocate only for explicit ready overrides. Keeping the reusable seed
+    // behind a typed immutable box avoids adding another inline Value-sized
+    // field to every ordinary factory-backed scope.
+    private final class Seed: Sendable {
+        let value: Value
+        init(_ value: Value) { self.value = value }
+    }
+
+    private enum Source {
+        case operation(Operation)
+        case value(Seed)
+    }
 
     private enum Phase {
         case idle
@@ -404,7 +426,8 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
     }
 
     public nonisolated let providerID: String
-    private var operation: Operation?
+    private let admission: _InnoDIAsyncAdmission?
+    private var source: Source?
     private var generation = 0
     private var phase: Phase = .idle
     private var ownedTask: Task<Value, any Error>?
@@ -414,7 +437,43 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
 
     public init(providerID: String, operation: @escaping Operation) {
         self.providerID = providerID
-        self.operation = operation
+        self.admission = nil
+        self.source = .operation(operation)
+    }
+
+    /// Creates a factory-backed scope bound to a shared owner admission gate.
+    public init(
+        providerID: String,
+        admission: _InnoDIAsyncAdmission,
+        operation: @escaping Operation
+    ) {
+        self.providerID = providerID
+        self.admission = admission
+        self.source = .operation(operation)
+    }
+
+    /// Creates an already-ready scope backed by a concrete override value.
+    ///
+    /// A subgraph reset advances to an idle generation. Its next ``start()``
+    /// or ``value()`` restores the same value without invoking a factory or
+    /// creating a task. ``close()`` releases both the cached and reusable value.
+    public init(value: Value, providerID: String) {
+        self.providerID = providerID
+        self.admission = nil
+        self.source = .value(Seed(value))
+        self.phase = .ready(value)
+    }
+
+    /// Creates an already-ready override bound to a shared owner admission gate.
+    public init(
+        value: Value,
+        providerID: String,
+        admission: _InnoDIAsyncAdmission
+    ) {
+        self.providerID = providerID
+        self.admission = admission
+        self.source = .value(Seed(value))
+        self.phase = .ready(value)
     }
 
     public func status() async -> DIAsyncProviderStatus {
@@ -441,6 +500,11 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
 
     public func value() async throws -> Value {
         try Task.checkCancellation()
+        try await admission?.admit(providerID: providerID)
+        return try await valueAfterAdmission()
+    }
+
+    private func valueAfterAdmission() async throws -> Value {
         await waitForRetryReservation()
         try Task.checkCancellation()
         let waiterID = UUID()
@@ -453,9 +517,41 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
         }
     }
 
+    /// Admits this generation's work without waiting for readiness.
+    ///
+    /// Waits only for owner admission and an in-progress retry reservation.
+    /// An idle factory starts one owned task; concurrent starts and value
+    /// requests share that task.
+    /// Ready, failed, and cancelled generations return their cached status
+    /// without an implicit retry. A closed scope throws
+    /// ``DIAsyncScopeError/closed(providerID:)``.
+    ///
+    /// Cancellation before admission prevents work from starting. Once work
+    /// is admitted, cancelling this caller does not cancel the owned task.
+    public func start() async throws -> DIAsyncProviderStatus {
+        try Task.checkCancellation()
+        try await admission?.admit(providerID: providerID)
+        await waitForRetryReservation()
+        try Task.checkCancellation()
+        try startAdmittedWork()
+        return currentStatus()
+    }
+
     public func prepare() async -> DIAsyncProviderStatus {
         do {
-            _ = try await value()
+            try Task.checkCancellation()
+            do {
+                try await admission?.admit(providerID: providerID)
+            } catch let error as DIAsyncScopeError
+                where error == .closed(providerID: providerID) {
+                // Admission can close before this scope's cleanup runs. Keep
+                // that outcome separate from a factory throwing the same
+                // public error, which remains a cached provider failure.
+                try Task.checkCancellation()
+                await waitForRetryReservation()
+                return makeStatus(.closed)
+            }
+            _ = try await valueAfterAdmission()
         } catch is CancellationError {
             await waitForRetryReservation()
             return makeStatus(.cancelled)
@@ -467,6 +563,7 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
     }
 
     public func retry() async throws {
+        try await admission?.admit(providerID: providerID)
         await waitForRetryReservation()
         try Task.checkCancellation()
         switch phase {
@@ -482,6 +579,7 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
     }
 
     public func resetForSubgraphRetry() async throws {
+        try await admission?.admit(providerID: providerID)
         await waitForRetryReservation()
         try Task.checkCancellation()
         switch phase {
@@ -498,11 +596,34 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
         }
     }
 
+    /// Cancels running work while retaining its source for retry.
+    ///
+    /// Running value waiters resume with `CancellationError`. Idle scopes,
+    /// ready values, cached failures, and closed scopes remain unchanged.
+    /// Cancellation does not advance the generation; ``retry()`` starts a
+    /// clean generation after running work was cancelled.
+    public func cancel() async {
+        await waitForRetryReservation()
+        switch phase {
+        case .running:
+            phase = .cancelled
+            ownedTask?.cancel()
+            ownedTask = nil
+            let currentWaiters = waiters.values
+            waiters.removeAll(keepingCapacity: false)
+            for waiter in currentWaiters {
+                waiter.resume(throwing: CancellationError())
+            }
+        case .idle, .ready, .failed, .cancelled, .closed:
+            break
+        }
+    }
+
     public func close() async {
         await waitForRetryReservation()
         guard case .closed = phase else {
             phase = .closed
-            operation = nil
+            source = nil
             ownedTask?.cancel()
             ownedTask = nil
             let currentWaiters = waiters.values
@@ -526,6 +647,7 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
 
     fileprivate func reserveForRetry(_ token: UUID) async throws -> DIAsyncProviderStatus {
         try Task.checkCancellation()
+        try await admission?.admit(providerID: providerID)
         await waitForRetryReservation()
         try Task.checkCancellation()
         retryReservation = token
@@ -561,6 +683,12 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
             continuation.resume(throwing: CancellationError())
             return
         }
+        do {
+            try startAdmittedWork()
+        } catch {
+            continuation.resume(throwing: error)
+            return
+        }
         switch phase {
         case .ready(let value):
             continuation.resume(returning: value)
@@ -573,14 +701,25 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
                 throwing: DIAsyncScopeError.closed(providerID: providerID)
             )
         case .idle, .running:
-            guard let operation else {
-                continuation.resume(throwing: DIAsyncScopeError.closed(providerID: providerID))
-                return
-            }
             waiters[waiterID] = continuation
-            if case .idle = phase {
+        }
+    }
+
+    private func startAdmittedWork() throws {
+        switch phase {
+        case .idle:
+            switch source {
+            case .operation(let operation):
                 startOwnedTask(operation: operation)
+            case .value(let seed):
+                phase = .ready(seed.value)
+            case nil:
+                throw DIAsyncScopeError.closed(providerID: providerID)
             }
+        case .closed:
+            throw DIAsyncScopeError.closed(providerID: providerID)
+        case .running, .ready, .failed, .cancelled:
+            break
         }
     }
 

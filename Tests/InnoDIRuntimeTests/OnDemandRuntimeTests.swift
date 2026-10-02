@@ -229,16 +229,13 @@ struct OnDemandRuntimeTests {
         let counter = OnDemandCounter()
         let container = OnDemandContainer(counter: counter)
 
-        try container.prewarm(\OnDemandContainer.service)
+        container.prewarm(.service)
         #expect(counter.snapshot() == 1)
         _ = container.service
         #expect(counter.snapshot() == 1)
         _ = container.secondary
         #expect(counter.snapshot() == 2)
 
-        #expect(throws: DIPrewarmError.unsupportedProvider) {
-            try container.prewarm(\OnDemandContainer.counter)
-        }
     }
 
     @Test("the runtime cell coalesces concurrent readers")
@@ -265,14 +262,14 @@ struct OnDemandRuntimeTests {
         let counter = OnDemandCounter()
         let container = OnDemandWrapperContainer(counter: counter)
 
-        try container.prewarm(\OnDemandWrapperContainer.lazyConsumer)
+        container.prewarm(.lazyConsumer)
         #expect(counter.snapshot() == 0)
         let lazyFirst = container.lazyConsumer.service()
         let lazySecond = container.lazyConsumer.service()
         #expect(lazyFirst === lazySecond)
         #expect(counter.snapshot() == 1)
 
-        try container.prewarm(\OnDemandWrapperContainer.providerConsumer)
+        container.prewarm(.providerConsumer)
         #expect(counter.snapshot() == 1)
         let transientFirst = container.providerConsumer.service()
         let transientSecond = container.providerConsumer.service()
@@ -287,7 +284,7 @@ struct OnDemandRuntimeTests {
         #expect(counter.snapshot() == 1)
         #expect(parent.child.service === parent.service)
 
-        try parent.prewarm(\OnDemandFixedParentContainer.service)
+        parent.prewarm(.service)
         #expect(counter.snapshot() == 1)
     }
 

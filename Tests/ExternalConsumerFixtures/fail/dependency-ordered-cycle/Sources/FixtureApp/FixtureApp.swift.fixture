@@ -1,0 +1,7 @@
+import InnoDI
+
+@DIContainer(validateDAG: false, initializationOrder: ContainerInitializationOrder.dependency)
+struct InvalidContainer {
+    @Provide(.shared, factory: { (second: Int) in second }) var first: Int
+    @Provide(.shared, factory: { (first: Int) in first }) var second: Int
+}

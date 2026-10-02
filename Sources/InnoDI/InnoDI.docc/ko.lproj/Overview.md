@@ -57,6 +57,7 @@ graph tooling에 초점을 둡니다.
 - <doc:lock-safety>
 - <doc:DAGValidation>
 - <doc:AsyncPreparation>
+- <doc:OwnedContainers>
 - <doc:RuntimeTracing>
 - <doc:PluginOptOut>
 - <doc:MigrationGuide>
@@ -66,7 +67,7 @@ graph tooling에 초점을 둡니다.
 - <doc:DIContainer>
 - <doc:Provide>
 - ``Input(_:escaping:)``
-- ``DIContainerRole(role:mainActor:validateDAG:)``
+- ``DIContainerRole(role:mainActor:validateDAG:initializationOrder:generateOwned:)``
 
 ### Experimental
 
@@ -78,7 +79,7 @@ graph tooling에 초점을 둡니다.
 
 ### Symbols
 
-- ``DIContainer(validateDAG:)``
+- ``DIContainer(validateDAG:initializationOrder:generateOwned:)``
 - ``Provide(_:_:with:initialization:effect:collection:factory:asyncFactory:)``
 - ``DIScope``
 - ``Lazy``

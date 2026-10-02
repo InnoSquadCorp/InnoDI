@@ -1,0 +1,25 @@
+import InnoDI
+
+public struct PublicProviderHandle {
+    public let value: InnoDI.Provider<Int>
+}
+
+public enum PublicNamespace {
+    @DIContainer(generateOwned: true)
+    public struct Container {
+        @Input public var seed: Int
+        @Provide(.shared, asyncFactory: { (seed: Int) async in seed + 1 })
+        public var service: Int
+        @Provide(.transient, factory: { (seed: Int) in seed * 2 }) public var fresh: Int
+        @Provide(.shared, factory: { (fresh: InnoDI.Provider<Int>) in PublicProviderHandle(value: fresh) }) public var freshHandle: PublicProviderHandle
+        @Provide(.shared, factory: { () in 10 }) fileprivate var hidden: Int
+    }
+
+    @DIContainer(generateOwned: true)
+    public struct Same {
+        public struct Same {}
+        @Input public var factory: () -> Self
+        @Input public var transform: (Self) -> Self
+        @Input public var children: [Self]
+    }
+}

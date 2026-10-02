@@ -52,6 +52,14 @@ InnoDI keeps validation deterministic by choosing a few explicit boundaries.
 - `.transient` members may reference any container member, but names still
   resolve strictly.
 
+These are the default `ContainerInitializationOrder.declaration` rules.
+`ContainerInitializationOrder.dependency` opts into stable topological
+construction within the sync-shared and async-shared stages. Hard forward
+references within a stage become available; inputs and all sync-shared values
+are available to the async stage. Scope/effect restrictions and ownership-cycle
+validation remain unchanged. Deferred edges do not order construction. Factory
+side effects may move; see <doc:DIContainer> before adopting the opt-in.
+
 ## Provider Effects
 
 - A synchronous provider can be consumed by sync, `async`, and `async throws`

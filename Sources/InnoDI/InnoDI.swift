@@ -137,8 +137,9 @@ public protocol DIMainActorOverrideEffectValidating {
     var missingEffectOverrides: [DIProviderEffectRequirement] { get }
 }
 
-/// Raised when generated prewarming receives a key path that does not name an
-/// on-demand shared provider on that container.
+/// Retained for migration from the legacy key-path prewarm API.
+/// Generated typed selections reject unsupported providers at compile time and
+/// do not throw this error.
 public enum DIPrewarmError: Error, Equatable, Sendable {
     case unsupportedProvider
 }
@@ -159,6 +160,20 @@ public enum ContainerRole {
     public static let root = "root"
 }
 
+/// Source tokens selecting shared-provider initialization order.
+///
+/// These named string tokens avoid the Swift 6.2.3 multi-role macro crash
+/// associated with enum-valued arguments, like ``ContainerRole``. Only the
+/// exact named tokens (optionally qualified by `InnoDI`) are supported.
+public enum ContainerInitializationOrder {
+    /// Preserve source declaration order within the synchronous and async stages.
+    public static let declaration = "declaration"
+    /// Order hard dependencies before consumers within each construction stage.
+    /// Independent ready providers retain their relative declaration priority.
+    /// This opt-in can change observable factory side-effect order.
+    public static let dependency = "dependency"
+}
+
 /// Compiler support used by generated invariant paths. Application code must
 /// not call this function directly.
 @_documentation(visibility: internal)
@@ -174,8 +189,15 @@ public func _innoDITrap<T>(_ message: String) -> T {
 ///
 /// - Parameter validateDAG: Enables global DAG validation plus the macro's
 ///   graph-derived local checks for this container. When set to `false`, global
-///   DAG validation and local cycle checks are skipped, but declaration
-///   diagnostics and effect compatibility on explicit sibling edges still apply.
+///   DAG availability diagnostics are skipped, but declaration diagnostics,
+///   effect compatibility and ownership-cycle rejection still apply.
+/// - Parameter generateOwned: Opt in to `makeOwned(...)`, a separate async
+///   construction path returning a typed owner and dependency view. The owner
+///   controls only its generated async shared scopes. Omission or `false` adds
+///   no owned API and leaves the existing initializer unchanged.
+/// - Parameter initializationOrder: Use `ContainerInitializationOrder.dependency`
+///   to construct shared providers in stable dependency order. The default
+///   `ContainerInitializationOrder.declaration` preserves declaration order.
 ///
 /// The generated `async` and
 /// `async throws` `withOverrides` methods and their operation closure types use
@@ -185,7 +207,7 @@ public func _innoDITrap<T>(_ message: String) -> T {
 /// when every generated API must be isolated to the main actor.
 ///
 /// > Important: `validateDAG: false` is a narrow opt-out from the global
-/// > DAG and local cycle gates. Treat it as a temporary fixture rather than
+/// > DAG availability gates. Ownership cycles still fail. Treat it as a temporary fixture rather than
 /// > a release-quality flag — production builds should keep the default. See
 /// > <doc:DAGValidation> for the configuration-aware enforcement pattern.
 /// > Every PR runs `Tools/report-validate-dag-escape-hatches.sh`, which
@@ -208,7 +230,9 @@ public func _innoDITrap<T>(_ message: String) -> T {
 /// > preflight enforces this edge case. Without it, companion macros stacked on
 /// > an accessor-local container can emit secondary compiler or macro errors.
 public macro DIContainer(
-    validateDAG: Bool = true
+    validateDAG: Bool = true,
+    initializationOrder: String = ContainerInitializationOrder.declaration,
+    generateOwned: Bool = false
 ) = #externalMacro(module: "InnoDIMacros", type: "DIContainerMacro")
 
 @attached(memberAttribute)
@@ -223,10 +247,17 @@ public macro DIContainer(
 /// Declares the explicit 6.0 hierarchy role for a container. Use the `.local`
 /// token for an actor-isolated local container, `.component` for a mountable
 /// feature boundary, and `.root` for the rooted validation entry point.
+///
+/// - Parameter generateOwned: Set literal `true` to add `makeOwned(...)` and
+///   its typed dependency view and async lifecycle owner. The existing
+///   initializer remains unchanged. See <doc:OwnedContainers> for lifecycle,
+///   borrowing, and supported-shape boundaries.
 public macro DIContainerRole(
     role: String,
     mainActor: Bool = false,
-    validateDAG: Bool = true
+    validateDAG: Bool = true,
+    initializationOrder: String = ContainerInitializationOrder.declaration,
+    generateOwned: Bool = false
 ) = #externalMacro(module: "InnoDIMacros", type: "DIContainerRoleMacro")
 
 @attached(member, names: named(init), named(callAsFunction), arbitrary)

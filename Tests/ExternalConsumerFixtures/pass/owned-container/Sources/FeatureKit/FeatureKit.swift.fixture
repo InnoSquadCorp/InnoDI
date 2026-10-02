@@ -1,0 +1,38 @@
+import InnoDI
+
+public enum Owner: Sendable { case service }
+public enum OwnedView: Sendable { case service }
+public enum OwnedProvider: Sendable { case service }
+public final class LocalValue { public init() {} }
+
+@DIContainer(generateOwned: true)
+public struct Container {
+    @Input public var input: Int
+    @Provide(.shared, initialization: .onDemand, factory: { (input: Int) in input }) public var lazy: Int
+    @Provide(.shared, asyncFactory: { (lazy: Int) async in lazy }) public var first: Int
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { (first: Int) async in first + 1 }) public var service: Int
+    @Provide(.shared, asyncFactory: { () async in Owner.service }) public var ownerPayload: Owner
+    @Provide(.shared, asyncFactory: { () async in OwnedView.service }) public var viewPayload: OwnedView
+    @Provide(.shared, asyncFactory: { () async in OwnedProvider.service }) public var providerPayload: OwnedProvider
+}
+
+@DIContainerRole(role: ContainerRole.local, mainActor: true, generateOwned: true)
+public struct MainContainer {
+    public enum Value: Sendable { case service }
+    public static func makeValue() -> Value { .service }
+    @Input public var local: LocalValue
+    @Provide(.shared, initialization: .onDemand, factory: { (local: LocalValue) in local }) public var lazy: LocalValue
+    @Provide(.shared, asyncFactory: { () async -> Self.Value in Self.makeValue() }) public var service: Value
+}
+
+@DIContainer(generateOwned: true)
+public struct CallerContainer {
+    @Input public var local: LocalValue
+    @Provide(.shared, initialization: .onDemand, factory: { (local: LocalValue) in local }) public var lazy: LocalValue
+}
+
+// The new name reservation is opt-in only.
+@DIContainer(generateOwned: false)
+public struct LegacyNameContainer {
+    public struct makeOwned {}
+}

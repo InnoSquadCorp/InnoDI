@@ -1,0 +1,6 @@
+import InnoDI
+// Known pre-existing restriction: generated legacy Overrides has its own Self.
+@DIContainer(generateOwned: true) struct Container {
+    enum Value: Sendable { case service }
+    @Provide(.shared, factory: { () in Value.service }) var value: Self.Value
+}

@@ -1,0 +1,38 @@
+import InnoDI
+
+struct NumberClient: Sendable {
+    var fetch: @Sendable () -> Int
+    static let live = Self(fetch: { 42 })
+}
+@DIContainer struct Services {
+    @Provide(.shared, factory: NumberClient.live) var numberClient: NumberClient
+}
+struct Feature: Sendable {
+    let client: NumberClient
+    func result() -> Int { client.fetch() }
+}
+
+@main struct Check {
+    static func main() async {
+        let live = Feature(client: Services().numberClient)
+        let test = Feature(client: Services(numberClient: NumberClient(fetch: { 7 })).numberClient)
+        precondition(live.result() == 42 && test.result() == 7)
+        let taskClient = Services(numberClient: NumberClient(fetch: { 9 })).numberClient
+        let inherited = Task { Feature(client: taskClient).result() }
+        let result = await inherited.value
+        precondition(result == 9 && live.result() == 42 && test.result() == 7)
+        let parallel = await withTaskGroup(of: Int.self) { group in
+            for value in [11, 13] {
+                group.addTask {
+                    let services = Services(numberClient: NumberClient(fetch: { value }))
+                    return Feature(client: services.numberClient).result()
+                }
+            }
+            var values: [Int] = []
+            for await value in group { values.append(value) }
+            return values.sorted()
+        }
+        precondition(parallel == [11, 13])
+        print("explicit effect override, captured dependency, task capture and parallel isolation passed")
+    }
+}

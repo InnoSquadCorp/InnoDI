@@ -14,10 +14,12 @@ struct DIContainerCodeGenerator {
     /// Exercise the same throwing factory/dependency builders as emission,
     /// without constructing syntax that the member-attribute role discards.
     static func validateInitialization(for model: DIContainerExpansionModel) throws {
+        let initializationPlan = try DIContainerInitializationPlan(model: model)
         _ = try makeInitDecl(
             sharedMembers: model.sharedMembers,
             syncSharedMembers: model.syncSharedMembers,
             asyncSharedMembers: model.asyncSharedMembers,
+            initializationPlan: initializationPlan,
             inputMembers: model.inputMembers,
             transientMembers: model.transientMembers,
             subContainerMembers: model.subContainerMembers,
@@ -32,10 +34,12 @@ struct DIContainerCodeGenerator {
         for model: DIContainerExpansionModel,
         prependingInitializationMARK: Bool = true
     ) throws -> DeclSyntax {
+        let initializationPlan = try DIContainerInitializationPlan(model: model)
         let initDecl = try makeInitDecl(
             sharedMembers: model.sharedMembers,
             syncSharedMembers: model.syncSharedMembers,
             asyncSharedMembers: model.asyncSharedMembers,
+            initializationPlan: initializationPlan,
             inputMembers: model.inputMembers,
             transientMembers: model.transientMembers,
             subContainerMembers: model.subContainerMembers,
@@ -81,10 +85,11 @@ struct DIContainerCodeGenerator {
             )
         )
 
-        if let prewarm = makePrewarmDecl(model: model) {
-            decls.append(
-                prewarm.prependingMARK("// MARK: - On-Demand Prewarming")
-            )
+        let prewarmDecls = makeTypedPrewarmDecls(model: model)
+        for (index, declaration) in prewarmDecls.enumerated() {
+            decls.append(index == 0
+                ? declaration.prependingMARK("// MARK: - On-Demand Prewarming")
+                : declaration)
         }
 
         if let close = makeCloseAsyncProvidersDecl(model: model) {
@@ -121,43 +126,12 @@ struct DIContainerCodeGenerator {
         // subsequent overload carries a sub-MARK that names its effect
         // shape so reviewers can see which variant they are looking at.
         decls.append(contentsOf: makeWithOverridesMethods(model: model))
+        if model.options.generateOwned {
+            decls.append(contentsOf: try makeOwnedContainerDecls(model: model))
+        }
 
         return decls
     }
-}
-
-private func makePrewarmDecl(
-    model: DIContainerExpansionModel
-) -> DeclSyntax? {
-    let members = model.syncSharedMembers.filter {
-        $0.initialization == .onDemand
-    }
-    guard !members.isEmpty else { return nil }
-
-    let accessPrefix = model.accessLevel.map { "\($0) " } ?? ""
-    let actorPrefix = model.options.mainActor ? "@MainActor\n" : ""
-    let matches = members.map { member in
-        """
-        if provider == \\Self.\(member.name) {
-            _ = self.\(member.name)
-            matched = true
-        }
-        """
-    }.joined(separator: "\n")
-
-    return DeclSyntax(
-        stringLiteral: """
-        \(actorPrefix)\(accessPrefix)func prewarm(_ providers: Swift.PartialKeyPath<Self>...) throws {
-            for provider in providers {
-                var matched = false
-                \(matches)
-                if !matched {
-                    throw InnoDI.DIPrewarmError.unsupportedProvider
-                }
-            }
-        }
-        """
-    )
 }
 
 /// The generated method that closes every asynchronous on-demand provider.
@@ -218,6 +192,7 @@ private func makeInitDecl(
     sharedMembers: [ProvideMemberModel],
     syncSharedMembers: [ProvideMemberModel],
     asyncSharedMembers: [ProvideMemberModel],
+    initializationPlan: DIContainerInitializationPlan,
     inputMembers: [ProvideMemberModel],
     transientMembers: [ProvideMemberModel],
     subContainerMembers: [SubContainerMemberModel],
@@ -459,8 +434,8 @@ private func makeInitDecl(
     }
 
     let inputStorageNames = inputMembers.map { "_storage_\($0.name)" }
-    for (index, member) in syncSharedMembers.enumerated() {
-        let availableStorageNames = inputStorageNames + syncSharedMembers.prefix(index).map { "_storage_\($0.name)" }
+    for (index, member) in initializationPlan.syncShared.enumerated() {
+        let availableStorageNames = inputStorageNames + initializationPlan.syncShared.prefix(index).map { "_storage_\($0.name)" }
         let factoryExpr = try makeFactoryExpr(
             member: member,
             availableNames: availableStorageNames,
@@ -582,7 +557,7 @@ private func makeInitDecl(
         }
     }
 
-    for member in asyncSharedMembers {
+    for member in initializationPlan.asyncShared {
         let createExpr = try makeAsyncFactoryExpr(
             member: member,
             resolvedDependencyExpressions: resolvedDependencyExpressions,

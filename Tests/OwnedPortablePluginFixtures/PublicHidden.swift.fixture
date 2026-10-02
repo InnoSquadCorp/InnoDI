@@ -1,0 +1,4 @@
+import OwnedPublicLibrary
+func invalid(_ owner: PublicNamespace.Container._InnoDIOwner) {
+    _ = owner.container.hidden
+}

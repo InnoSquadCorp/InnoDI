@@ -295,8 +295,16 @@ Every stored instance member in a container must use `@Provide` or
 the generated initializer complete and prevents memberwise-initializer drift.
 
 ```swift
-@DIContainer(validateDAG: Bool = true)
-@DIContainerRole(role: String, mainActor: Bool = false, validateDAG: Bool = true)
+@DIContainer(
+    validateDAG: Bool = true,
+    initializationOrder: String = ContainerInitializationOrder.declaration
+)
+@DIContainerRole(
+    role: String,
+    mainActor: Bool = false,
+    validateDAG: Bool = true,
+    initializationOrder: String = ContainerInitializationOrder.declaration
+)
 ```
 
 | Parameter | Default | Meaning |
@@ -304,6 +312,48 @@ the generated initializer complete and prevents memberwise-initializer drift.
 | `role` | required for `@DIContainerRole` | `ContainerRole.local`, `.component`, or `.root`. Root role selects graph-render reachability; component role exposes the cross-module mount contract. |
 | `validateDAG` | `true` | Enables global DAG validation plus local graph-derived checks. `false` skips global DAG and local availability checks; local ownership-cycle, declaration, and explicit sibling effect checks remain mandatory. |
 | `mainActor` | `false` | Applies `@MainActor` to dependency accessors, all generated initializers, `Overrides`, the `applyOverrides` function types used by convenience initializers, `withOverrides`, child overrides, and component mounting, all four `withOverrides` operation closures, and feature-root helpers. With `@DIContainerRole(role: ContainerRole.component)`, it also isolates the generated dependency protocol and `init(dependencies:_:)`, and uses the dedicated `_InnoDIMainActorComponentMountable` conformance. Components without the option continue to use `_InnoDIComponentMountable`. Recommended for UI-root containers. |
+| `initializationOrder` | `ContainerInitializationOrder.declaration` | Opt into `.dependency` with the full named token to construct shared providers in dependency order. Review factory side effects before adopting. |
+
+## Opt-in Dependency Ordering
+
+The default `ContainerInitializationOrder.declaration` preserves the existing
+construction rules. Select `ContainerInitializationOrder.dependency` to wire
+acyclic shared providers without moving their declarations above their users.
+Only these named tokens, optionally qualified with `InnoDI.`, are accepted;
+string literals, variables, and shorthand `.dependency` are not supported.
+
+```swift
+@DIContainer(initializationOrder: ContainerInitializationOrder.dependency)
+struct AppContainer {
+    @Provide(.shared, factory: { (configuration: Configuration) in
+        Client(configuration: configuration)
+    }) var client: Client
+    @Provide(.shared, factory: Configuration()) var configuration: Configuration
+}
+```
+
+The macro orders synchronous shared construction first, then asynchronous
+shared handle creation. Within each stage, a hard dependency precedes its
+consumer; among ready providers the earliest source declaration wins. Already
+valid declaration-ordered containers retain their construction order. Inputs,
+initializer argument order, override fields and child mounting stay unchanged.
+
+This is an explicit behavior choice: a forward dependency can move observable
+factory side effects. Review initialization traces when adopting it; no factory
+is assumed pure. Async completion order is still determined by execution, and
+independent tasks are not serialized. On-demand providers remain on-demand;
+ordering their capture/cell setup does not prewarm unused services.
+
+`Lazy` and `Provider` edges remain deferred, but still count for ownership-cycle
+validation. Cycles remain errors, including with `validateDAG: false`. The opt-in
+does not permit a sync factory to consume async work, a shared hard edge to a
+transient provider, or a provider to depend on a child container. It does not
+change close, cancellation, retry, or container-copy lifetime contracts.
+
+Existing containers need no migration. Adoption adds one argument; do not
+mechanically reorder declarations or change the default across an app without
+reviewing side effects. This next-major prototype has no assigned release.
+
 
 In 6.0, generic component-mounting helpers must distinguish the two marker
 protocols. Keep `_InnoDIComponentMountable` for ordinary components and add an

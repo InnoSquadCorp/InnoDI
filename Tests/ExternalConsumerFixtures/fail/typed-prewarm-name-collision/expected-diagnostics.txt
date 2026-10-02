@@ -1,0 +1,1 @@
+Direct container declaration '_InnoDIPrewarmProvider' uses the reserved generated prefix '_InnoDI'. Rename the declaration so it does not collide with compiler-authored storage and support symbols.

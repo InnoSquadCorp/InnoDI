@@ -1,0 +1,22 @@
+// swift-tools-version: 6.2
+
+import PackageDescription
+
+let package = Package(
+    name: "OwnedOverridesDeferredConsumer",
+    platforms: [.macOS(.v14)],
+    dependencies: [.package(path: "{{INNODI_PACKAGE_PATH}}")],
+    targets: [
+        .target(
+            name: "OwnedPublicLibrary",
+            dependencies: [.product(name: "InnoDI", package: "{{INNODI_PACKAGE_IDENTITY}}")]
+        ),
+        .executableTarget(
+            name: "FixtureApp",
+            dependencies: [
+                "OwnedPublicLibrary",
+                .product(name: "InnoDI", package: "{{INNODI_PACKAGE_IDENTITY}}"),
+            ]
+        ),
+    ]
+)

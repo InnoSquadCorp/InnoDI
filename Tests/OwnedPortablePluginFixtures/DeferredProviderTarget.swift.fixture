@@ -1,0 +1,5 @@
+import InnoDI
+@DIContainer(generateOwned: true) struct Container {
+    @Input var value: Int
+    @Provide(.shared, factory: { (value: InnoDI.Provider<Int>) in 2 }) var result: Int
+}
