@@ -15,13 +15,19 @@ DIRECT = {'CI Plan', 'CI and public operations policy', 'Documentation contracts
           'Exhaustive consumer contracts (Xcode 26.6)',
           'Thread and address sanitizers (Xcode 26.6)', 'Swift 6.2 compatibility',
           'Xcode 27 compatibility preview', 'Apple platform builds (Xcode 26.6)',
-          'path-identity', 'CI Metadata Only', 'append-perf-history'}
+          'path-identity', 'append-perf-history'}
 # GitHub can expose a skipped reusable call itself or its skipped child jobs.
 CALLS = (({'examples'}, {'examples / sample-app', 'examples / swiftui-example',
                         'examples / preview-injection-example', 'examples / Examples Required'}),
          ({'docc'}, {'docc / docc'}),
          ({'remote-consumer'}, {'remote-consumer / Exact-SHA macro and plugin consumer'}))
-INVENTORIES = [DIRECT.union(*children) for children in itertools.product(*CALLS)]
+# GitHub records skipped dynamic job names as expression source without ${{ }}.
+# Match only these exact reviewed expressions, still bound to the workflow blob;
+# a string mentioning a metadata label or a required context is not sufficient.
+METADATA_CONDITION = "(github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base)))"
+AGGREGATES = (({'CI Metadata Only'}, {METADATA_CONDITION + " && 'CI Metadata Only' || 'CI Required'"}),
+             )
+INVENTORIES = [DIRECT.union(*children) for children in itertools.product(*CALLS, *AGGREGATES)]
 
 
 def partition(api, runs, *, repository, repository_id, workflow_id, number, head, source, require):
