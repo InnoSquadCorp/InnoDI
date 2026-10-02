@@ -13,6 +13,9 @@ SwiftUI helper를 함께 제공하는 Swift용 매크로 기반 DI 프레임워�
 
 ## 최소 예제
 
+먼저 [설치](#설치) 단계에 따라 package를 추가하고 validation plugin을
+연결하세요. 아래 예제는 같은 서비스를 테스트용 값으로 교체하는 과정까지 보여줍니다.
+
 <!-- innodi:compile -->
 ```swift
 import InnoDI
@@ -26,7 +29,12 @@ struct AppContainer {
     var apiClient: APIClient
 }
 
-let client = AppContainer(baseURL: "https://api.example.com").apiClient
+let live = AppContainer(baseURL: "https://api.example.com")
+let test = AppContainer(baseURL: "https://api.example.com") {
+    $0.apiClient = APIClient(baseURL: "https://test.example.com")
+}
+precondition(live.apiClient.baseURL == "https://api.example.com")
+precondition(test.apiClient.baseURL == "https://test.example.com")
 ```
 
 사용되지 않을 수 있는 무거운 shared 서비스는 첫 접근 시 생성하도록 명시할
@@ -41,10 +49,10 @@ var metrics: MetricsClient
 생성되는 `prewarm` 메서드는 선택한 on-demand provider만 준비하며 `Lazy`와
 `Provider` 의존성은 계속 지연합니다. 같은 `initialization: .onDemand` 옵션을
 `asyncFactory:`에도 쓸 수 있으며, 이때 컨테이너에 `closeAsyncProviders()`가
-생성됩니다. 상태 관찰이나 재시도가 필요한 비동기 소유 작업에는
-`DIAsyncScope`를 사용해 개별 waiter 취소와 owner 종료를 분리하고,
-`DIAsyncPreparationPlan`으로 실패와 downstream 차단 상태를 구조적으로 확인할 수
-있습니다.
+생성됩니다. 준비, 재시도, 명시적인 종료가 필요한 비동기 작업은
+[`generateOwned: true`와 owned container](Sources/InnoDI/InnoDI.docc/ko.lproj/OwnedContainers.md)에서
+시작하세요. `makeOwned`는 준비 완료를 뜻하지 않습니다. report를 반환하는
+`prepare`를 쓸 때는 `report.isReady`를 확인한 뒤 서비스를 사용하세요.
 
 ## 왜 InnoDI인가
 
@@ -241,6 +249,14 @@ struct AppContainer {
 
 let container = AppContainer(baseURL: "https://api.example.com")
 _ = container.apiClient
+
+struct MockAPIClient: APIClientProtocol {
+    func fetch() async throws -> Data { Data([0x01]) }
+}
+let test = AppContainer(baseURL: "https://api.example.com") {
+    $0.apiClient = MockAPIClient()
+}
+_ = test.apiClient
 ```
 
 이름이나 생성 로직이 `Type.self` + `with:`와 맞지 않으면 factory closure를
@@ -255,15 +271,15 @@ var apiClient: any APIClientProtocol
 
 ## 먼저 읽을 문서
 
-아래 순서로 읽는 것을 권장합니다.
+필요한 작업에서 시작하세요.
 
-1. [Overview](Sources/InnoDI/InnoDI.docc/ko.lproj/Overview.md)
-2. [Validation](Sources/InnoDI/InnoDI.docc/ko.lproj/Validation.md)
-3. [Policy Boundaries](Sources/InnoDI/InnoDI.docc/ko.lproj/PolicyBoundaries.md)
-4. [Anti-Patterns](Sources/InnoDI/InnoDI.docc/ko.lproj/AntiPatterns.md)
-5. [Module-Wide Init Detection](Sources/InnoDI/InnoDI.docc/ko.lproj/ModuleWideInitDetection.md)
-6. [CHANGELOG.md](CHANGELOG.md)
-7. [ROADMAP.md](ROADMAP.md)
+1. 동기 서비스와 값: [Overview](Sources/InnoDI/InnoDI.docc/ko.lproj/Overview.md)
+2. 준비와 종료가 필요한 비동기 작업: [Owned Containers](Sources/InnoDI/InnoDI.docc/ko.lproj/OwnedContainers.md)
+3. 테스트와 프리뷰: 위 Quick Start의 mock override와 [Auto Mock](Sources/InnoDI/InnoDI.docc/ko.lproj/AutoMock.md)
+
+오류를 고칠 때는 [Validation](Sources/InnoDI/InnoDI.docc/ko.lproj/Validation.md)과
+[Policy Boundaries](Sources/InnoDI/InnoDI.docc/ko.lproj/PolicyBoundaries.md)를,
+업그레이드할 때는 [CHANGELOG.md](CHANGELOG.md)를 확인하세요.
 
 ## 핵심 API
 
@@ -313,13 +329,15 @@ preflight가 없으면 extension custom initializer가 정책을 우회할 수 �
 ```swift
 @DIContainer(
     validateDAG: Bool = true,
-    initializationOrder: String = ContainerInitializationOrder.declaration
+    initializationOrder: String = ContainerInitializationOrder.declaration,
+    generateOwned: Bool = false
 )
 @DIContainerRole(
     role: String,
     mainActor: Bool = false,
     validateDAG: Bool = true,
-    initializationOrder: String = ContainerInitializationOrder.declaration
+    initializationOrder: String = ContainerInitializationOrder.declaration,
+    generateOwned: Bool = false
 )
 ```
 
@@ -329,6 +347,7 @@ preflight가 없으면 extension custom initializer가 정책을 우회할 수 �
 | `validateDAG` | `true` | global DAG와 local graph-derived 검증을 켭니다. `false`여도 로컬 소유권 순환, 선언, 명시적 sibling edge의 효과 호환성 검사는 유지됩니다. |
 | `mainActor` | `false` | 의존성 accessor, 모든 생성 initializer, `Overrides`, convenience initializer·`withOverrides`·child override·component mount에 쓰이는 `applyOverrides` 함수 타입, 네 가지 `withOverrides` operation closure, feature-root helper에 `@MainActor` 격리를 적용합니다. `@DIContainerRole(role: ContainerRole.component)`와 함께 사용하면 생성된 `<Container>Dependencies` protocol과 `init(dependencies:_:)`도 격리되고, 전용 `_InnoDIMainActorComponentMountable` protocol에 conform합니다. 옵션을 사용하지 않는 일반 component는 `_InnoDIComponentMountable`을 계속 사용합니다. Actor 밖에서 사용하려면 명시적인 hop이 필요하며, UI 루트 컨테이너에 권장됩니다. |
 | `initializationOrder` | `ContainerInitializationOrder.declaration` | full named token의 `.dependency`로 shared provider를 의존성 순서로 생성합니다. 도입 전에 factory 부수효과를 검토하세요. |
+| `generateOwned` | `false` | `makeOwned(...)`와 준비·재시도·종료를 위한 별도 owned view를 생성합니다. 원래 컨테이너의 custom method와 conformance는 view에 옮겨지지 않습니다. |
 
 ## 의존성 순서 초기화 opt-in
 
@@ -582,11 +601,17 @@ var consumer: Consumer
 ```
 
 ```swift
-@Provide(.shared, factory: { (requests: Provider<Request>) in
-    RequestLogger(requests: requests)
+// 동기 .transient target의 이름은 `request`입니다.
+@Provide(.shared, factory: { (request: Provider<Request>) in
+    RequestLogger(requests: request)
 })
 var logger: RequestLogger
 ```
+
+두 wrapper 자체는 값을 cache하지 않습니다. `Lazy<T>`는 target의 shared 또는
+transient scope를 따르고, `Provider<T>`는 transient target만 허용합니다.
+transient 값 override는 매번 같은 저장된 값을 반환합니다. 새 instance의 identity는
+wrapper 자체가 아니라 live factory가 결정합니다.
 
 두 wrapper 모두 의도적으로 non-`Sendable`이며, 컨테이너가 가진 원래 격리
 도메인 안에 머물러야 합니다. 또한 둘 다 동기 wrapper이므로

@@ -438,9 +438,9 @@ public macro _InnoDIProvideAccessor(
 /// ```swift
 /// @DIContainer
 /// struct AppContainer {
-///     // Declare the soft-target side first. `a`'s factory only consumes
-///     // the already-initialized `b` via a Lazy wrapper, so `a` compiles
-///     // cleanly even though `b` references `a` in turn.
+///     // Store the handle without calling it during construction. The
+///     // synchronous target `b` may be declared later; it has no reference
+///     // back to `a`, so the ownership graph remains acyclic.
 ///     @Provide(.shared, factory: { (b: Lazy<CoordinatorB>) in CoordinatorA(b: b) })
 ///     var a: CoordinatorA
 ///
@@ -526,8 +526,8 @@ public struct Lazy<T> {
 ///     })
 ///     var request: Request
 ///
-///     @Provide(.shared, factory: { (requests: Provider<Request>) in
-///         RequestLogger(requests: requests)
+///     @Provide(.shared, factory: { (request: Provider<Request>) in
+///         RequestLogger(requests: request)
 ///     })
 ///     var logger: RequestLogger
 /// }
@@ -543,8 +543,8 @@ public struct Lazy<T> {
 /// ```
 ///
 /// `Provider<T>` is invoked with `callAsFunction()`, mirroring `Lazy<T>`'s
-/// call-site ergonomics. Unlike `Lazy<T>`, it does not cache by itself —
-/// each invocation re-enters the container's transient accessor, so live
+/// call-site ergonomics. Neither `Lazy<T>` nor `Provider<T>` caches by itself.
+/// Each `Provider<T>` invocation re-enters the transient accessor, so live
 /// containers typically build a new instance while overrides may return a
 /// stored value. Do not call the wrapper inside a `.shared` factory or
 /// `asyncFactory` body itself; store it or pass it downstream first, then

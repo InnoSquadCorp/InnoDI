@@ -19,6 +19,11 @@ that change moves to 8.0.
 
 ### Next-major prototype (release unassigned)
 
+- Public Lazy/Provider examples and deferred candidate diagnostics now reflect
+  the same non-caching, scope and effect rules as actual provider resolution.
+  Parameter-only rename fixes are withheld when binding uses or capture risks
+  require a manual, scope-aware edit.
+
 - Async `withOverrides` overloads now preserve a source-written `@MainActor`
   on the container instead of emitting a conflicting `nonisolated(nonsending)`
   modifier. Calls to an explicitly actor-isolated container stay on MainActor;

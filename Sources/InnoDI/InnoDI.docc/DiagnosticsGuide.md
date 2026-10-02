@@ -69,6 +69,13 @@ The category prefix reflects the stage that emits the diagnostic:
 
 ## Common recovery patterns
 
+Factory-name candidates respect the requested hard, Lazy or Provider edge. A
+unique eligible candidate receives a parameter-only rename fix-it only when
+the closure signature/body cannot make that edit change or break a binding. If
+the old or replacement name appears in the body, InnoDI instead asks you to
+rename the parameter and its bound uses manually, checking nested scopes. It
+never guesses between multiple candidates or silently rewrites a closure body.
+
 Most diagnostics embed the fix directly in the message. Patterns you'll see
 repeatedly:
 

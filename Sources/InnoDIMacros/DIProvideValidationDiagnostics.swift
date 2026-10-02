@@ -116,7 +116,8 @@ internal func makeUnresolvedFactoryParameterDiagnostic(
     let candidates = matchingDependencyCandidates(
         for: dependencyName,
         resolutionContext: resolutionContext,
-        memberIndex: memberIndex
+        memberIndex: memberIndex,
+        kind: reference?.kind ?? .hard
     )
     var notes = [
         Note(
@@ -144,9 +145,11 @@ internal func makeUnresolvedFactoryParameterDiagnostic(
             Note(
                 node: Syntax(member.attribute),
                 message: SimpleNote(
-                    resolutionContext.initializationOrder == .dependency
-                        ? "Closest matching member exists, but its scope makes it unavailable here: \(candidates.unavailable.joined(separator: ", "))."
-                        : "Closest matching member exists, but declaration order still makes it unavailable here: \(candidates.unavailable.joined(separator: ", ")).",
+                    unavailableFactoryCandidateMessage(
+                        candidates.unavailable,
+                        kind: reference?.kind ?? .hard,
+                        initializationOrder: resolutionContext.initializationOrder
+                    ),
                     code: .provideUnresolvedFactoryParameter,
                     suffix: "candidate-unavailable"
                 )
@@ -165,12 +168,26 @@ internal func makeUnresolvedFactoryParameterDiagnostic(
         )
     }
 
-    let fixIts = makeRenameTokenFixIts(
+    let safeRename = candidates.available.count == 1
+        && canRenameUnusedFactoryParameter(reference?.token, to: candidates.available[0])
+    if candidates.available.count == 1 && !safeRename {
+        notes.append(
+            Note(
+                node: node,
+                message: SimpleNote(
+                    "Rename parameter '\(dependencyName)' to '\(candidates.available[0])' and update its bound uses manually, checking nested scopes. A parameter-only edit could leave unresolved references or capture another name.",
+                    code: .provideUnresolvedFactoryParameter,
+                    suffix: "manual-rename"
+                )
+            )
+        )
+    }
+    let fixIts = safeRename ? makeRenameTokenFixIts(
         token: reference?.token,
         replacementCandidates: candidates.available,
         code: .provideUnresolvedFactoryParameter,
         label: "Rename parameter"
-    )
+    ) : []
 
     return Diagnostic(
         node: node,
@@ -464,9 +481,28 @@ private struct MatchingDependencyCandidates {
 private func matchingDependencyCandidates(
     for dependencyName: String,
     resolutionContext: DependencyResolutionContext,
-    memberIndex: Int
+    memberIndex: Int,
+    kind: DependencyKind = .hard
 ) -> MatchingDependencyCandidates {
     let matches = matchingDependencyCandidates(for: dependencyName, in: resolutionContext.knownNames)
+    if kind != .hard {
+        // Deferred edges bypass declaration order, but their target contract
+        // still applies. Use the same scope/effect rules as exact-name
+        // validation rather than recommending a rename that cannot compile.
+        let available = matches.filter { name in
+            let targets = resolutionContext.members.filter { $0.name == name }
+            return !targets.isEmpty && targets.allSatisfy { target in
+                target.hasLocallyValidConstructionConfiguration
+                    && target.supportsLazySoftTarget
+                    && (kind == .soft || target.scope == .transient)
+            }
+        }
+        let availableNames = Set(available)
+        return MatchingDependencyCandidates(
+            available: available,
+            unavailable: matches.filter { !availableNames.contains($0) }
+        )
+    }
     let available = matches.filter {
         resolutionContext.status(of: $0, forMemberAt: memberIndex) == .available
     }
@@ -476,10 +512,55 @@ private func matchingDependencyCandidates(
     return MatchingDependencyCandidates(available: available, unavailable: unavailable)
 }
 
+private func unavailableFactoryCandidateMessage(
+    _ names: [String],
+    kind: DependencyKind,
+    initializationOrder: ContainerInitializationOrderValue
+) -> String {
+    let candidates = names.joined(separator: ", ")
+    switch kind {
+    case .soft:
+        return "Closest matching member cannot be injected as Lazy<T>; Lazy targets must have a valid synchronous construction: \(candidates)."
+    case .provider:
+        return "Closest matching member cannot be injected as Provider<T>; Provider targets must be valid synchronous .transient providers: \(candidates)."
+    case .hard:
+        return initializationOrder == .dependency
+            ? "Closest matching member exists, but its scope makes it unavailable here: \(candidates)."
+            : "Closest matching member exists, but declaration order still makes it unavailable here: \(candidates)."
+    }
+}
+
 private func normalizedDependencyLookupKey(_ name: String) -> String {
     name
         .filter { $0 != "_" }
         .lowercased()
+}
+
+/// A token-only fix is safe only when it cannot break uses of the old
+/// binding or capture uses of the new name. This deliberately scans nested
+/// scopes too: avoiding a fix-it is safer than pretending to resolve Swift
+/// lexical bindings, labels, macro arguments, or shadowed declarations.
+private func canRenameUnusedFactoryParameter(_ token: TokenSyntax?, to replacement: String) -> Bool {
+    guard let token,
+          !isEscapedInnoDIIdentifier(token),
+          !swiftReservedKeywords.contains(replacement),
+          !replacement.contains("`") else { return false }
+    let originalName = unescapedInnoDIIdentifierName(token)
+    var ancestor = token.parent
+    while let node = ancestor {
+        if let closure = node.as(ClosureExprSyntax.self) {
+            let conflictingBodyToken = closure.statements.tokens(viewMode: .sourceAccurate).contains {
+                let name = unescapedInnoDIIdentifierName($0)
+                return name == originalName || name == replacement
+            }
+            let conflictingSignatureToken = closure.signature?.tokens(viewMode: .sourceAccurate).contains {
+                unescapedInnoDIIdentifierName($0) == replacement
+            } ?? true
+            return !conflictingBodyToken && !conflictingSignatureToken
+        }
+        ancestor = node.parent
+    }
+    return false
 }
 
 private func makeRenameTokenFixIts(

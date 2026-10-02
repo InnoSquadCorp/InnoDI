@@ -10,8 +10,8 @@ import Testing
 @testable import InnoDIMacros
 
 extension DIContainerMacroTests {
-    @Test("Factory parameter diagnostics include notes and a unique rename fix-it")
-    func unresolvedFactoryParameterDiagnosticsIncludeRenameFixIt() throws {
+    @Test("Factory parameter diagnostics guide a manual rename when the binding is used")
+    func unresolvedFactoryParameterDiagnosticsGuideManualRename() throws {
         let source = """
         @DIContainer
         struct AppContainer {
@@ -44,11 +44,12 @@ extension DIContainerMacroTests {
 
         #expect(generated.isEmpty)
         #expect(!diagnostic.notes.isEmpty)
-        #expect(diagnostic.fixIts.count == 1)
-        #expect(diagnostic.fixIts.first?.message.message.contains("baseURL") == true)
+        #expect(diagnostic.fixIts.isEmpty)
+        #expect(diagnostic.notes.contains { $0.message.contains("bound uses manually") })
+        #expect(diagnostic.notes.contains { $0.message.contains("baseURL") })
     }
 
-    @Test("Factory parameter diagnostics suggest a typo fix-it when only a Damerau-Levenshtein match exists")
+    @Test("Unused factory parameter diagnostics suggest a unique typo fix-it")
     func unresolvedFactoryParameterDiagnosticsIncludeTypoFixIt() throws {
         let source = """
         @DIContainer
@@ -57,7 +58,7 @@ extension DIContainerMacroTests {
             var apiClient: APIClient
 
             @Provide(.shared, factory: { (apiClent: APIClient) in
-                Service(client: apiClent)
+                Service()
             })
             var service: Service
         }
@@ -166,7 +167,7 @@ extension DIContainerMacroTests {
         @DIContainer
         struct AppContainer {
             @Provide(.shared, factory: { (later_service: LaterService) in
-                Service(laterService: later_service)
+                Service()
             })
             var service: Service
 
@@ -203,7 +204,7 @@ extension DIContainerMacroTests {
         @DIContainer
         struct AppContainer {
             @Provide(.shared, asyncFactory: { (later_service: LaterService) async in
-                Service(laterService: later_service)
+                Service()
             })
             var service: Service
 
@@ -240,7 +241,7 @@ extension DIContainerMacroTests {
         @DIContainer
         struct AppContainer {
             @Provide(.transient, factory: { (later_service: LaterService) in
-                Service(laterService: later_service)
+                Service()
             })
             var service: Service
 
