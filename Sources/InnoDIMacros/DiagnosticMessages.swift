@@ -9,6 +9,13 @@
 import InnoDICore
 import SwiftDiagnostics
 
+enum DependencyUnavailabilityReason: Equatable {
+    case transientScope
+    case declarationOrder
+    case incompatibleEffects
+    case constructionScope
+}
+
 extension SimpleDiagnostic {
     static func provideUnknownEffect(_ name: String) -> Self {
         Self(
@@ -647,12 +654,21 @@ extension SimpleDiagnostic {
     static func provideUnavailableDependencyReference(
         memberName: String,
         dependencyName: String,
-        dependencyOrdered: Bool = false
+        reason: DependencyUnavailabilityReason = .declarationOrder
     ) -> Self {
-        Self(
-            dependencyOrdered
-                ? "Dependency '\(dependencyName)' referenced by '\(memberName)' is not available in this construction scope."
-                : "Dependency '\(dependencyName)' referenced by '\(memberName)' is not available in this declaration order or scope.",
+        let explanation: String
+        switch reason {
+        case .transientScope:
+            explanation = "is not available in this construction scope because it is a transient provider"
+        case .declarationOrder:
+            explanation = "is not available in this declaration order"
+        case .incompatibleEffects:
+            explanation = "requires incompatible construction effects"
+        case .constructionScope:
+            explanation = "is not available in this construction scope"
+        }
+        return Self(
+            "Dependency '\(dependencyName)' referenced by '\(memberName)' \(explanation).",
             code: .provideUnavailableDependencyReference
         )
     }

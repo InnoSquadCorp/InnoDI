@@ -148,7 +148,8 @@ internal func makeUnresolvedFactoryParameterDiagnostic(
                     unavailableFactoryCandidateMessage(
                         candidates.unavailable,
                         kind: reference?.kind ?? .hard,
-                        initializationOrder: resolutionContext.initializationOrder
+                        resolutionContext: resolutionContext,
+                        memberIndex: memberIndex
                     ),
                     code: .provideUnresolvedFactoryParameter,
                     suffix: "candidate-unavailable"
@@ -321,9 +322,11 @@ internal func makeUnresolvedWithDependencyDiagnostic(
             Note(
                 node: Syntax(member.attribute),
                 message: SimpleNote(
-                    resolutionContext.initializationOrder == .dependency
-                        ? "Closest matching member exists, but its scope makes it unavailable here: \(candidates.unavailable.joined(separator: ", "))."
-                        : "Closest matching member exists, but declaration order still makes it unavailable here: \(candidates.unavailable.joined(separator: ", ")).",
+                    unavailableHardCandidateMessage(
+                        candidates.unavailable,
+                        resolutionContext: resolutionContext,
+                        memberIndex: memberIndex
+                    ),
                     code: .provideUnresolvedWithDependency,
                     suffix: "candidate-unavailable"
                 )
@@ -366,16 +369,35 @@ internal func makeUnavailableDependencyDiagnostic(
     referencedMember: ProvideMemberModel?,
     initializationOrder: ContainerInitializationOrderValue = .declaration
 ) -> Diagnostic {
-    let dependencyOrdered = initializationOrder == .dependency
+    let reason = unavailableDependencyReason(
+        member: member,
+        referencedMember: referencedMember,
+        initializationOrder: initializationOrder
+    )
+    let guidance: String
+    let suffix: String
+    switch reason {
+    case .transientScope:
+        guidance = "Shared members cannot directly inject transient providers. "
+            + transientDependencyRecovery(for: referencedMember.map { [$0] } ?? [])
+        suffix = "scope"
+    case .declarationOrder:
+        guidance = "Move shared provider '\(dependencyName)' before '\(member.name)', or opt in to initializationOrder: ContainerInitializationOrder.dependency to order compatible shared providers by dependency."
+        suffix = "declaration-order"
+    case .incompatibleEffects:
+        guidance = incompatibleDependencyEffectsRecovery(memberName: member.name)
+        suffix = "effects"
+    case .constructionScope:
+        guidance = "Use an input or shared provider with compatible effects for '\(dependencyName)', or switch to supported deferred/manual wiring."
+        suffix = "scope"
+    }
     var notes = [
         Note(
             node: Syntax(member.attribute),
             message: SimpleNote(
-                dependencyOrdered
-                    ? "Shared members can directly reference inputs and shared providers with compatible effects. A transient dependency requires a supported deferred Lazy<T> or Provider<T> handle, or explicit manual wiring; changing declaration order cannot make it injectable."
-                    : "Shared members can only reference inputs and dependencies that are already available in declaration order. Transient members can reference any container member.",
+                guidance,
                 code: .provideUnavailableDependencyReference,
-                suffix: dependencyOrdered ? "scope" : "declaration-order"
+                suffix: suffix
             )
         )
     ]
@@ -396,9 +418,7 @@ internal func makeUnavailableDependencyDiagnostic(
             Note(
                 node: Syntax(member.bindingSyntax),
                 message: SimpleNote(
-                    dependencyOrdered
-                        ? "Use an input or shared provider with compatible effects for '\(dependencyName)', or switch to supported deferred/manual wiring."
-                        : "Declare '\(dependencyName)' before '\(member.name)', or switch to explicit transient/manual wiring if declaration order cannot change.",
+                    guidance,
                     code: .provideUnavailableDependencyReference,
                     suffix: "resolution"
                 )
@@ -406,15 +426,59 @@ internal func makeUnavailableDependencyDiagnostic(
         )
     }
 
+    let node = member.closureParameterReferences.first(where: { $0.name == dependencyName })
+        .map { Syntax($0.token) }
+        ?? member.withDependencyReferences.first(where: { $0.name == dependencyName })
+        .map { Syntax($0.anchorExpression) }
+        ?? Syntax(member.attribute)
     return Diagnostic(
-        node: Syntax(member.attribute),
+        node: node,
         message: SimpleDiagnostic.provideUnavailableDependencyReference(
             memberName: member.name,
             dependencyName: dependencyName,
-            dependencyOrdered: dependencyOrdered
+            reason: reason
         ),
         notes: notes
     )
+}
+
+private func unavailableDependencyReason(
+    member: ProvideMemberModel,
+    referencedMember: ProvideMemberModel?,
+    initializationOrder: ContainerInitializationOrderValue
+) -> DependencyUnavailabilityReason {
+    guard let referencedMember else { return .constructionScope }
+    if member.scope == .shared && referencedMember.scope == .transient {
+        return .transientScope
+    }
+    if dependencyEffectMismatch(
+        consumer: member.constructionEffect,
+        provider: referencedMember.providerEffect
+    ) != nil {
+        return .incompatibleEffects
+    }
+    if referencedMember.scope == .shared,
+       referencedMember.sourceOrder > member.sourceOrder,
+       initializationOrder == .declaration {
+        return .declarationOrder
+    }
+    return .constructionScope
+}
+
+private func incompatibleDependencyEffectsRecovery(memberName: String) -> String {
+    "Use a provider with compatible effects, or rewrite '\(memberName)' with asyncFactory: and the required async/throwing effects. Type.self with: wiring requires synchronous providers; changing declaration order cannot supply missing effects."
+}
+
+private func transientDependencyRecovery(for targets: [ProvideMemberModel]) -> String {
+    if !targets.isEmpty && targets.allSatisfy({
+        $0.hasLocallyValidConstructionConfiguration && $0.supportsLazySoftTarget
+    }) {
+        return "Use a transient consumer, a deferred Lazy<T> or Provider<T> handle retained for later use with a valid synchronous target, or explicit manual wiring; changing declaration order cannot make it injectable."
+    }
+    if targets.contains(where: { $0.isAsyncFactory }) {
+        return "Use an async transient consumer with compatible throwing effects, or explicit manual wiring; changing declaration order cannot make it injectable. Lazy<T> and Provider<T> cannot wrap asynchronous targets."
+    }
+    return "Repair the target's construction configuration before choosing a transient consumer or explicit manual wiring; deferred handles require a valid synchronous target, and changing declaration order cannot make it injectable."
 }
 
 private func matchingDependencyCandidates(for dependencyName: String, in knownNames: Set<String>) -> [String] {
@@ -515,7 +579,8 @@ private func matchingDependencyCandidates(
 private func unavailableFactoryCandidateMessage(
     _ names: [String],
     kind: DependencyKind,
-    initializationOrder: ContainerInitializationOrderValue
+    resolutionContext: DependencyResolutionContext,
+    memberIndex: Int
 ) -> String {
     let candidates = names.joined(separator: ", ")
     switch kind {
@@ -524,10 +589,50 @@ private func unavailableFactoryCandidateMessage(
     case .provider:
         return "Closest matching member cannot be injected as Provider<T>; Provider targets must be valid synchronous .transient providers: \(candidates)."
     case .hard:
-        return initializationOrder == .dependency
-            ? "Closest matching member exists, but its scope makes it unavailable here: \(candidates)."
-            : "Closest matching member exists, but declaration order still makes it unavailable here: \(candidates)."
+        return unavailableHardCandidateMessage(
+            names,
+            resolutionContext: resolutionContext,
+            memberIndex: memberIndex
+        )
     }
+}
+
+private func unavailableHardCandidateMessage(
+    _ names: [String],
+    resolutionContext: DependencyResolutionContext,
+    memberIndex: Int
+) -> String {
+    guard resolutionContext.members.indices.contains(memberIndex) else {
+        return "Closest matching members are unavailable here: \(names.joined(separator: ", "))."
+    }
+    let member = resolutionContext.members[memberIndex]
+    // Explain each target separately: nearby spellings can have different
+    // scopes or effects, so one policy-wide cause would be misleading.
+    return names.map { name in
+        let targets = resolutionContext.members.filter { $0.name == name }
+        let reasons = targets.map {
+            unavailableDependencyReason(
+                member: member,
+                referencedMember: $0,
+                initializationOrder: resolutionContext.initializationOrder
+            )
+        }
+        guard let reason = reasons.first, reasons.allSatisfy({ $0 == reason }) else {
+            return "Closest matching member '\(name)' is unavailable here; check its declarations and construction requirements."
+        }
+        switch reason {
+        case .transientScope:
+            return "Closest matching member '\(name)' has transient scope and cannot be injected directly into a shared member. "
+                + transientDependencyRecovery(for: targets)
+        case .declarationOrder:
+            return "Closest matching member '\(name)' is unavailable in this declaration order. Move the shared provider before '\(member.name)', or opt in to initializationOrder: ContainerInitializationOrder.dependency."
+        case .incompatibleEffects:
+            return "Closest matching member '\(name)' requires incompatible construction effects. "
+                + incompatibleDependencyEffectsRecovery(memberName: member.name)
+        case .constructionScope:
+            return "Closest matching member '\(name)' is unavailable in this construction scope."
+        }
+    }.joined(separator: " ")
 }
 
 private func normalizedDependencyLookupKey(_ name: String) -> String {

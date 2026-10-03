@@ -1,0 +1,415 @@
+{
+  "scope": "Actual compiler diagnostics and developer-selected repairs; no automatic scope/order fix or performance claim",
+  "cases": [
+    {
+      "name": "Transient-factory-declaration-after-exact",
+      "success": false,
+      "required": [
+        "changing declaration order cannot make it injectable",
+        "retained for later use"
+      ],
+      "forbidden": [
+        "Move the shared provider",
+        "declaration order still makes it unavailable"
+      ],
+      "line": 7,
+      "column": 35,
+      "anchor": "request: Int) in"
+    },
+    {
+      "name": "Transient-factory-declaration-after-typo",
+      "success": false,
+      "required": [
+        "changing declaration order cannot make it injectable",
+        "retained for later use"
+      ],
+      "forbidden": [
+        "Move the shared provider",
+        "declaration order still makes it unavailable"
+      ],
+      "line": 7,
+      "column": 35,
+      "anchor": "requests: Int) in"
+    },
+    {
+      "name": "Transient-factory-declaration-before-exact",
+      "success": false,
+      "required": [
+        "changing declaration order cannot make it injectable",
+        "retained for later use"
+      ],
+      "forbidden": [
+        "Move the shared provider",
+        "declaration order still makes it unavailable"
+      ],
+      "line": 9,
+      "column": 35,
+      "anchor": "request: Int) in"
+    },
+    {
+      "name": "Transient-factory-declaration-before-typo",
+      "success": false,
+      "required": [
+        "changing declaration order cannot make it injectable",
+        "retained for later use"
+      ],
+      "forbidden": [
+        "Move the shared provider",
+        "declaration order still makes it unavailable"
+      ],
+      "line": 9,
+      "column": 35,
+      "anchor": "requests: Int) in"
+    },
+    {
+      "name": "Transient-factory-dependency-after-exact",
+      "success": false,
+      "required": [
+        "changing declaration order cannot make it injectable",
+        "retained for later use"
+      ],
+      "forbidden": [
+        "Move the shared provider",
+        "declaration order still makes it unavailable"
+      ],
+      "line": 7,
+      "column": 35,
+      "anchor": "request: Int) in"
+    },
+    {
+      "name": "Transient-factory-dependency-after-typo",
+      "success": false,
+      "required": [
+        "changing declaration order cannot make it injectable",
+        "retained for later use"
+      ],
+      "forbidden": [
+        "Move the shared provider",
+        "declaration order still makes it unavailable"
+      ],
+      "line": 7,
+      "column": 35,
+      "anchor": "requests: Int) in"
+    },
+    {
+      "name": "Transient-factory-dependency-before-exact",
+      "success": false,
+      "required": [
+        "changing declaration order cannot make it injectable",
+        "retained for later use"
+      ],
+      "forbidden": [
+        "Move the shared provider",
+        "declaration order still makes it unavailable"
+      ],
+      "line": 9,
+      "column": 35,
+      "anchor": "request: Int) in"
+    },
+    {
+      "name": "Transient-factory-dependency-before-typo",
+      "success": false,
+      "required": [
+        "changing declaration order cannot make it injectable",
+        "retained for later use"
+      ],
+      "forbidden": [
+        "Move the shared provider",
+        "declaration order still makes it unavailable"
+      ],
+      "line": 9,
+      "column": 35,
+      "anchor": "requests: Int) in"
+    },
+    {
+      "name": "Forward-factory-order-repaired",
+      "success": true,
+      "required": [],
+      "forbidden": []
+    },
+    {
+      "name": "Forward-factory-policy-repaired",
+      "success": true,
+      "required": [],
+      "forbidden": []
+    },
+    {
+      "name": "Forward-factory-invalid",
+      "success": false,
+      "required": [
+        "declaration order",
+        "ContainerInitializationOrder.dependency"
+      ],
+      "forbidden": [
+        "because it is a transient provider"
+      ],
+      "line": 7,
+      "column": 35,
+      "anchor": "request: Int) in"
+    },
+    {
+      "name": "Transient-factory-repaired",
+      "success": true,
+      "required": [],
+      "forbidden": []
+    },
+    {
+      "name": "Transient-with-declaration-after-exact",
+      "success": false,
+      "required": [
+        "changing declaration order cannot make it injectable",
+        "retained for later use"
+      ],
+      "forbidden": [
+        "Move the shared provider",
+        "declaration order still makes it unavailable"
+      ],
+      "line": 7,
+      "column": 45,
+      "anchor": "\\Self.request"
+    },
+    {
+      "name": "Transient-with-declaration-after-typo",
+      "success": false,
+      "required": [
+        "changing declaration order cannot make it injectable",
+        "retained for later use"
+      ],
+      "forbidden": [
+        "Move the shared provider",
+        "declaration order still makes it unavailable"
+      ],
+      "line": 7,
+      "column": 45,
+      "anchor": "\\Self.requests"
+    },
+    {
+      "name": "Transient-with-declaration-before-exact",
+      "success": false,
+      "required": [
+        "changing declaration order cannot make it injectable",
+        "retained for later use"
+      ],
+      "forbidden": [
+        "Move the shared provider",
+        "declaration order still makes it unavailable"
+      ],
+      "line": 9,
+      "column": 45,
+      "anchor": "\\Self.request"
+    },
+    {
+      "name": "Transient-with-declaration-before-typo",
+      "success": false,
+      "required": [
+        "changing declaration order cannot make it injectable",
+        "retained for later use"
+      ],
+      "forbidden": [
+        "Move the shared provider",
+        "declaration order still makes it unavailable"
+      ],
+      "line": 9,
+      "column": 45,
+      "anchor": "\\Self.requests"
+    },
+    {
+      "name": "Transient-with-dependency-after-exact",
+      "success": false,
+      "required": [
+        "changing declaration order cannot make it injectable",
+        "retained for later use"
+      ],
+      "forbidden": [
+        "Move the shared provider",
+        "declaration order still makes it unavailable"
+      ],
+      "line": 7,
+      "column": 45,
+      "anchor": "\\Self.request"
+    },
+    {
+      "name": "Transient-with-dependency-after-typo",
+      "success": false,
+      "required": [
+        "changing declaration order cannot make it injectable",
+        "retained for later use"
+      ],
+      "forbidden": [
+        "Move the shared provider",
+        "declaration order still makes it unavailable"
+      ],
+      "line": 7,
+      "column": 45,
+      "anchor": "\\Self.requests"
+    },
+    {
+      "name": "Transient-with-dependency-before-exact",
+      "success": false,
+      "required": [
+        "changing declaration order cannot make it injectable",
+        "retained for later use"
+      ],
+      "forbidden": [
+        "Move the shared provider",
+        "declaration order still makes it unavailable"
+      ],
+      "line": 9,
+      "column": 45,
+      "anchor": "\\Self.request"
+    },
+    {
+      "name": "Transient-with-dependency-before-typo",
+      "success": false,
+      "required": [
+        "changing declaration order cannot make it injectable",
+        "retained for later use"
+      ],
+      "forbidden": [
+        "Move the shared provider",
+        "declaration order still makes it unavailable"
+      ],
+      "line": 9,
+      "column": 45,
+      "anchor": "\\Self.requests"
+    },
+    {
+      "name": "Forward-with-order-repaired",
+      "success": true,
+      "required": [],
+      "forbidden": []
+    },
+    {
+      "name": "Forward-with-policy-repaired",
+      "success": true,
+      "required": [],
+      "forbidden": []
+    },
+    {
+      "name": "Forward-with-invalid",
+      "success": false,
+      "required": [
+        "declaration order",
+        "ContainerInitializationOrder.dependency"
+      ],
+      "forbidden": [
+        "because it is a transient provider"
+      ],
+      "line": 7,
+      "column": 45,
+      "anchor": "\\Self.request"
+    },
+    {
+      "name": "Transient-with-repaired",
+      "success": true,
+      "required": [],
+      "forbidden": []
+    },
+    {
+      "name": "Provider-repaired",
+      "success": true,
+      "required": [],
+      "forbidden": []
+    },
+    {
+      "name": "Provider-eager-invalid",
+      "success": false,
+      "required": [
+        "cannot call Provider<T> during .shared construction",
+        "request",
+        "consumer"
+      ],
+      "forbidden": [],
+      "line": 6,
+      "column": 62,
+      "anchor": "request()"
+    },
+    {
+      "name": "AsyncTransient-plain-exact",
+      "success": false,
+      "required": [
+        "transient",
+        "manual wiring"
+      ],
+      "forbidden": [
+        "handle retained for later use"
+      ],
+      "line": 8,
+      "column": 40,
+      "anchor": "request: Int) async"
+    },
+    {
+      "name": "AsyncTransient-plain-typo",
+      "success": false,
+      "required": [
+        "transient",
+        "manual wiring"
+      ],
+      "forbidden": [
+        "handle retained for later use"
+      ],
+      "line": 8,
+      "column": 40,
+      "anchor": "requests: Int) async"
+    },
+    {
+      "name": "AsyncTransient-plain-repaired",
+      "success": true,
+      "required": [],
+      "forbidden": []
+    },
+    {
+      "name": "AsyncTransient-throwing-exact",
+      "success": false,
+      "required": [
+        "transient",
+        "manual wiring"
+      ],
+      "forbidden": [
+        "handle retained for later use"
+      ],
+      "line": 8,
+      "column": 40,
+      "anchor": "request: Int) async throws"
+    },
+    {
+      "name": "AsyncTransient-throwing-typo",
+      "success": false,
+      "required": [
+        "transient",
+        "manual wiring"
+      ],
+      "forbidden": [
+        "handle retained for later use"
+      ],
+      "line": 8,
+      "column": 40,
+      "anchor": "requests: Int) async throws"
+    },
+    {
+      "name": "AsyncTransient-throwing-repaired",
+      "success": true,
+      "required": [],
+      "forbidden": []
+    },
+    {
+      "name": "AsyncWith-typo-invalid",
+      "success": false,
+      "required": [
+        "incompatible construction effects",
+        "asyncFactory:",
+        "with:"
+      ],
+      "forbidden": [],
+      "line": 8,
+      "column": 45,
+      "anchor": "\\Self.requests"
+    },
+    {
+      "name": "AsyncWith-repaired",
+      "success": true,
+      "required": [],
+      "forbidden": []
+    }
+  ]
+}

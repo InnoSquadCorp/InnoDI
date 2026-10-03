@@ -76,6 +76,44 @@ the old or replacement name appears in the body, InnoDI instead asks you to
 rename the parameter and its bound uses manually, checking nested scopes. It
 never guesses between multiple candidates or silently rewrites a closure body.
 
+Unavailable hard references underline the factory parameter or `with:` key path
+and retain a note at the provider's declaration. A forward shared reference can
+be repaired by moving the provider earlier or selecting
+`initializationOrder: ContainerInitializationOrder.dependency`. A shared
+consumer's hard reference to a transient provider is a scope error under either
+policy, even when the transient is declared first. Reordering cannot repair it.
+Nearby-name suggestions explain each candidate's own scope, order, or effect
+constraint; they do not offer automatic scope or order changes.
+
+For a transient provider, choose a transient consumer, explicit manual wiring,
+or a supported deferred handle. This standalone example retains `Provider<Int>`
+and calls it after container construction. Calling the handle immediately inside
+the shared factory is still invalid; deferred targets must satisfy their existing
+synchronous construction requirements.
+
+<!-- diagnostic-recovery: Provider-repaired -->
+```swift
+import InnoDI
+
+struct Consumer {
+    let requests: Provider<Int>
+    func next() -> Int { requests() }
+}
+
+@DIContainer
+struct App {
+    @Provide(.transient, factory: 1)
+    var request: Int
+    @Provide(.shared, factory: { (request: Provider<Int>) in Consumer(requests: request) })
+    var consumer: Consumer
+}
+
+@main enum Check {
+    static func main() { precondition(App().consumer.next() == 1) }
+}
+```
+<!-- /diagnostic-recovery -->
+
 Most diagnostics embed the fix directly in the message. Patterns you'll see
 repeatedly:
 
@@ -185,11 +223,13 @@ Most frequently-hit codes:
   lookup tables or generating peer storage.
 - `provide.unresolved-factory-parameter` — a named parameter on the root
   factory closure doesn't match any container member or `with:` key path.
-- `provide.unavailable-dependency-reference` — a factory references a member
-  unavailable under the selected initialization policy or construction scope.
-  The default declaration policy rejects forward shared references. Opt-in
-  dependency order admits compatible shared providers, but never makes a hard
-  transient dependency injectable; use supported deferred or manual wiring.
+- `provide.unavailable-dependency-reference` — a factory parameter or `with:`
+  key path references a member unavailable under the selected initialization
+  policy or construction scope. The message distinguishes the target's actual
+  constraint: move a forward shared provider earlier or opt in to dependency
+  order; a hard transient dependency is unavailable to a shared consumer under
+  either policy and in either declaration order. Use a transient consumer or
+  supported deferred/manual wiring for that scope error.
 - `provide.async-dependency-requires-async-consumer` — a synchronous factory
   consumes an async provider through an explicit sibling edge. Move the
   consumer to `asyncFactory:`. This check also runs with `validateDAG: false`.

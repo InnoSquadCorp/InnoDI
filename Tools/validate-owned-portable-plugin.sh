@@ -109,8 +109,8 @@ EXTERNAL="$ROOT/Tests/ExternalConsumerFixtures/fail"
 negative WrongContainer "$EXTERNAL/owned-wrong-container/Sources/FixtureApp/FixtureApp.swift.fixture" "cannot convert value of type"
 negative WrongExecutor "$EXTERNAL/owned-wrong-executor/Sources/FixtureApp/FixtureApp.swift.fixture" "main actor-isolated property"
 negative NotResolver "$EXTERNAL/owned-selection-not-resolver/Sources/FixtureApp/FixtureApp.swift.fixture" "has no member 'value'"
-negative SharedTransientDependency "$FIXTURES/SharedTransientDependency.swift.fixture" "is not available in this declaration order or scope"
-negative ActorSharedTransientDependency "$FIXTURES/ActorSharedTransientDependency.swift.fixture" "is not available in this declaration order or scope"
+negative SharedTransientDependency "$FIXTURES/SharedTransientDependency.swift.fixture" "is not available in this construction scope because it is a transient provider"
+negative ActorSharedTransientDependency "$FIXTURES/ActorSharedTransientDependency.swift.fixture" "is not available in this construction scope because it is a transient provider"
 # Attribute names do not carry semantic actor identity for syntax macros. A
 # custom actor without an Actor suffix remains unsupported and Swift rejects it.
 negative UnknownActor "$FIXTURES/UnknownActor.swift.fixture" "global actor 'Domain'-isolated initializer"

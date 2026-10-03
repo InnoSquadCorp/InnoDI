@@ -63,6 +63,63 @@ factory runs. The recording profile returns the same sorted
 ``DIOverrideEffectReport`` without failing. InnoDI never guesses whether an
 arbitrary closure has side effects, so unmarked providers remain unverified.
 
+The error names the missing providers and explains how to repair the builder before
+construction. For an optional replacement, use `set(_:to:)` with `nil`; assigning
+`nil` to the optional override field means no replacement. The following complete
+consumer is compiled and executed by the portable validation tool. Its counter
+proves that failed validation and accepted replacements never invoke the live
+factory:
+
+<!-- diagnostic-recovery: Overrides -->
+```swift
+import InnoDITesting
+
+final class LiveCounter {
+    var calls = 0
+    func make() -> Int? { calls += 1; return 41 }
+}
+
+@DIContainer
+struct TestServices {
+    @Input var counter: LiveCounter
+    @Provide(.shared, effect: .sideEffect, factory: { (counter: LiveCounter) in counter.make() })
+    var optional: Int?
+}
+
+@main enum Check {
+    static func main() throws {
+        let counter = LiveCounter()
+        var overrides = TestServices.Overrides()
+        do {
+            try DIOverrideEffectValidation.validate(overrides)
+            preconditionFailure("Expected missing override")
+        } catch let error as DIMissingEffectOverrideError {
+            precondition(error.report.missing.map(\.providerName) == ["optional"])
+            precondition(error.description.contains("Overrides.set(_:to:)"))
+            precondition(error.description.contains("validate before constructing"))
+        }
+        precondition(counter.calls == 0)
+
+        overrides.set(\.optional, to: 7)
+        try DIOverrideEffectValidation.validate(overrides)
+        precondition(TestServices(counter: counter) { $0 = overrides }.optional == 7)
+
+        overrides.set(\.optional, to: nil)
+        try DIOverrideEffectValidation.validate(overrides)
+        precondition(TestServices(counter: counter) { $0 = overrides }.optional == nil)
+        precondition(counter.calls == 0)
+
+        overrides.useDefault(\.optional)
+        do {
+            try DIOverrideEffectValidation.validate(overrides)
+            preconditionFailure("The live default needs a replacement again")
+        } catch is DIMissingEffectOverrideError {}
+        precondition(counter.calls == 0)
+    }
+}
+```
+<!-- /diagnostic-recovery -->
+
 ### Explicit nil and default restoration
 
 Generated override fields use an outer optional to mean “no replacement.”

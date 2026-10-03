@@ -67,12 +67,17 @@ struct PreparedOverrideTests {
         let missing = DIOverridePreset<PreparedEffectServices.Overrides>(name: "missing") { _ in }
         var operationRan = false
 
-        await #expect(throws: DIMissingEffectOverrideError.self) {
+        do {
             try await PreparedEffectServices.withPrepared(
                 .service, counter: counter, overrides: missing.applyValidated
             ) { _ in
                 operationRan = true
             }
+            Issue.record("Missing effect overrides must reject the operation")
+        } catch let error as DIMissingEffectOverrideError {
+            #expect(error.report.missing.map(\.providerName) == ["marked"])
+            #expect(error.description.contains("Overrides.set(_:to:)"))
+            #expect(error.description.contains("validate before constructing"))
         }
 
         #expect(counter.count == 0)
@@ -129,8 +134,13 @@ struct PreparedOverrideTests {
 
         overrides.useDefault(\.optional)
         #expect(overrides.optional == nil)
-        #expect(throws: DIMissingEffectOverrideError.self) {
+        do {
             try DIOverrideEffectValidation.validate(overrides)
+            Issue.record("Restoring the live default must fail strict validation")
+        } catch let error as DIMissingEffectOverrideError {
+            #expect(error.report.missing.map(\.providerName) == ["optional"])
+            #expect(error.description.contains("set its replacement to nil explicitly"))
+            #expect(error.description.contains("useDefault(_:) leaves its live default enabled"))
         }
         #expect(PreparedOptionalServices { $0 = overrides }.optional == 41)
     }

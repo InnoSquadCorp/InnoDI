@@ -160,7 +160,10 @@ public struct DIMissingEffectOverrideError: Error, Equatable, Sendable,
 
     public var description: String {
         let names = report.missing.map(\.providerName).joined(separator: ", ")
-        return "Missing InnoDI effect overrides: \(names)"
+        return "Missing InnoDI effect overrides: \(names). "
+            + "Set a replacement for each listed provider with Overrides.set(_:to:), then validate before constructing the container. "
+            + "For an optional provider, set its replacement to nil explicitly with set(_:to:). "
+            + "Assigning nil to the override field or calling useDefault(_:) leaves its live default enabled."
     }
 }
 

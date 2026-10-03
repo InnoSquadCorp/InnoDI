@@ -391,7 +391,7 @@ struct OwnedContainerMacroTests {
                 @Provide(.shared, asyncFactory: { (fresh: Int) async in fresh }) var service: Int
             }
             """, macros: Self.macros)
-        #expect(result.diagnostics.contains { $0.message.contains("is not available in this declaration order or scope") })
+        #expect(result.diagnostics.contains { $0.message.contains("is not available in this construction scope because it is a transient provider") })
         #expect(!result.expansion.contains("static func makeOwned"))
     }
 

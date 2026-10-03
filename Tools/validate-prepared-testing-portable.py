@@ -127,6 +127,25 @@ def main():
         str(copied_test), str(runner), "-o", str(executable)])
     print(run("prepared-tests-run", [str(executable)]), end="")
 
+    recovery = root / "Tests/DiagnosticRecoveryFixtures/Overrides.swift.fixture"
+    documentation = root / "Sources/InnoDITesting/InnoDITesting.docc/InnoDITesting.md"
+    recovery_source = recovery.read_text()
+    documented_source = documentation.read_text().split(
+        "<!-- diagnostic-recovery: Overrides -->\n```swift\n", 1
+    )[1].split("\n```\n<!-- /diagnostic-recovery -->", 1)[0]
+    if documented_source != recovery_source.rstrip("\n"):
+        raise RuntimeError("Documented override recovery differs from the compiled fixture")
+    for path in [recovery, documentation]:
+        manifest["input_sha256"][str(path)] = sha(path.read_bytes())
+    recovery_copy = output / "Overrides.swift"
+    recovery_copy.write_text(recovery_source)
+    recovery_executable = output / "OverrideRecovery"
+    run("override-recovery-compile", [*flags, *load, *testing_libraries,
+        "-parse-as-library", "-module-name", "OverrideRecovery", str(recovery_copy),
+        "-o", str(recovery_executable)])
+    run("override-recovery-run", [str(recovery_executable)])
+    print("Documented override recovery compiled and executed.")
+
     fixtures = root / "Tests/PreparedTestingPortableFixtures"
     for name, diagnostic in [
         ("ActorSlotIsolation", "call to main actor-isolated instance method 'set(_:to:)'"),

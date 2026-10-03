@@ -233,31 +233,117 @@ struct DependencyInitializationOrderTests {
         #expect(result.diagnostics.map(\.diagnosticID) == [code("container.dependency-cycle")])
     }
 
-    @Test("Forward references remain rejected in declaration mode")
-    func defaultStillRejectsForwardDependency() {
-        let result = expandMacroSource("""
-            @DIContainer struct Container {
-                @Provide(.shared, factory: { (later: Int) in later }) var first: Int
-                @Provide(.shared, factory: 1) var later: Int
+    @Test("Shared ordering diagnostics offer only valid forward-reference repairs", arguments: [false, true], [false, true])
+    func sharedOrderingDiagnostic(targetBefore: Bool, usesWith: Bool) throws {
+        for policy in ["declaration", "dependency"] {
+            let consumer = usesWith
+                ? "@Provide(.shared, Service.self, with: [\\Self.later]) var first: Service"
+                : "@Provide(.shared, factory: { (later: Int) in later }) var first: Int"
+            let provider = "@Provide(.shared, factory: 1) var later: Int"
+            let source = """
+                @DIContainer(initializationOrder: ContainerInitializationOrder.\(policy)) struct Container {
+                    \(targetBefore ? provider : consumer)
+                    \(targetBefore ? consumer : provider)
+                }
+                """
+            let parsed = Parser.parse(source: source)
+            let declaration = try #require(parsed.statements.first?.item.as(StructDeclSyntax.self))
+            let attribute = try #require(declaration.attributes.first?.as(AttributeSyntax.self))
+            let context = TestMacroExpansionContext()
+            _ = try DIContainerMacro.expansion(of: attribute, providingMembersOf: declaration, in: context)
+            if targetBefore || policy == "dependency" {
+                #expect(context.diagnostics.isEmpty)
+                continue
             }
-            """, macros: Self.macros)
-        #expect(result.diagnostics.map(\.diagnosticID) == [code("provide.unavailable-dependency-reference")])
+            let diagnostic = try #require(context.diagnostics.first)
+            #expect(context.diagnostics.count == 1)
+            #expect(diagnostic.diagnosticID == code("provide.unavailable-dependency-reference"))
+            #expect(diagnostic.diagMessage.severity == .error)
+            #expect(diagnostic.message == "Dependency 'later' referenced by 'first' is not available in this declaration order.")
+            #expect(diagnostic.notes.contains { $0.message.contains("Move shared provider 'later' before 'first'") })
+            #expect(diagnostic.notes.contains { $0.message.contains("initializationOrder: ContainerInitializationOrder.dependency") })
+            #expect(diagnostic.fixIts.isEmpty)
+            let reference = usesWith ? "\\Self.later" : "later: Int)"
+            let range = try #require(source.range(of: reference))
+            let offset = source[..<range.lowerBound].utf8.count
+            #expect(diagnostic.node.trimmedDescription == (usesWith ? "\\Self.later" : "later"))
+            #expect(diagnostic.position.utf8Offset == offset)
+        }
     }
 
-    @Test("Transient hard scope errors never prescribe declaration reordering")
-    func transientScopeDiagnostic() throws {
-        let result = expandMacroSource("""
-            @DIContainer(\(Self.policy)) struct Container {
-                @Provide(.shared, factory: { (transient: Int) in transient }) var shared: Int
-                @Provide(.transient, factory: 1) var transient: Int
-            }
-            """, macros: Self.macros)
-        let diagnostic = try #require(result.diagnostics.first)
-        #expect(result.diagnostics.count == 1)
-        #expect(diagnostic.diagnosticID == code("provide.unavailable-dependency-reference"))
-        #expect(diagnostic.message.contains("construction scope"))
-        #expect(diagnostic.notes.contains { $0.message.contains("changing declaration order cannot") })
-        #expect(!diagnostic.notes.contains { $0.message.contains("Declare 'transient' before") })
+    @Test("Transient hard scope errors identify the exact edge under either policy and order", arguments: [false, true], [false, true])
+    func transientScopeDiagnostic(targetBefore: Bool, usesWith: Bool) throws {
+        for policy in ["declaration", "dependency"] {
+            let consumer = usesWith
+                ? "@Provide(.shared, Service.self, with: [\\Self.transient]) var shared: Service"
+                : "@Provide(.shared, factory: { (transient: Int) in transient }) var shared: Int"
+            let provider = "@Provide(.transient, factory: 1) var transient: Int"
+            let source = """
+                @DIContainer(initializationOrder: ContainerInitializationOrder.\(policy)) struct Container {
+                    \(targetBefore ? provider : consumer)
+                    \(targetBefore ? consumer : provider)
+                }
+                """
+            let parsed = Parser.parse(source: source)
+            let declaration = try #require(parsed.statements.first?.item.as(StructDeclSyntax.self))
+            let attribute = try #require(declaration.attributes.first?.as(AttributeSyntax.self))
+            let context = TestMacroExpansionContext()
+            let generated = try DIContainerMacro.expansion(of: attribute, providingMembersOf: declaration, in: context)
+            let diagnostic = try #require(context.diagnostics.first)
+            #expect(generated.isEmpty)
+            #expect(context.diagnostics.count == 1)
+            #expect(diagnostic.diagnosticID == code("provide.unavailable-dependency-reference"))
+            #expect(diagnostic.diagMessage.severity == .error)
+            #expect(diagnostic.message == "Dependency 'transient' referenced by 'shared' is not available in this construction scope because it is a transient provider.")
+            #expect(diagnostic.notes.contains { $0.message.contains("changing declaration order cannot") })
+            #expect(diagnostic.notes.contains { $0.message.contains("retained for later use") })
+            #expect(!diagnostic.notes.contains { $0.message.contains("Move shared provider") || $0.message.contains("opt in") })
+            #expect(diagnostic.fixIts.isEmpty)
+            let reference = usesWith ? "\\Self.transient" : "transient: Int)"
+            let range = try #require(source.range(of: reference))
+            let offset = source[..<range.lowerBound].utf8.count
+            #expect(diagnostic.node.trimmedDescription == (usesWith ? "\\Self.transient" : "transient"))
+            #expect(diagnostic.node.kind == (usesWith ? .keyPathExpr : .token))
+            #expect(diagnostic.node.positionAfterSkippingLeadingTrivia.utf8Offset == offset)
+            #expect(diagnostic.position.utf8Offset == offset)
+            let declarationNote = try #require(diagnostic.notes.first { $0.message == "'transient' is declared here." })
+            let declarationRange = try #require(source.range(of: "var transient:"))
+            #expect(declarationNote.node.trimmedDescription == "transient: Int")
+            #expect(declarationNote.node.positionAfterSkippingLeadingTrivia.utf8Offset
+                == source[..<declarationRange.lowerBound].utf8.count + 4)
+        }
+    }
+
+    @Test("Async transient scope errors do not recommend synchronous deferred handles", arguments: [false, true], [false, true])
+    func asyncTransientScopeDiagnostic(targetBefore: Bool, providerThrows: Bool) throws {
+        for policy in ["declaration", "dependency"] {
+            let effects = providerThrows ? "async throws" : "async"
+            let consumer = "@Provide(.shared, asyncFactory: { (fresh: Int) \(effects) in fresh }) var shared: Int"
+            let provider = "@Provide(.transient, asyncFactory: { () \(effects) in 1 }) var fresh: Int"
+            let source = """
+                @DIContainer(initializationOrder: ContainerInitializationOrder.\(policy)) struct Container {
+                    \(targetBefore ? provider : consumer)
+                    \(targetBefore ? consumer : provider)
+                }
+                """
+            let parsed = Parser.parse(source: source)
+            let declaration = try #require(parsed.statements.first?.item.as(StructDeclSyntax.self))
+            let attribute = try #require(declaration.attributes.first?.as(AttributeSyntax.self))
+            let context = TestMacroExpansionContext()
+            let generated = try DIContainerMacro.expansion(of: attribute, providingMembersOf: declaration, in: context)
+            let diagnostic = try #require(context.diagnostics.first)
+            #expect(generated.isEmpty)
+            #expect(context.diagnostics.count == 1)
+            #expect(diagnostic.diagnosticID == code("provide.unavailable-dependency-reference"))
+            #expect(diagnostic.notes.contains { $0.message.contains("async transient consumer with compatible throwing effects") })
+            #expect(diagnostic.notes.contains { $0.message.contains("Lazy<T> and Provider<T> cannot wrap asynchronous targets") })
+            #expect(!diagnostic.notes.contains { $0.message.contains("retained for later use") || $0.message.contains("Move shared provider") })
+            #expect(diagnostic.fixIts.isEmpty)
+            #expect(diagnostic.node.trimmedDescription == "fresh")
+            let range = try #require(source.range(of: "fresh: Int)"))
+            #expect(diagnostic.position.utf8Offset == source[..<range.lowerBound].utf8.count)
+            #expect(diagnostic.notes.contains { $0.message == "'fresh' is declared here." })
+        }
     }
 
     @Test("Cycles remain rejected with DAG diagnostics disabled", arguments: [true, false], ["Int", "Lazy<Int>"])
