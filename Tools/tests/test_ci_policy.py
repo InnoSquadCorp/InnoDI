@@ -253,15 +253,15 @@ class RequiredTests(unittest.TestCase):
         self.assertNotIn("    paths:", source)
         self.assertIn("  merge_group:\n    types: [checks_requested]", source)
         aggregate = source.split("  ci-required:\n", 1)[1].split("  append-perf-history:\n", 1)[0]
-        self.assertIn("if: ${{ always() && !(", aggregate)
+        self.assertIn("if: ${{ always() }}", aggregate)
         for job in policy.JOBS:
             self.assertIn("      - " + job + "\n", aggregate)
             if job != "policy":
                 self.assertIn(f"if: needs.ci-plan.outputs.{job} == 'true'", source)
         self.assertNotIn('ready_for_review', source)
         self.assertIn('ready_for_review', (ROOT / '.github/workflows/dependabot-auto-merge.yml').read_text())
-        self.assertIn("format('metadata-{0}', github.run_id) || github.ref", source)
-        self.assertIn('  cancel-in-progress: true', source)
+        self.assertIn('  group: macro-tests-${{ github.ref }}', source)
+        self.assertIn('  cancel-in-progress: ${{ !(', source)
         self.assertIn('types: [opened, synchronize, reopened, labeled, unlabeled, edited]', source)
         release = (ROOT / ".github/workflows/release.yml").read_text()
         self.assertIn("      publish:\n", release)

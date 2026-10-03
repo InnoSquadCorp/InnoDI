@@ -54,6 +54,8 @@ ALLOWED_STEP_SKIP = {("docc / docc", "Upload GitHub Pages Artifact"),
                      ("Swift 6.2 compatibility", "Report compiler canaries (informational)"),
                      ("remote-consumer / Exact-SHA macro and plugin consumer", "Confirm the revision is the published main tip")}
 
+ALLOWED_STEP_SKIP.update({('CI Required', 'Verify prior validation for metadata')})
+
 
 class Rejected(ValueError):
     pass
