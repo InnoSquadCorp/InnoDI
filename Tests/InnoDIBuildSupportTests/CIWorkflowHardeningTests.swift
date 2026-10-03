@@ -35,21 +35,30 @@ struct CIWorkflowHardeningTests {
         #expect(result.output.contains("pinned external action use(s)"))
     }
 
-    @Test("Macro validation cancels superseded runs for the same ref")
+    @Test("Macro validation supersedes code changes and preserves metadata queues")
     func macroValidationCancelsSupersededRuns() throws {
+        let root = packageRootURL()
         let workflow = try String(
-            contentsOf: packageRootURL()
+            contentsOf: root
                 .appendingPathComponent(".github/workflows/macro-tests.yml"),
             encoding: .utf8
         )
         let jobsStart = try #require(workflow.range(of: "\njobs:\n"))
         let workflowPolicy = workflow[..<jobsStart.lowerBound]
 
-        #expect(
-            workflowPolicy.contains(
-                "concurrency:\n  group: macro-tests-${{ github.ref }}\n  cancel-in-progress: true"
-            )
-        )
+        #expect(workflowPolicy.contains("group: macro-tests-${{ github.ref }}"))
+        // Evaluate the actual admission, queue and cancellation expressions
+        // for metadata, code, base, label and manual-dispatch events.
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = [
+            "python3", "-B", "-m", "unittest", "discover",
+            "-s", "Tools/tests", "-p", "test_ci_event_routing.py",
+        ]
+        process.currentDirectoryURL = root
+        try process.run()
+        process.waitUntilExit()
+        #expect(process.terminationStatus == 0)
     }
 
     @Test("PR and exhaustive validation have explicit latency budgets")
@@ -214,7 +223,7 @@ struct CIWorkflowHardeningTests {
         #expect(workflowPolicy.contains("  workflow_dispatch:\n"))
         #expect(
             workflowPolicy.contains(
-                "types: [opened, synchronize, reopened, labeled, unlabeled]"
+                "types: [opened, synchronize, reopened, labeled, unlabeled, edited]"
             )
         )
         for job in ["macro-tests", "consumer-contracts", "sanitizers",
@@ -228,7 +237,12 @@ struct CIWorkflowHardeningTests {
             encoding: .utf8
         )
         #expect(coordinator.contains("ready_for_review"))
-        #expect(workflow.contains("name: CI Required"))
+        let requiredStart = try #require(workflow.range(of: "  ci-required:\n"))
+        let requiredJob = workflow[requiredStart.lowerBound..<appendStart.lowerBound]
+        #expect(requiredJob.contains("    name: CI Required\n"))
+        #expect(requiredJob.contains("    if: ${{ always() }}\n"))
+        #expect(requiredJob.contains("- name: Verify prior validation for metadata\n"))
+        #expect(requiredJob.contains("Tools/verify-ci-metadata.py --check 'CI Required'"))
         #expect(workflowPolicy.contains("  merge_group:"))
         #expect(
             appendJob.contains(
@@ -682,7 +696,7 @@ struct CIWorkflowHardeningTests {
         )
 
         #expect(workflow.contains("INNODI_REVISION: ${{ inputs.revision || github.sha }}"))
-        #expect(workflow.contains("INNODI_BRANCH_REF: ${{ inputs.branch_ref || 'refs/heads/main' }}"))
+        #expect(workflow.contains("INNODI_BRANCH_REF: ${{ inputs.branch_ref || github.ref }}"))
         #expect(workflow.contains("Package.resolved"))
         #expect(workflow.contains("swift run --package-path \"$INNODI_REMOTE_CONSUMER\" --skip-build MacroOnlyApp"))
         #expect(workflow.contains("swift run --package-path \"$INNODI_REMOTE_CONSUMER\" --skip-build ValidatedApp"))

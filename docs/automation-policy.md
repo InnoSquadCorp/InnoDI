@@ -7,27 +7,38 @@ controls before adapting it. No central repository or credentials are required.
 
 ## Validation levels and changed paths
 
-`CI` in `macro-tests.yml` always creates **CI Plan** and **CI Required** for
-`opened`, `synchronize`, `reopened`, `labeled`, and `unlabeled` PR events, main
+`CI` in `macro-tests.yml` creates **CI Plan** and **CI Required** for
+`opened`, `synchronize`, and `reopened` PR events, adding/removing
+`release-validation`, base-branch retargets (`edited` with `changes.base`), main
 pushes, manual validation, and merge queue `checks_requested`. Drafts receive
 the same path-selected validation as ready PRs. `ready_for_review` remains a
 coordinator eligibility wake-up but no longer repeats expensive CI for an
-unchanged revision. Label events intentionally retain their existing full
-replanning and concurrency behavior: filtering label-only no-ops requires a
-separate proof of required-check identity and lifecycle ordering, and is not
-part of this cache/duplicate-lane change. There are no workflow-level path
-filters that could leave a required check pending.
+unchanged revision. Other label changes and title/body edits create a native
+metadata-only run with every job skipped. Its unique concurrency group cannot
+cancel real validation, and its aggregate is named **CI Metadata Only**, so it
+cannot publish a new **CI Required** verdict. There are no workflow-level path
+filters that could leave a required check pending. Adding or removing
+`release-validation` still replaces the previous plan for that PR. Its spelling
+is matched without case sensitivity in both the native workflow and the Python
+planner, so a case-only label rename cannot downgrade full validation.
 
-A base-branch retarget is an `edited` event and does not automatically rerun heavy
-CI in this change. Broadening every title/body edit into expensive validation
-would defeat the latency policy, and a safe base-only dispatcher remains separate
-work. After retargeting, the owner must obtain fresh PR-context CI with the current
-base/head, for example through an actual head-changing update or an explicitly
-requested reopen. Do not treat the old same-head check as fresh-base evidence.
+Base retargets compare the new event base/head and reselect affected checks.
 Re-running an old Actions run retains its original event SHA/ref, and a generic
 manual dispatch is not bot PR proof. The bot coordinator still requires current
 main/test-merge parents and exact run head/base association; stale or unverified
 proof stays blocked. No automatic retarget/reopen/head mutation is introduced.
+
+Metadata-only runs are never validation evidence. When selecting the latest
+actual CI run, the bot and main-reuse policies authenticate newer metadata runs
+against their immutable workflow blob and event merge parents, complete native
+job/check inventories, skipped outcomes without steps, app/suite/URLs, and stable
+attempt metadata. The event-bound run title alone cannot exempt a check. Missing,
+pending, changed or unrecognized evidence blocks bot approval or falls back to
+full main execution; a failed real CI run never becomes green. Older terminal
+runs retain the existing historical attribution rules once a newer real
+validation supersedes them. Hosted confirmation of the skipped-job inventory,
+concurrency isolation and required-check identity is a deployment gate; local
+transcript tests do not establish GitHub UI behavior.
 
 | Level | Contract |
 | --- | --- |
@@ -47,9 +58,36 @@ successful plan. Whenever the exhaustive coverage job is selected, the duplicate
 fast job is unselected: the coverage pass uses the same strict compiler flags
 and serialization with fewer skipped suites, and the exhaustive job also runs
 every fast API, DAG, validation, and informational report command. Executable
-tests pin the skip-set inclusion and complete fast-step inventory. Consumer,
-TSAN/ASAN, platform, coverage-floor, performance, and exact-SHA gates remain
+tests pin the skip-set inclusion and complete fast-step inventory.
+The policy job owns `test_public_api*.py` on Xcode 26.6; fast and exhaustive
+CI skip only its duplicate Swift subprocess wrapper, and sanitizer runs skip
+that non-instrumented compiler subprocess. The default local coverage command
+and Release Gate retain the wrapper once. Swift 6.2 keeps its separate compiler
+contract, and every applicable aggregate still requires the owner to succeed.
+Consumer, TSAN/ASAN, platform, coverage-floor, performance, and exact-SHA gates remain
 separate requirements; no unique check is removed.
+
+The existing required policy job also runs `Tools/check-ci-workflows.py`; lint
+does not allocate a separate runner. It downloads actionlint 1.7.12 for the host,
+verifies a reviewed SHA-256 digest before extracting its executable, and checks
+every workflow. Optional host-installed shellcheck/pyflakes integrations are
+disabled so the result does not depend on the runner image. The unsupported
+`concurrency.queue` diagnostic is narrowly exempted only after checking that
+the three known coordinator writer queues retain their exact `max` values and
+locations. Parsed diagnostics must match those exact files, lines, columns and
+messages; a new queue in block or flow syntax is not covered by a global ignore
+pattern. A changed queue requires reviewing this exception. Download,
+checksum and lint failures fail the policy job.
+
+Every runner job has an explicit timeout. The previously unbounded exhaustive
+CI pass now has 60 minutes; Examples and DocC have 30 minutes; lightweight
+aggregates have 5 minutes, artifact/history transport 10 minutes, Pages deployment
+15 minutes, and manual performance reconstruction 60 minutes. Existing dedicated
+consumer/sanitizer/release budgets are retained. These initial bounds leave
+headroom above the observed PR #50 exhaustive pass (22m04s), current-main pass
+(17m13s), and 2–4 minute example/DocC jobs; they are not estimates of worst-case
+cold runs. Revisit them with hosted distributions if legitimate runs approach
+the limit. Timeout is a failure, never reusable success.
 
 For a normal single-commit squash push to main, six jobs may reuse successful
 PR verification: primary consumer contracts, sanitizers, Swift 6.2 compatibility,
@@ -119,7 +157,9 @@ separate metadata-only Dependabot coordinator uses `pull_request_target` and
 trusted main code; it never executes PR source. Public fork consumers resolve the exact fork
 head through its public URL with normalized package identity; main retains the
 exact-tip check, queue validation uses its temporary `head_ref`, and manual
-branch validation uses the selected branch ref. Moving branches
+branch validation uses the selected branch ref, including direct dispatch of
+the reusable remote-consumer workflow without an explicit `branch_ref` input.
+An explicit input must still match the selected SHA. Moving branches
 can invalidate a run and require a fresh one.
 
 Docs publication consumes the Pages artifact of a successful main push **CI**
@@ -128,6 +168,11 @@ deployment its originating SHA must still equal remote main, so a stale run or
 rerun cannot roll documentation back. Main
 performance history appends only after CI Required succeeds. These existing
 post-validation writes are never part of candidate or PR validation.
+The Docs trigger filters originating branches to main, and only its eligible
+deployment job enters the `pages` concurrency group after artifact preparation
+succeeds. PR/metadata-only/failed/ordinary-manual CI notices cannot occupy that
+deployment queue or replace a pending deployment. Actual hosted queue ordering
+remains part of deployment verification.
 
 ## Cache identity and measurements
 

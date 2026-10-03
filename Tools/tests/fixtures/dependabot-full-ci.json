@@ -446,6 +446,11 @@
       {
         "name": "Require every planned result",
         "conclusion": "success"
+      },
+      {
+        "name": "Verify prior validation for metadata",
+        "status": "completed",
+        "conclusion": "skipped"
       }
     ],
     "append-perf-history": []

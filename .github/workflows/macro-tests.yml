@@ -1,10 +1,12 @@
 name: CI
+# Metadata events queue behind validation and recheck its immutable evidence.
+# Stable required check names keep GitHub branch protection actionable.
 run-name: >-
-  ${{ inputs.dependabot_merge_pr && format('CI / Dependabot merge #{0}', inputs.dependabot_merge_pr) || github.event.pull_request.title || github.event.head_commit.message || 'CI' }}
+  ${{ (github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base))) && format('CI metadata-only v1 pr:{0} head:{1} base:{2} action:{3} source:{4}', github.event.pull_request.number, github.event.pull_request.head.sha, github.event.pull_request.base.sha, github.event.action, github.workflow_sha) || (github.event_name == 'pull_request' && format('CI validation v2 pr:{0} head:{1} base:{2} source:{3} release:{4} asan:{5} concurrency:{6}', github.event.pull_request.number, github.event.pull_request.head.sha, github.event.pull_request.base.sha, github.sha, contains(github.event.pull_request.labels.*.name, 'release-validation'), false, false) || (inputs.dependabot_merge_pr && format('CI / Dependabot merge #{0}', inputs.dependabot_merge_pr) || format('CI validation / {0} / {1}', github.event_name, github.ref))) }}
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    types: [opened, synchronize, reopened, labeled, unlabeled, edited]
   push:
     branches:
       - main
@@ -23,7 +25,8 @@ permissions:
 
 concurrency:
   group: macro-tests-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ !(github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base))) }}
+  queue: ${{ (github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base))) && 'max' || 'single' }}
 
 jobs:
   # Cache observations are intentionally fail-closed: a `restored` failure
@@ -31,6 +34,7 @@ jobs:
   # A restore/hit is never evidence that verification succeeded.
   ci-plan:
     name: CI Plan
+    if: ${{ !(github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base))) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -106,6 +110,7 @@ jobs:
         run: |
           Tools/check-ci-validation-opt-out.sh
           Tools/check-ci-action-pins.sh
+          python3 -B Tools/check-ci-workflows.py
           python3 -B -m unittest discover -s Tools/tests
           python3 Tools/check-public-operations.py
 
@@ -208,6 +213,7 @@ jobs:
             --no-parallel \
             -Xswiftc -strict-concurrency=complete \
             -Xswiftc -warnings-as-errors \
+            --skip 'InnoDIBuildSupportTests.PublicAPIContractTests/compilerDefaultArgumentContract' \
             --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)' \
             --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer' \
             --skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs' \
@@ -260,6 +266,7 @@ jobs:
     needs: ci-plan
     if: needs.ci-plan.outputs.macro-tests == 'true'
     runs-on: macos-26
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -290,7 +297,7 @@ jobs:
         # Shared with the release gate so both lanes measure one strict pass
         # from fresh profile data and enforce the same module floors. The
         # consumer-contracts job runs the subprocess build contracts beside it.
-        run: Tools/run-coverage-gate.sh
+        run: Tools/run-coverage-gate.sh --api-checker-in-policy
       - name: Upload Coverage Artifacts
         if: ${{ always() && hashFiles('coverage/summary.json') != '' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -507,6 +514,7 @@ jobs:
           --sanitize=thread
           -Xswiftc -strict-concurrency=complete
           -Xswiftc -warnings-as-errors
+          --skip 'InnoDIBuildSupportTests.PublicAPIContractTests/compilerDefaultArgumentContract'
           --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)'
           --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'
           --skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'
@@ -518,6 +526,7 @@ jobs:
           --sanitize=address
           -Xswiftc -strict-concurrency=complete
           -Xswiftc -warnings-as-errors
+          --skip 'InnoDIBuildSupportTests.PublicAPIContractTests/compilerDefaultArgumentContract'
           --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)'
           --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer'
           --skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'
@@ -745,12 +754,18 @@ jobs:
         with:
           persist-credentials: false
       - name: Require every planned result
+        if: ${{ !(github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base))) }}
         env:
           CI_PLAN: ${{ needs.ci-plan.outputs.plan }}
           CI_NEEDS: ${{ toJSON(needs) }}
           CI_REUSE: ${{ needs.ci-plan.outputs.reuse-proof }}
           GH_TOKEN: ${{ github.token }}
         run: python3 Tools/ci-policy.py evaluate
+      - name: Verify prior validation for metadata
+        if: ${{ (github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base))) }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B Tools/verify-ci-metadata.py --check 'CI Required'
 
   append-perf-history:
     if: >-
@@ -767,6 +782,7 @@ jobs:
     # validation jobs suppressing this writer; explicit successes and the
     # cancellation guard still block any failed, incomplete or cancelled run.
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
     concurrency:

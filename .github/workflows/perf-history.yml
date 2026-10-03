@@ -11,6 +11,7 @@ jobs:
     # Manual recovery path for rebuilding an entry. Normal main pushes reuse
     # the gated report in macro-tests.yml and append it from an Ubuntu job.
     runs-on: macos-26
+    timeout-minutes: 60
     permissions:
       contents: write
     concurrency:

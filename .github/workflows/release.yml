@@ -252,6 +252,7 @@ jobs:
             --sanitize=thread \
             -Xswiftc -strict-concurrency=complete \
             -Xswiftc -warnings-as-errors \
+            --skip 'InnoDIBuildSupportTests.PublicAPIContractTests/compilerDefaultArgumentContract' \
             --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)' \
             --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer' \
             --skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'
@@ -261,6 +262,7 @@ jobs:
             --sanitize=address \
             -Xswiftc -strict-concurrency=complete \
             -Xswiftc -warnings-as-errors \
+            --skip 'InnoDIBuildSupportTests.PublicAPIContractTests/compilerDefaultArgumentContract' \
             --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)' \
             --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer' \
             --skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'
@@ -534,6 +536,7 @@ jobs:
     if: ${{ always() }}
     needs: [preflight, recovery-state, release-gate, release-compatibility, exact-revision-consumer]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout exact candidate evaluator
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -15,7 +15,7 @@ JOBS = ("policy", "fast-tests", "macro-tests", "consumer-contracts", "sanitizers
 EXHAUSTIVE = {"macro-tests", "consumer-contracts", "sanitizers", "swift-62-compatibility",
               "xcode-27-compatibility", "apple-platform-builds", "path-identity"}
 SHA = re.compile(r"[0-9a-f]{40}")
-PR_ACTIONS = {"opened", "synchronize", "reopened", "labeled", "unlabeled"}
+PR_ACTIONS = {"opened", "synchronize", "reopened", "labeled", "unlabeled", "edited"}
 
 
 def reuse_policy():
@@ -134,10 +134,13 @@ def make_plan(event_name, event, paths):
         pr = event.get("pull_request", {})
         if event.get("action") not in PR_ACTIONS or not isinstance(pr, dict):
             raise ValueError("unsupported PR event")
+        if event["action"] == "edited" and not event.get("changes", {}).get("base"):
+            raise ValueError("metadata-only PR edit has no validation plan")
         labels = pr.get("labels")
         if not isinstance(labels, list) or any(not isinstance(x, dict) or not isinstance(x.get("name"), str) for x in labels):
             raise ValueError("missing or malformed PR labels")
-        lane = "release-validation" if any(x["name"] == "release-validation" for x in labels) else "fast"
+        # Match GitHub's case-insensitive native event predicates.
+        lane = "release-validation" if any(x["name"].lower() == "release-validation" for x in labels) else "fast"
     elif event_name == "push":
         if event.get("ref") != "refs/heads/main":
             raise ValueError("CI push must target main")
