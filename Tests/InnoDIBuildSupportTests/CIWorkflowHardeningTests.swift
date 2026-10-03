@@ -35,21 +35,30 @@ struct CIWorkflowHardeningTests {
         #expect(result.output.contains("pinned external action use(s)"))
     }
 
-    @Test("Macro validation cancels superseded runs for the same ref")
+    @Test("Macro validation supersedes code changes and preserves metadata queues")
     func macroValidationCancelsSupersededRuns() throws {
+        let root = packageRootURL()
         let workflow = try String(
-            contentsOf: packageRootURL()
+            contentsOf: root
                 .appendingPathComponent(".github/workflows/macro-tests.yml"),
             encoding: .utf8
         )
         let jobsStart = try #require(workflow.range(of: "\njobs:\n"))
         let workflowPolicy = workflow[..<jobsStart.lowerBound]
 
-        #expect(
-            workflowPolicy.contains(
-                "format('metadata-{0}', github.run_id) || github.ref"
-            )
-        )
+        #expect(workflowPolicy.contains("group: macro-tests-${{ github.ref }}"))
+        // Evaluate the actual admission, queue and cancellation expressions
+        // for metadata, code, base, label and manual-dispatch events.
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = [
+            "python3", "-B", "-m", "unittest", "discover",
+            "-s", "Tools/tests", "-p", "test_ci_event_routing.py",
+        ]
+        process.currentDirectoryURL = root
+        try process.run()
+        process.waitUntilExit()
+        #expect(process.terminationStatus == 0)
     }
 
     @Test("PR and exhaustive validation have explicit latency budgets")
@@ -228,7 +237,12 @@ struct CIWorkflowHardeningTests {
             encoding: .utf8
         )
         #expect(coordinator.contains("ready_for_review"))
-        #expect(workflow.contains("'CI Metadata Only' || 'CI Required'"))
+        let requiredStart = try #require(workflow.range(of: "  ci-required:\n"))
+        let requiredJob = workflow[requiredStart.lowerBound..<appendStart.lowerBound]
+        #expect(requiredJob.contains("    name: CI Required\n"))
+        #expect(requiredJob.contains("    if: ${{ always() }}\n"))
+        #expect(requiredJob.contains("- name: Verify prior validation for metadata\n"))
+        #expect(requiredJob.contains("Tools/verify-ci-metadata.py --check 'CI Required'"))
         #expect(workflowPolicy.contains("  merge_group:"))
         #expect(
             appendJob.contains(
