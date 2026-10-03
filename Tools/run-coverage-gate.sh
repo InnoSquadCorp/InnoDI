@@ -9,6 +9,16 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
+# The CI policy job owns the same-toolchain Python/compiler checker tests.
+# Local and Release Gate invocations retain the wrapper by default.
+COVERAGE_TEST_ARGUMENTS=(--skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)')
+if [[ "$#" == 1 && "$1" == --api-checker-in-policy ]]; then
+    COVERAGE_TEST_ARGUMENTS+=(--skip 'InnoDIBuildSupportTests.PublicAPIContractTests/compilerDefaultArgumentContract')
+elif [[ "$#" != 0 ]]; then
+    echo 'Usage: Tools/run-coverage-gate.sh [--api-checker-in-policy]' >&2
+    exit 2
+fi
+
 SWIFT_PACKAGE_ARGUMENTS=(--package-path "$ROOT_DIR")
 if [[ -n "${INNODI_COVERAGE_SCRATCH_PATH:-}" ]]; then
     SWIFT_PACKAGE_ARGUMENTS+=(
@@ -53,8 +63,7 @@ trap summarize_test_durations EXIT
 # packages in separate, non-instrumented Swift processes and took most of this
 # pass's test time. CI runs them in parallel jobs beside this gate, so this
 # pass runs every other test.
-swift test "${SWIFT_PACKAGE_ARGUMENTS[@]}" --no-parallel -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --enable-code-coverage \
-    --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)' \
+swift test "${SWIFT_PACKAGE_ARGUMENTS[@]}" "${COVERAGE_TEST_ARGUMENTS[@]}" --no-parallel -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --enable-code-coverage \
     2>&1 | tee "$TEST_LOG"
 INNODI_COVERAGE_BUILD_DIR="$BUILD_DIR" Tools/collect-coverage.sh
 

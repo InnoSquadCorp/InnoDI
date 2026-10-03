@@ -149,11 +149,12 @@ class ExhaustiveSupersetTests(unittest.TestCase):
             self.assertIn(flag, coverage)
         fast_skips = set(re.findall(r"--skip '([^']+)'", test))
         exhaustive_skips = set(re.findall(r"--skip '([^']+)'", coverage))
-        self.assertEqual(fast_skips, {
+        api_checker = 'InnoDIBuildSupportTests.PublicAPIContractTests/compilerDefaultArgumentContract'
+        self.assertEqual(fast_skips, {api_checker,
             'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)',
             'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer',
             'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'})
-        self.assertEqual(exhaustive_skips, {'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)'})
+        self.assertEqual(exhaustive_skips, {api_checker, 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)'})
         self.assertLess(exhaustive_skips, fast_skips)
         self.assertNotIn('--filter', coverage)
         self.assertNotIn('--filter', test)

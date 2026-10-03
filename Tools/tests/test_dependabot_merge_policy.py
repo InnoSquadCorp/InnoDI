@@ -776,7 +776,10 @@ def workflow_inventory():
             for child in workflow_jobs((workflows / job['uses']).read_text()).values():
                 inventory[f"{job['name']} / {child['name']}"] = child['steps']
         else:
-            inventory[job['name']] = job['steps']
+            name = job['name']
+            if name.startswith('${{ ') and "'CI Metadata Only' || 'CI Required'" in name:
+                name = 'CI Required'  # Validation branch; native no-op identity is tested separately.
+            inventory[name] = job['steps']
     return inventory
 
 

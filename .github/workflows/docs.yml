@@ -4,19 +4,17 @@ on:
   workflow_run:
     workflows: [CI]
     types: [completed]
+    branches: [main]
 
 permissions:
   contents: read
-
-concurrency:
-  group: pages
-  cancel-in-progress: false
 
 jobs:
   docc:
     if: >-
       github.event.workflow_run.conclusion == 'success' && (github.event.workflow_run.event == 'push' || (github.event.workflow_run.event == 'workflow_dispatch' && startsWith(github.event.workflow_run.display_title, 'CI / Dependabot merge #'))) && github.event.workflow_run.path == '.github/workflows/macro-tests.yml' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.repository.full_name == github.repository
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       actions: read
       contents: read
@@ -44,7 +42,13 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: docc
+    # Only artifact-backed deployments share this queue. An unrelated CI
+    # completion must not replace a pending deployment with a skipped run.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     steps:
       - name: Reject stale main documentation
         env:
