@@ -11,6 +11,11 @@ Current development train: `7.0.0` (unreleased)
 
 ## Unreleased
 
+- Ordinary transient child builders retain a synchronous non-Sendable function
+  type, preserving valid child composition after deferred-cell transfer checks
+  were tightened. MainActor builders remain actor-bound and Sendable; unchecked
+  transfer and cross-actor ordinary-container guarantees are not introduced.
+
 - Legacy async on-demand close follows reverse dependency order, and reentry
   diagnostics include provider names. Joining readers forward their current
   task priority on runtimes with explicit priority escalation (Apple OS 26+);

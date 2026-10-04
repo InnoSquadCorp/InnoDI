@@ -35,7 +35,7 @@ cat "$OUT/deferred-run.log"
 # Legacy deferred captures keep Swift's isolation checking. These consumers
 # cover non-Sendable synchronous handles, actor-local captures, ordinary
 # Sendable async dependencies, and an exclusively transferred resolver.
-for fixture in LegacyDeferredPositive LegacyDeferredTransfer LegacyDeferredBinding; do
+for fixture in LegacyDeferredPositive LegacyDeferredTransfer LegacyDeferredBinding TransientChildren; do
   cp "$ROOT/Tests/OwnedPortablePluginFixtures/$fixture.swift.fixture" "$OUT/$fixture.swift"
   swiftc "${FLAGS[@]}" "${LOAD[@]}" -parse-as-library -I "$OUT" -L "$OUT" -lInnoDI \
     -Xlinker -rpath -Xlinker "$OUT" "$OUT/$fixture.swift" -o "$OUT/$fixture" \
@@ -136,6 +136,8 @@ negative DeferredIndirectSendable "$FIXTURES/DeferredIndirectSendable.swift.fixt
 negative LegacyDeferredPayload "$FIXTURES/LegacyDeferredPayload.swift.fixture" "passing closure as a 'sending' parameter risks causing data races" compile
 negative LegacyDeferredResolverCapture "$FIXTURES/LegacyDeferredResolverCapture.swift.fixture" "passing closure as a 'sending' parameter risks causing data races" compile
 negative LegacyDeferredIndirectCapture "$FIXTURES/LegacyDeferredIndirectCapture.swift.fixture" "with non-Sendable type '_InnoDIDeferredCell<Int>'" compile
+negative TransientChildSendableEscape "$FIXTURES/TransientChildSendableEscape.swift.fixture" "capture of 'parent' with non-Sendable type 'Parent'" compile
+negative TransientChildActorEscape "$FIXTURES/TransientChildActorEscape.swift.fixture" "main actor-isolated property 'child'" compile
 negative LegacyDeferredEagerCall "$FIXTURES/LegacyDeferredEagerCall.swift.fixture" "cannot call Lazy<T> during .shared construction" compile
 negative LegacyDeferredProviderEagerCall "$FIXTURES/LegacyDeferredEagerCall.swift.fixture" "cannot call Provider<T> during .shared construction" compile
 negative DeferredEagerCall "$FIXTURES/DeferredEagerCall.swift.fixture" "cannot call Lazy<T> during .shared construction"

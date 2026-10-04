@@ -104,3 +104,17 @@ old measurement thresholds or treating driver output length as binary size.
 This is PR preparation and validation, not merge, tag, release, or authorization
 to change repository security policy. Passing the next PR CI alone does not
 resolve separately held repository-policy and minimum-OS release decisions.
+
+## Exact-head CI integration follow-up
+
+The first published remediation head, `b2a89f5`, passed documentation, policy,
+DocC, examples, and the remote consumer. Its complete runtime-test compilation
+exposed an ordinary transient child builder still declared `@Sendable` while
+capturing the newly checked deferred cell. The
+[narrow resolver correction](transient-child-resolver-capture-2026-10-04.md)
+preserves ordinary synchronous composition and MainActor isolation without
+restoring unchecked transfer. Six actual-plugin wiring/isolation shapes,
+existing child/eager runtime tests, escape negatives, the full portable suite
+(now 35 intended negatives), and the full macro suite pass locally. The next
+exact-head Apple run remains the integration gate; earlier passing jobs are not
+substituted for it.

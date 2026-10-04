@@ -1,0 +1,12 @@
+import InnoDI
+
+@DIContainer struct Child: Sendable {
+    @Input var value: Int
+}
+@DIContainer struct Parent {
+    @Input var value: Int
+    @SubContainer(scope: .transient) var child: Child
+}
+func escape(_ parent: Parent) -> @Sendable () -> Int {
+    { parent.child.value }
+}

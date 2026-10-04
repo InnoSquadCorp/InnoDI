@@ -206,8 +206,9 @@ internal func providerTaskStoragePeerDecl(
     return DeclSyntax(decl)
 }
 
-/// Builds a peer decl in the shape
-/// `private let _innoDISubBuild_<name>: @Sendable () -> <ChildType>`.
+/// Builds a synchronous child resolver in the parent's isolation domain.
+/// Ordinary containers may capture non-Sendable inputs and deferred cells.
+/// Only MainActor builders are Sendable, with their calls actor-isolated.
 internal func subContainerBuildClosurePeerDecl(
     name: String,
     childType: TypeSyntax,
@@ -224,13 +225,15 @@ internal func subContainerBuildClosurePeerDecl(
                     )
                 )
                 : nil,
-            AttributeListSyntax.Element.attribute(
-                AttributeSyntax(
-                    attributeName: IdentifierTypeSyntax(
-                        name: .identifier("Sendable", trailingTrivia: .space)
+            isMainActor
+                ? AttributeListSyntax.Element.attribute(
+                    AttributeSyntax(
+                        attributeName: IdentifierTypeSyntax(
+                            name: .identifier("Sendable", trailingTrivia: .space)
+                        )
                     )
                 )
-            ),
+                : nil,
         ].compactMap { $0 }
     )
     let functionType = TypeSyntax(
