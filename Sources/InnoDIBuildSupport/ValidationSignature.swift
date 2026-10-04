@@ -333,6 +333,16 @@ struct ValidationSignatureCollector<Parser: ValidationSyntaxParsing> {
             )
         }
 
+        var contentHasher = StableHasher()
+        contentHasher.combine("count:\(sourceKeys.count)")
+        for source in sources {
+            let cacheKey = source.cacheKey
+            let diagnosticPath = source.fileURL.path(percentEncoded: false)
+            contentHasher.combine("file[\(cacheKey.utf8.count)]:\(cacheKey)")
+            contentHasher.combine("path[\(diagnosticPath.utf8.count)]:\(diagnosticPath)")
+            contentHasher.combine("content:\(updatedRecords[cacheKey]?.contentHash ?? "missing")")
+        }
+
         return ValidationSignatureCollectionOutput(
             result: ValidationSignatureCollectionResult(
                 signature: hasher.finalize(),
@@ -351,7 +361,8 @@ struct ValidationSignatureCollector<Parser: ValidationSyntaxParsing> {
                 )
             ),
             parsedSources: parsedSources,
-            capturedSourceBytes: capturedSourceBytes
+            capturedSourceBytes: capturedSourceBytes,
+            sourceContentSignature: contentHasher.finalize()
         )
     }
 }
@@ -373,6 +384,9 @@ struct ValidationSignatureCollectionOutput {
     /// Cache-hit files whose bytes were hashed but did not need parsing. The
     /// union with parsedSources is the closed source set for this signature.
     let capturedSourceBytes: [String: Data]
+    /// Exact bytes, including trivia, and displayed source paths bind cached
+    /// diagnostics to their positions even when a checkout and cache move.
+    let sourceContentSignature: String
 }
 
 /// Convenience entry point used by callers that only need the final signature.

@@ -56,6 +56,22 @@ package struct SharedValidationRunRecord: Codable, Equatable, Sendable {
     package let liveRunMetrics: ValidationLiveRunMetrics
     package let reasonCodes: [ValidationReasonCode]
     package let issues: [ValidationIssue]
+    package let sourceContentSignature: String?
+    package let resultSignature: String?
+
+    package init(
+        liveRunMetrics: ValidationLiveRunMetrics,
+        reasonCodes: [ValidationReasonCode],
+        issues: [ValidationIssue],
+        sourceContentSignature: String? = nil,
+        resultSignature: String? = nil
+    ) {
+        self.liveRunMetrics = liveRunMetrics
+        self.reasonCodes = reasonCodes
+        self.issues = issues
+        self.sourceContentSignature = sourceContentSignature
+        self.resultSignature = resultSignature
+    }
 }
 
 package struct ValidationCoordinatorLockPolicy: Sendable {
@@ -290,7 +306,7 @@ package enum BootIDProvider {
 // semantics across `combine` call boundaries. Keep validator and digest
 // behavior in the cache salt so an unchanged workspace cannot reuse a result
 // produced by an older contract.
-package let sharedRunCacheVersion = 12
+package let sharedRunCacheVersion = 13
 
 package func sharedRunCacheKey(for signature: String) -> String {
     "shared-run-v\(sharedRunCacheVersion)-\(signature)"
@@ -619,7 +635,7 @@ package enum ValidationCoordinator {
         )
 
         if runner.canCacheValidationResult(toolPath: toolPath),
-           let cachedRun = paths.loadCachedRun() {
+           let cachedRun = paths.loadCachedRun(sourceContentSignature: signatureCollectionOutput.sourceContentSignature) {
             return try outcomeWriter.finalize(
                 result: cachedRun.result,
                 wasCached: true,

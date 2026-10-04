@@ -50,8 +50,8 @@ struct ValidationContractTests {
 
     @Test("Shared-run cache keys stay version salted")
     func sharedRunCacheKeyUsesCurrentVersionSalt() {
-        #expect(sharedRunCacheVersion == 12)
-        #expect(sharedRunCacheKey(for: "abc123") == "shared-run-v12-abc123")
+        #expect(sharedRunCacheVersion == 13)
+        #expect(sharedRunCacheKey(for: "abc123") == "shared-run-v13-abc123")
         #expect(sharedRunCacheKey(for: "abc123") != "shared-run-v10-abc123")
     }
 
