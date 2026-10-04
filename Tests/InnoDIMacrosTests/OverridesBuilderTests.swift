@@ -1,3 +1,4 @@
+import InnoDICore
 import InnoDITestSupport
 import SwiftDiagnostics
 import SwiftParser
@@ -23,6 +24,30 @@ struct OverridesBuilderTests {
         "_InnoDIProvideAccessor": InnoDIProvideAccessorMacro.self,
         "InnoDI._InnoDIProvideAccessor": InnoDIProvideAccessorMacro.self,
     ]
+
+    @Test("Override qualifier planning matches actual builder generation", arguments: [
+        ("@DIContainer struct Container {}", false),
+        ("@DIContainer struct Container { @Provide(.input) var value: Int }", false),
+        ("@DIContainer struct Container { @Provide(factory: 1) var value: Int }", true),
+        ("@DIContainer(validateDAG: false) struct Container { @Provide(factory: 1) var value: Int }", true),
+        ("@DIContainer struct Container { @Provide(factory: 1) var value: Int; init() {} }", false),
+        ("@DIContainer struct Container { @Provide(factory: 1) var value: Int; struct Overrides {} }", false),
+        ("@DIContainer struct Container { @Provide(factory: 1) var value: Int; typealias Overrides = Int }", false),
+        ("@DIContainer struct Container { @Provide(factory: 1) var value: Int\n#if DEBUG\nstruct Overrides {}\n#endif\n}", false),
+        ("@DIContainer struct Container { @Provide(factory: 1) var value: Int; var other = 1 }", false),
+        ("@DIContainer struct Container { @Provide(factory: 1) var dependency: Int\n#if DEBUG\n@Provide(.input) var value: Int\n#endif\n}", false),
+        ("@DIContainer(validateDAG: flag) struct Container { @Provide(factory: 1) var value: Int }", false),
+        ("@DIContainer struct Container { @Provide(.shared, effect: .unknown, factory: 1) var value: Int }", false),
+        ("@DIContainer struct Container { @Provide(.input) var value: Int; @Provide(factory: 1) var value: Int }", false),
+    ])
+    func overrideQualifierMatchesEmission(_ source: String, _ expected: Bool) throws {
+        let file = Parser.parse(source: source)
+        let declaration = try #require(file.statements.first?.item.as(StructDeclSyntax.self))
+        let usage = GeneratedQualifierUsage.container(declaration: declaration)
+        let result = expandMacroSource(source, macros: Self.macros)
+        #expect(usage.memberBodies.contains(.init("Swift", namespace: .typeOnly)) == expected)
+        #expect(result.expansion.contains("Swift.WritableKeyPath") == expected)
+    }
 
     @Test("typed slot helpers preserve the outer optional and builder isolation", arguments: [false, true])
     func typedSlotMutation(mainActor: Bool) {

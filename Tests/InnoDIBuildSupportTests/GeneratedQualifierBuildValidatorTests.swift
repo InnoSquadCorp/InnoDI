@@ -57,33 +57,40 @@ struct GeneratedQualifierBuildValidatorTests {
         }
     }
 
-    @Test("Plain containers ignore unused same-target qualifier shadows")
-    func plainContainerTopLevelShadowsAreAllowed() {
-        let snapshot = makeSnapshot([
-            .init(
-                path: "Sources/App/Container.swift",
-                source: """
-                @DIContainer
-                struct AppContainer {
-                    @Input var value: Int
-                }
-                """
-            ),
-            .init(
-                path: "Sources/App/Shadows.swift",
-                source: """
-                struct Swift {}
-                enum _Concurrency {}
-                let InnoDI = 0
-                """
-            ),
-        ])
+    @Test("Override helpers reject Swift types and preserve unused/value qualifiers", arguments: [
+        ("@DIContainer struct AppContainer {}", false),
+        ("@DIContainer struct AppContainer { @Input var value: Int }", false),
+        ("@DIContainer struct AppContainer { @Provide(factory: 1) var value: Int }", true),
+        ("@DIContainer(validateDAG: false) struct AppContainer { @Provide(factory: 1) var value: Int }", true),
+    ])
+    func plainContainerTopLevelQualifierShadows(_ container: String, _ hasSlots: Bool) {
+        for (swiftDeclaration, expectedCount) in [("struct Swift {}", 1), ("let Swift = 0", 0)] {
+            let snapshot = makeSnapshot([
+                .init(
+                    path: "Sources/App/Container.swift",
+                    source: container
+                ),
+                .init(
+                    path: "Sources/App/Shadows.swift",
+                    source: """
+                    \(swiftDeclaration)
+                    enum _Concurrency {}
+                    let InnoDI = 0
+                    """
+                ),
+            ])
 
-        let report = GeneratedQualifierBuildValidator.validate(
-            snapshot: snapshot
-        )
+            let report = GeneratedQualifierBuildValidator.validate(
+                snapshot: snapshot
+            )
 
-        #expect(report.issues.isEmpty)
+            #expect(report.issues.count == (hasSlots ? expectedCount : 0))
+            #expect(report.issues.allSatisfy {
+                $0.code == "container.reserved-module-name"
+                    && $0.metadata["qualifier"] == "Swift"
+                    && $0.metadata["lookupScopes"] == "same-target-top-level"
+            })
+        }
     }
 
     @Test("Dependency-order normalized fallback shadows follow the actual construction prefix", arguments: ["prior", "forward", "moved", "canonicalForward"])
@@ -500,7 +507,7 @@ struct GeneratedQualifierBuildValidatorTests {
         })
     }
 
-    @Test("Plain containers ignore unused inherited qualifier shadows")
+    @Test("Input-only builders keep inherited qualifier shadows unused")
     func plainNestedContainerSuperclassShadowsAreAllowed() {
         let snapshot = makeSnapshot([
             .init(
@@ -527,6 +534,22 @@ struct GeneratedQualifierBuildValidatorTests {
         )
 
         #expect(report.issues.isEmpty)
+    }
+
+    @Test("Override slots require a verifiable enclosing superclass")
+    func overrideSlotsRequireKnownSuperclass() {
+        let snapshot = makeSnapshot([
+            .init(path: "Sources/App/Container.swift", source: """
+                class FeatureHost: ExternalBase {
+                    @DIContainer struct Container {
+                        @Provide(factory: 1) var value: Int
+                    }
+                }
+                """),
+        ])
+        let report = GeneratedQualifierBuildValidator.validate(snapshot: snapshot)
+        #expect(report.issues.count == 1)
+        #expect(report.issues.first?.code == "generated-qualifier.inheritance-unverifiable")
     }
 
     @Test("Emitted container qualifiers include an enclosing superclass")

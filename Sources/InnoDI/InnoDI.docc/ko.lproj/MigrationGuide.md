@@ -73,6 +73,27 @@ InnoDI 6.0에서도 컴파일되므로 업그레이드 전에 재작성해 둘 �
 `ContainerRole` 같은 이름을 만들게 되면 `migrate.rewrite-target-ambiguous`를
 보고하므로, 속성을 `InnoDI.`로 한정하거나 해당 선언의 이름을 바꾸세요.
 
+### Override builder는 가려지지 않은 Swift 타입 한정자가 필요합니다
+
+Provider 또는 sub-container override slot이 있는 생성된 `Overrides` builder에는
+이제 `set(_:to:)`와 `useDefault(_:)`가 포함되며, 두 메서드의 시그니처는
+`Swift.WritableKeyPath`를 사용합니다. 앱에서 이 helper를 호출하지 않아도 소스
+호환성에 영향을 줍니다. Slot이 있는 일반 동기 컨테이너와 `validateDAG: false`
+컨테이너에서도 타입 위치의 `Swift`가 표준 라이브러리 모듈로 해석되어야 합니다.
+비어 있거나 input만 있는 builder에는 slot이 없으므로 두 helper를 생성하지 않으며,
+이 helper로 인한 한정자 요구사항도 추가되지 않습니다.
+
+보이는 타입 또는 typealias `Swift`의 이름을 바꾸거나, 그 선언이 보이지 않는
+scope로 컨테이너를 옮기세요. Full-source plugin은 같은 target, enclosing scope,
+상속 및 보이는 imported 타입이 한정자를 가리면 `container.reserved-module-name`을
+보고합니다. 값 이름 `Swift`는 이 타입 전용 helper에서 계속 안전하며, 사용하지
+않는 `InnoDI`와 `_Concurrency` 한정자는 기존 규칙을 유지합니다. 상속된 타입도
+`Swift`를 가릴 수 있으므로, SDK나 바이너리만 있는 superclass를 검증할 수 없는
+class 안의 slot이 있는 컨테이너는 이제 `generated-qualifier.inheritance-unverifiable`을
+보고할 수 있습니다. 컨테이너를 파일 scope 또는 class가 아닌 namespace로
+옮기거나, superclass chain을 인덱싱할 수 있는 소스로 제공하세요.
+`InnoDI-Migrate`는 이 변경을 자동 적용하지 않습니다.
+
 ### InnoDISwiftUI가 더 이상 SwiftUI를 re-export하지 않습니다
 
 예전에는 `import InnoDISwiftUI`만으로 모든 SwiftUI 이름이 보였습니다. 7.0에서도

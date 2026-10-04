@@ -1,6 +1,4 @@
-public struct Swift: Sendable {
-    public init() {}
-}
+public let Swift = 0
 
 public enum _Concurrency {}
 

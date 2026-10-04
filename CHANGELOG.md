@@ -39,7 +39,11 @@ key-path method and requires the source migration listed below.
   explicit optional nil from leaving a live factory enabled. Transient value
   overrides still return the stored value. `DIOverridePreset.applyValidated`
   serves directly as a strict throwing preflight callback for marked effects;
-  unmarked effects remain unverified.
+  unmarked effects remain unverified. The mutation helpers are emitted only
+  when the builder has provider or sub-container override slots. Empty and
+  input-only builders keep their empty shape. Where helpers are emitted,
+  source-visible type declarations named `Swift` must not shadow the standard
+  library qualifier; value declarations with that name remain allowed.
 
 - Public Lazy/Provider examples and deferred candidate diagnostics now reflect
   the same non-caching, scope and effect rules as actual provider resolution.
@@ -356,9 +360,10 @@ key-path method and requires the source migration listed below.
   `Lazy` or two containers with the same name in a target and its dependency,
   no longer crash validation with `Duplicate values for key`.
 
-- The build plugin's shared-run validation cache key moves to version 10, so
+- The build plugin's shared-run validation cache key moves to version 11, so
   a workspace validated by an earlier build is validated once more under the
-  7.0 rules. No action is required.
+  7.0 rules, including the qualifier used by override mutation helpers. No
+  action is required.
 
 ### Upgrade Actions
 

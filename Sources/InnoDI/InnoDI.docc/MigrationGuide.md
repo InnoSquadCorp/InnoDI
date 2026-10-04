@@ -75,6 +75,27 @@ produce a name the scanned sources declare themselves, such as `Input` or
 `ContainerRole`, reports `migrate.rewrite-target-ambiguous`; qualify the
 attribute with `InnoDI.` or rename the local declaration.
 
+### Override builders require an unshadowed Swift type qualifier
+
+Generated `Overrides` builders with provider or sub-container override slots
+now include `set(_:to:)` and `useDefault(_:)`, whose signatures use
+`Swift.WritableKeyPath`. This is a source-compatibility change even if the
+application never calls those helpers: ordinary synchronous and
+`validateDAG: false` containers with slots also require `Swift` to resolve to
+the standard-library module in type position. Empty and input-only builders
+have no slots, emit neither helper, and gain no qualifier requirement from them.
+
+Rename a visible type or typealias named `Swift`, or move the container to a
+scope that does not expose it. The full-source plugin reports
+`container.reserved-module-name` for same-target, enclosing, inherited and
+visible imported type shadows. A value named `Swift` remains safe for these
+type-only helpers; unused `InnoDI` and `_Concurrency` qualifiers keep their
+existing rules. Because inherited types can also shadow `Swift`, a slot-bearing container
+nested in a class with an unverifiable SDK-only or binary-only superclass can
+now report `generated-qualifier.inheritance-unverifiable`. Move that container
+to file scope or a non-class namespace, or make its superclass chain available
+as indexed source. `InnoDI-Migrate` does not perform these changes.
+
 ### InnoDISwiftUI no longer re-exports SwiftUI
 
 `import InnoDISwiftUI` used to make every SwiftUI name visible. In 7.0 it

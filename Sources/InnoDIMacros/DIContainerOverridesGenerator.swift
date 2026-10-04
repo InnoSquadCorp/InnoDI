@@ -82,8 +82,12 @@ internal func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclS
     }
 
     // Keep the outer optional as the override-presence bit, even when Value
-    // itself is optional. These methods inherit the builder's actor isolation.
-    memberDecls.append(contentsOf: makeOverrideSlotMutationMethods(model: model))
+    // itself is optional. Empty builders have no slots to mutate; retaining
+    // their empty shape also avoids adding an unused Swift qualifier.
+    // These methods inherit the builder's actor isolation.
+    if !candidates.isEmpty || !subs.isEmpty {
+        memberDecls.append(contentsOf: makeOverrideSlotMutationMethods(model: model))
+    }
 
     if !effectCandidates.isEmpty {
         let accessPrefix = model.accessLevel.map { "\($0) " } ?? ""

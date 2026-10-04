@@ -63,6 +63,18 @@ package struct GeneratedQualifierUsage {
         }
 
         var memberBodies: Set<GeneratedQualifierRequirement> = []
+        // Builders with override slots expose set/useDefault through
+        // Swift.WritableKeyPath. Empty/input-only builders emit neither method.
+        // Only type shadows interfere with that lookup. Rejected declarations and the custom
+        // Overrides recovery branch do not emit these methods.
+        let hasOverrideSlots = members.contains {
+            $0.provide?.scope == .shared || $0.provide?.scope == .transient
+                || $0.subContainer != nil
+        }
+        if hasOverrideSlots, containerGenerationIsLocallyViable,
+           overrideMutationHelpersAreLocallyViable(in: declaration, options: options) {
+            memberBodies.insert(.init("Swift", namespace: .typeOnly))
+        }
         if options?.mainActor == true {
             memberBodies.insert(.init("Swift"))
         }
@@ -202,6 +214,92 @@ package struct GeneratedQualifierUsage {
         return GeneratedQualifierUsage(
             memberBodies: memberBodies,
             fileScopeExtensions: [.init("InnoDISwiftUI")]
+        )
+    }
+}
+
+private func overrideMutationHelpersAreLocallyViable(
+    in declaration: some DeclGroupSyntax,
+    options: DIContainerAttributeInfo?
+) -> Bool {
+    guard classifyDIContainerDeclaration(declaration).isSupported,
+          let options,
+          options.roleArgumentIsValid,
+          options.initializationOrderParseState != .invalid,
+          ![options.rootParseState, options.validateDAGParseState,
+            options.mainActorParseState, options.generateOwnedParseState]
+            .contains(where: \.isInvalid),
+          !declaration.memberBlock.members.contains(where: {
+              blocksOverrideMutationHelpers(in: Syntax($0.decl))
+          }) else {
+        return false
+    }
+
+    var managedNames: Set<String> = []
+    for member in declaration.memberBlock.members {
+        guard let variable = member.decl.as(VariableDeclSyntax.self),
+              parseManagedMemberSemantics(variable.attributes).hasAnyRole,
+              let identifier = variable.bindings.first?.pattern.as(IdentifierPatternSyntax.self) else {
+            continue
+        }
+        if !managedNames.insert(unescapedInnoDIIdentifierName(identifier.identifier)).inserted {
+            return false
+        }
+    }
+
+    // Both the build coordinator and graph CLI reject same/cross-file
+    // extension initializers in CustomInitBuildValidator before this pass.
+    // Do not rescan every source-file statement for every container here.
+    return true
+}
+
+private func blocksOverrideMutationHelpers(
+    in syntax: Syntax,
+    isConditional: Bool = false
+) -> Bool {
+    if syntax.is(InitializerDeclSyntax.self) { return true }
+    if let name = syntax.as(StructDeclSyntax.self)?.name
+        ?? syntax.as(ClassDeclSyntax.self)?.name
+        ?? syntax.as(ActorDeclSyntax.self)?.name
+        ?? syntax.as(EnumDeclSyntax.self)?.name
+        ?? syntax.as(ProtocolDeclSyntax.self)?.name
+        ?? syntax.as(TypeAliasDeclSyntax.self)?.name {
+        return unescapedInnoDIIdentifierName(name) == "Overrides"
+    }
+    if let variable = syntax.as(VariableDeclSyntax.self) {
+        if findInnoDIAttribute(named: "_InnoDIProvideAccessor", in: variable.attributes) != nil
+            || findInnoDIAttribute(named: "_InnoDISubContainerAccessor", in: variable.attributes) != nil {
+            return true
+        }
+        let semantics = parseManagedMemberSemantics(variable.attributes)
+        if semantics.hasAnyRole {
+            return isConditional
+                || (semantics.provideArguments != nil
+                    && semantics.provideArguments?.operationalEffect == nil)
+        }
+        if variable.modifiers.contains(where: { ["static", "class"].contains($0.name.text) }) {
+            return false
+        }
+        return variable.bindings.contains { binding in
+            guard let accessors = binding.accessorBlock?.accessors else { return true }
+            switch accessors {
+            case .getter: return false
+            case .accessors(let list):
+                return !list.isEmpty && list.allSatisfy {
+                    ["willSet", "didSet"].contains($0.accessorSpecifier.text)
+                }
+            }
+        }
+    }
+    guard syntax.is(IfConfigDeclSyntax.self)
+        || syntax.is(IfConfigClauseListSyntax.self)
+        || syntax.is(IfConfigClauseSyntax.self)
+        || syntax.is(MemberBlockItemSyntax.self)
+        || syntax.is(MemberBlockItemListSyntax.self) else { return false }
+    return syntax.children(viewMode: .sourceAccurate).contains {
+        blocksOverrideMutationHelpers(
+            in: $0,
+            isConditional: isConditional || syntax.is(IfConfigDeclSyntax.self)
         )
     }
 }
