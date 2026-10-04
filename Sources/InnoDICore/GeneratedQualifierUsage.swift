@@ -258,13 +258,25 @@ private func blocksOverrideMutationHelpers(
     isConditional: Bool = false
 ) -> Bool {
     if syntax.is(InitializerDeclSyntax.self) { return true }
-    if let name = syntax.as(StructDeclSyntax.self)?.name
-        ?? syntax.as(ClassDeclSyntax.self)?.name
-        ?? syntax.as(ActorDeclSyntax.self)?.name
-        ?? syntax.as(EnumDeclSyntax.self)?.name
-        ?? syntax.as(ProtocolDeclSyntax.self)?.name
-        ?? syntax.as(TypeAliasDeclSyntax.self)?.name {
-        return unescapedInnoDIIdentifierName(name) == "Overrides"
+    // Keep these casts separate, as in the macro's Overrides conflict parser.
+    // A chained generic optional expression exceeds Swift 6.2's type-check budget.
+    if let declaration = syntax.as(StructDeclSyntax.self) {
+        return unescapedInnoDIIdentifierName(declaration.name) == "Overrides"
+    }
+    if let declaration = syntax.as(ClassDeclSyntax.self) {
+        return unescapedInnoDIIdentifierName(declaration.name) == "Overrides"
+    }
+    if let declaration = syntax.as(ActorDeclSyntax.self) {
+        return unescapedInnoDIIdentifierName(declaration.name) == "Overrides"
+    }
+    if let declaration = syntax.as(EnumDeclSyntax.self) {
+        return unescapedInnoDIIdentifierName(declaration.name) == "Overrides"
+    }
+    if let declaration = syntax.as(ProtocolDeclSyntax.self) {
+        return unescapedInnoDIIdentifierName(declaration.name) == "Overrides"
+    }
+    if let declaration = syntax.as(TypeAliasDeclSyntax.self) {
+        return unescapedInnoDIIdentifierName(declaration.name) == "Overrides"
     }
     if let variable = syntax.as(VariableDeclSyntax.self) {
         if findInnoDIAttribute(named: "_InnoDIProvideAccessor", in: variable.attributes) != nil
