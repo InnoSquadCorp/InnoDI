@@ -122,6 +122,10 @@ resolved before its invocation.
 
 ## Cancellation, Retry, and Close
 
+- Cancelling the task awaiting `prepare` throws `CancellationError` and ends
+  only that wait. The provider can remain running and can be read or prepared
+  again without retry. A report entry with `cancelled` means the provider itself
+  was cancelled, not merely its caller
 - `await owner.cancel(.service)` affects only selected scopes that are running
   at each scope's individual cancellation point. Idle, ready, failed, cancelled,
   and closed states are unchanged. There is no admission pause, implicit

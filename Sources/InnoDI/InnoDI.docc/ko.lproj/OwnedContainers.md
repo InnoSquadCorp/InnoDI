@@ -110,6 +110,9 @@ effect 계약은 바뀌지 않으며, dependency argument를 먼저 읽은 뒤 �
 
 ## 취소, 재시도, 종료
 
+- `prepare`를 기다리는 task를 취소하면 `CancellationError`를 던지고 해당 대기만
+  끝냅니다. Provider 작업은 계속 실행될 수 있고, retry 없이 다시 읽거나 준비할 수
+  있습니다. Report entry의 `cancelled`는 호출자가 아니라 provider 자체의 취소입니다
 - `await owner.cancel(.service)`는 각 scope의 개별 취소 시점에 실행 중인 선택
   scope만 취소합니다. Idle, ready, failed, cancelled, closed 상태는 바뀌지
   않습니다. Admission을 일시 중지하거나 의존성으로 취소를 전파하지 않으며,

@@ -320,3 +320,23 @@ Linux qualification uses an isolated real statfs C declaration adapter and omits
 an unrelated Darwin-only process wrapper. Production filesystem behavior is not
 replaced, and this does not claim a full Apple package pass. P2-10a's separate
 cached diagnostic-location behavior remains open.
+
+## Stage 7: caller versus provider cancellation
+
+P1-11 is reproduced on the retained runtime source: cancelled scope preparation
+reports `.cancelled` while `status()` still reports `.running`, and plan
+preparation returns a misleading provider-cancelled report instead of caller
+cancellation. The corrected scope returns its actual state; the already-throwing
+plan checks caller cancellation around its asynchronous boundaries and throws
+`CancellationError`. Explicit provider cancellation still reports `.cancelled`
+and permits retry. Callers can rejoin surviving work without retry.
+
+Five deterministic regressions distinguish pre-cancelled idle/ready scopes,
+cancelled running waits, plan cancellation, explicit provider cancellation, and
+a custom provider cancelling its caller before returning ready. The original
+source fails six assertions; the correction passes all five tests and the full
+portable async-runtime set (65 tests, 10 suites). Independent semantic review
+confirmed compatibility with `withPrepared`'s awaited cleanup and requested the
+documented custom-provider cooperation limit. Public signatures are unchanged;
+this corrects the unreleased 7.0 preparation outcome contract. Full actual-plugin
+lifecycle and Apple regression checks remain part of final integration.

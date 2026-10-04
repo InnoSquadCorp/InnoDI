@@ -200,20 +200,31 @@ public struct DIAsyncPreparationPlan: Sendable {
         self.dependencies = dependencies
     }
 
+    /// Prepares the selected subgraph, reporting provider outcomes.
+    ///
+    /// Cancelling this caller throws `CancellationError` and stops its wait;
+    /// it does not cancel provider work. Use a later preparation/read to join
+    /// that work. Retry is needed only after an actual provider failure or
+    /// cancellation, never merely because a preparation caller was cancelled.
+    /// A custom `DIAsyncPreparing` implementation must return from its awaited
+    /// method before the plan can observe cancellation; it is not forcibly stopped.
     public func prepare(
         _ selectedProviderIDs: [String]
     ) async throws -> DIAsyncPreparationReport {
+        try Task.checkCancellation()
         let selected = try transitiveSelection(selectedProviderIDs)
         var entries: [DIAsyncPreparationEntry] = []
         var dispositionByID: [String: DIAsyncPreparationEntry.Disposition] = [:]
 
         for id in topologicalOrder where selected.contains(id) {
+            try Task.checkCancellation()
             guard let provider = providers[id] else { continue }
             let blockers = dependencies[id, default: []].filter {
                 dispositionByID[$0] != .ready
             }
             if !blockers.isEmpty {
                 let status = await provider.status()
+                try Task.checkCancellation()
                 entries.append(
                     DIAsyncPreparationEntry(
                         providerID: id,
@@ -227,6 +238,7 @@ public struct DIAsyncPreparationPlan: Sendable {
             }
 
             let status = await provider.prepare()
+            try Task.checkCancellation()
             let disposition: DIAsyncPreparationEntry.Disposition
             switch status.state {
             case .ready: disposition = .ready
@@ -245,6 +257,7 @@ public struct DIAsyncPreparationPlan: Sendable {
             dispositionByID[id] = disposition
         }
 
+        try Task.checkCancellation()
         return DIAsyncPreparationReport(
             selectedProviderIDs: selectedProviderIDs,
             entries: entries
@@ -563,6 +576,13 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
         return currentStatus()
     }
 
+    /// Waits for readiness and returns the provider's actual lifecycle state.
+    ///
+    /// Cancelling this caller ends only its wait. Its snapshot can therefore
+    /// remain idle, running, or ready; `.cancelled` means the provider itself
+    /// was cancelled. This nonthrowing primitive does not report caller
+    /// cancellation as provider cancellation. Preparation plans throw for a
+    /// cancelled caller instead.
     public func prepare() async -> DIAsyncProviderStatus {
         do {
             try Task.checkCancellation()
@@ -579,8 +599,7 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
             }
             _ = try await valueAfterAdmission()
         } catch is CancellationError {
-            await waitForRetryReservation()
-            return makeStatus(.cancelled)
+            return await status()
         } catch {
             // The status carries bounded provenance without retaining or
             // serializing arbitrary user error payloads.

@@ -11,6 +11,11 @@ Current development train: `7.0.0` (unreleased)
 
 ## Unreleased
 
+- Preparation now distinguishes caller cancellation from provider cancellation.
+  A cancelled plan/owner preparation throws `CancellationError`; the nonthrowing
+  scope preparation returns the provider's real state. Caller cancellation alone
+  no longer produces a misleading retryable `cancelled` provider report.
+
 - Coordinated validation now consumes the exact source bytes and package/project
   syntax captured for its cache signature. An explicitly supplied external
   validator runs without shared-result caching because it rereads live paths.
