@@ -8,7 +8,7 @@
 //  validation takes on realistic code sizes.
 //
 //  Invoke from the repo root:
-//      swift Tools/generate-synthetic-consumer.swift <output-path> [binding-count]
+//      swift Tools/generate-synthetic-consumer.swift <output-path> [binding-count] [--owned]
 //
 //  The script only ever writes inside <output-path>; it never touches the
 //  host repository files.
@@ -29,18 +29,28 @@ enum SyntheticConsumerGenerationError: LocalizedError {
 struct Arguments {
     let outputURL: URL
     let bindingCount: Int
+    let generateOwned: Bool
 
     static func parse() -> Arguments {
         let argv = CommandLine.arguments
         guard argv.count >= 2 else {
             FileHandle.standardError.write(Data(
-                "Usage: generate-synthetic-consumer.swift <output-path> [binding-count]\n".utf8
+                "Usage: generate-synthetic-consumer.swift <output-path> [binding-count] [--owned]\n".utf8
             ))
             exit(2)
         }
         let outputURL = URL(fileURLWithPath: argv[1]).standardizedFileURL
-        let bindingCount = argv.count >= 3 ? (Int(argv[2]) ?? 100) : 100
-        return Arguments(outputURL: outputURL, bindingCount: bindingCount)
+        let options = Array(argv.dropFirst(2))
+        let counts = options.filter { $0 != "--owned" }
+        guard counts.count <= 1,
+              options.filter({ $0 == "--owned" }).count <= 1,
+              let bindingCount = Int(counts.first ?? "100"),
+              bindingCount > 0 else {
+            FileHandle.standardError.write(Data("Expected a positive binding count and optional --owned.\n".utf8))
+            exit(2)
+        }
+        return Arguments(outputURL: outputURL, bindingCount: bindingCount,
+                         generateOwned: options.contains("--owned"))
     }
 }
 
@@ -150,7 +160,7 @@ try write(
     """
     import InnoDI
 
-    @DIContainer
+    \(args.generateOwned ? "@DIContainer(generateOwned: true)" : "@DIContainer")
     struct SyntheticContainer {
     \(inputLines.joined(separator: "\n"))
     \(sharedLines.joined(separator: "\n"))
@@ -161,4 +171,4 @@ try write(
     to: sourceFile
 )
 
-print("Generated synthetic consumer at \(outputURL.path) with \(args.bindingCount) bindings.")
+print("Generated synthetic consumer at \(outputURL.path) with \(args.bindingCount) bindings (owned API: \(args.generateOwned)).")
