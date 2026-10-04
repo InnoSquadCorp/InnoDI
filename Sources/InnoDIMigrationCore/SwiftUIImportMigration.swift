@@ -4,9 +4,16 @@ import SwiftSyntax
 /// their required access after InnoDISwiftUI stops re-exporting SwiftUI.
 public enum MigrationSwiftUIImportAccess: String, Sendable, Equatable {
     case `internal`
+    case package
     case `public`
 
-    fileprivate var rank: Int { self == .public ? 4 : 2 }
+    fileprivate var rank: Int {
+        switch self {
+        case .internal: 2
+        case .package: 3
+        case .public: 4
+        }
+    }
 }
 
 func containsExplicitSwiftUIImport(in source: SourceFileSyntax) -> Bool {
@@ -61,11 +68,11 @@ func addingSwiftUIImportForInnoDISwiftUI(
         }
         if provided.contains(where: { $0.satisfies(required) }) { continue }
         if access == nil, !required.exported {
-            let wouldPromoteToPublic = required.accessRank == 4
+            let wouldPromoteVisibleAccess = required.accessRank.map { $0 >= 3 } ?? false
             let unspecifiedWithExplicitImport = required.accessRank == nil
                 && (collector.hasExplicitSwiftUIImport || hasOtherExplicitSwiftUIImports)
-            if wouldPromoteToPublic || unspecifiedWithExplicitImport {
-                onAmbiguousAccess?("Cannot infer SwiftUI import access from source alone after removing the InnoDISwiftUI re-export. Keeping a lower access can break public API; promoting to public can introduce unused-import warnings, and an implicit import can conflict with explicit imports in another file. Review this migration root and rerun with --swiftui-import-access internal or --swiftui-import-access public. Exported imports always remain public. No files were written.")
+            if wouldPromoteVisibleAccess || unspecifiedWithExplicitImport {
+                onAmbiguousAccess?("Cannot infer SwiftUI import access from source alone after removing the InnoDISwiftUI re-export. Keeping a lower access can break package/public API; promoting to package/public can introduce unused-import warnings, and an implicit import can conflict with explicit imports in another file. Review this migration root and rerun with --swiftui-import-access internal, --swiftui-import-access package, or --swiftui-import-access public. Exported imports always remain public. No files were written.")
                 return source
             }
         }

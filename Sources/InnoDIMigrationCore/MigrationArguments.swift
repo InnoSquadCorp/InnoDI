@@ -57,7 +57,7 @@ public enum MigrationArgumentError: Error, Sendable, Equatable, CustomStringConv
         case .unknownOption(let option):
             "Unknown option: \(option)"
         case .invalidSwiftUIImportAccess(let value):
-            "Invalid SwiftUI import access '\(value)'; use internal or public."
+            "Invalid SwiftUI import access '\(value)'; use internal, package, or public."
         }
     }
 }

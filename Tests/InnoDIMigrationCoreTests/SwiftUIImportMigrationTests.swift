@@ -68,7 +68,8 @@ struct SwiftUIImportMigrationTests {
         for level in ["public", "package", "internal", "fileprivate", "private"] {
             let source = "\(level) import InnoDISwiftUI\n\nlet value = 1\n"
             let expected = "\(level) import InnoDISwiftUI\n\(level) import SwiftUI\n\nlet value = 1\n"
-            #expect(migrated(source, access: level == "public" ? .public : nil) == expected, Comment(rawValue: level))
+            let access: MigrationSwiftUIImportAccess? = level == "public" ? .public : level == "package" ? .package : nil
+            #expect(migrated(source, access: access) == expected, Comment(rawValue: level))
             #expect(migrated(expected) == expected, Comment(rawValue: level))
         }
     }
@@ -90,7 +91,8 @@ struct SwiftUIImportMigrationTests {
             ),
         ]
         for (source, expected) in cases {
-            #expect(migrated(source, access: source.hasPrefix("public ") ? .public : nil) == expected, Comment(rawValue: source))
+            let access: MigrationSwiftUIImportAccess? = source.hasPrefix("public ") ? .public : source.hasPrefix("package ") ? .package : nil
+            #expect(migrated(source, access: access) == expected, Comment(rawValue: source))
             #expect(migrated(expected) == expected, Comment(rawValue: source))
         }
     }

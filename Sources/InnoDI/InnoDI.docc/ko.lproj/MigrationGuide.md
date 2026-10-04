@@ -119,12 +119,16 @@ warnings-as-errors 빌드에서 실패할 수 있습니다. 이때는
 swift run InnoDI-Migrate --root /path/to/target-sources --write --swiftui-import-access internal
 ```
 
-공개 API에 SwiftUI 타입이 나타나면 `public`을 선택하세요. 이미 충분한 접근
+package 또는 공개 API에 SwiftUI 타입이 나타나면 `package` 또는 `public`을 선택하세요. 이미 충분한 접근
 수준의 import는 낮추지 않으며 exported import는 항상 public으로 유지합니다.
 선택은 해당 migration root에 적용되고 도구는 타깃 구성을 알 수 없으므로,
 타깃마다 선택이 다르면 더 좁은 root를 사용하세요. 변환 후에는 소비자의 원래
 import 기본값과 경고 설정으로 빌드하세요. 변환은 다시 실행해도 결과가 같지만,
-소스 변환 성공이 컴파일러의 타입·접근 검사를 대신하지는 않습니다.
+같은 타깃 안에서 접근 수준이 다르면 API에 필요한 파일에 먼저 전체
+`package`/`public` SwiftUI import를 직접 추가하고, 나머지 파일에는
+`--swiftui-import-access internal`로 다시 실행하세요. 기존의 더 높은 접근
+수준은 유지합니다. 소스 변환 성공이 컴파일러의 타입·접근 검사를 대신하지는
+않습니다.
 
 ### macOS 14와 Observation 기반 host owner
 

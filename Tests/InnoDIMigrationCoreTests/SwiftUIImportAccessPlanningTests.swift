@@ -6,7 +6,7 @@ import Testing
 struct SwiftUIImportAccessPlanningTests {
     @Test("CLI accepts one explicit SwiftUI access choice and rejects malformed choices")
     func argumentContract() {
-        for access in [MigrationSwiftUIImportAccess.internal, .public] {
+        for access in [MigrationSwiftUIImportAccess.internal, .package, .public] {
             #expect(parseMigrationArguments(["--root", ".", "--write", "--swiftui-import-access", access.rawValue])
                     == .options(MigrationOptions(rootPath: ".", mode: .write, swiftUIImportAccess: access)))
         }

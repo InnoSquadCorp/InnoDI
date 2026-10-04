@@ -17,9 +17,9 @@ public enum MigrationCLI {
       --trust-module <name>
                      Treat an imported module as declaring no InnoDI-named
                      attribute or macro (repeatable)
-      --swiftui-import-access <internal|public>
+      --swiftui-import-access <internal|package|public>
                      Resolve ambiguous SwiftUI import access for this root;
-                     use public where SwiftUI types appear in public API.
+                     match access to SwiftUI use in internal/package/public API.
                      Exported imports always remain public.
       --help, -h     Show this help
     """

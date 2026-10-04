@@ -79,6 +79,8 @@ struct SwiftUIImportSafetyTests {
             "import InnoDISwiftUI\ninternal import SwiftUI\n",
             "public import InnoDISwiftUI\ninternal import SwiftUI\n",
             "public import InnoDISwiftUI\n",
+            "package import InnoDISwiftUI\ninternal import SwiftUI\n",
+            "package import InnoDISwiftUI\n",
         ]
         for source in cases {
             var messages: [String] = []
@@ -152,6 +154,19 @@ struct SwiftUIImportSafetyTests {
                 try text.write(to: consumer, atomically: true, encoding: .utf8)
                 try runCompiler(mode + ["-warnings-as-errors", "-typecheck", "-module-name", "Consumer", "-I", root.path,
                                         consumer.path, other.path], root: root)
+            }
+            let packageMode = mode + ["-package-name", "MigrationProbe"]
+            for access in [MigrationSwiftUIImportAccess.internal, .package] {
+                let visibility = access == .package ? "package " : ""
+                let packageSource = "package import InnoDISwiftUI\ninternal import SwiftUI\n\(visibility)func make() -> ImportProbeValue { .init() }\npackage func own() -> InnoDIProbe { .init() }\n"
+                for (moduleSource, text) in [(oldAnchor, packageSource), (newAnchor, migrated(packageSource, access: access))] {
+                    try moduleSource.write(to: anchor, atomically: true, encoding: .utf8)
+                    try runCompiler(packageMode + ["-emit-module", "-module-name", "InnoDISwiftUI", "-I", root.path, anchor.path,
+                                                   "-emit-module-path", root.appendingPathComponent("InnoDISwiftUI.swiftmodule").path], root: root)
+                    try text.write(to: consumer, atomically: true, encoding: .utf8)
+                    try runCompiler(packageMode + ["-warnings-as-errors", "-typecheck", "-module-name", "Consumer", "-I", root.path,
+                                                   consumer.path], root: root)
+                }
             }
         }
     }

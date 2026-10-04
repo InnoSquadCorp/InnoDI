@@ -122,11 +122,15 @@ Review the target's SwiftUI uses and select access explicitly for that root:
 swift run InnoDI-Migrate --root /path/to/target-sources --write --swiftui-import-access internal
 ```
 
-Use `public` instead when SwiftUI types appear in public API. Existing adequate
+Use `package` or `public` instead when SwiftUI types appear in package or public API. Existing adequate
 imports are not downgraded; exported imports always remain public. The choice
 applies to that migration root, which has no authoritative target map, so use
 a narrower root when different targets need different choices. Rebuild with
 the consumer's normal import-default and warning settings after migration.
+For mixed access within one target, first add explicit full `package`/`public`
+SwiftUI imports in the files whose API needs them, then rerun with
+`--swiftui-import-access internal` for the remaining files. Their existing
+higher-access imports are retained.
 The rule remains idempotent; a successful source rewrite is not a substitute
 for the compiler's type and access checks.
 

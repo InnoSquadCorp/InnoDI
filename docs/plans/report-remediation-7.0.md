@@ -156,7 +156,7 @@ source-only migrator cannot infer whether SwiftUI types occur in public API:
 keeping internal can narrow the removed re-export, while unconditional public
 promotion can produce `UnusedImportAccess` under warnings-as-errors. Ambiguous
 cases therefore retain the source and block writes with a targeted diagnostic;
-`--swiftui-import-access internal|public` records the operator's explicit choice
+`--swiftui-import-access internal|package|public` records the operator's explicit choice
 for that root. Exported imports always use explicit public access. This is an
 intentional refinement of the original automatic-visibility plan, supported by
 old/new module and downstream-client compiler controls.
