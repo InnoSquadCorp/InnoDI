@@ -76,9 +76,9 @@ private var buildValidationIsDisabled: Bool {
 
 private var coordinatorEnvironment: [String: String] {
     let environment = ProcessInfo.processInfo.environment
-    // Build commands do not inherit the plugin process's environment. Forward
-    // only the documented coordinator controls, preserving their raw values
-    // so the coordinator retains validation, defaults and explicit opt-in.
+    // Explicitly forward only the documented coordinator controls, preserving
+    // their raw values for validation, defaults and explicit opt-in. The build
+    // system may also inherit parent variables; this map does not sanitize it.
     let keys = [
         "INNODI_LOCK_TIMEOUT",
         "INNODI_STALE_LOCK_AGE",

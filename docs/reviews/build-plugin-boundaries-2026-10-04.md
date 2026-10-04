@@ -24,7 +24,8 @@ actual Apple application shipped those files.
 The corrected plugin declares only its existing generated Swift ordering file
 for Swift targets. Reports remain in the sandboxed work directory. Clang
 targets use output-free commands; Xcode project targets retain their existing
-output-free behavior. Only these values are forwarded, without interpretation:
+output-free behavior. The plugin explicitly forwards these controls, without
+interpretation, through the command's environment override map:
 
 - `INNODI_LOCK_TIMEOUT`
 - `INNODI_STALE_LOCK_AGE`
@@ -33,17 +34,20 @@ output-free behavior. Only these values are forwarded, without interpretation:
 - `INNODI_VALIDATION_DEBUG`
 
 The coordinator retains validation and defaults. An unset unsafe-filesystem
-override is not synthesized, and the filesystem classifier is unchanged.
+override is not synthesized, and the filesystem classifier is unchanged. This
+allowlist does not sanitize the effective child environment: the build system
+can inherit parent variables independently of the plugin's explicit overrides.
 
-Final adapter checks passed:
+The corrected probe's Linux Swift 6.4 adapter checks passed:
 
 - Swift generated-source compilation and Clang compilation
 - No report files copied into either target's resource bundle
 - Unchanged Swift and Clang builds retain invocation count one
 - A changed control reruns the Swift command and arrives with its exact value
-- Explicit unsafe-lock opt-in is preserved; removing controls produces an
-  empty observed control environment
-- The unrelated marker is not forwarded
+- Explicit unsafe-lock opt-in is preserved; removing controls removes those
+  five controls from both the explicit map and effective environment
+- The unrelated fixture marker is absent from the explicit command map;
+  its presence in the effective environment is recorded separately
 - A probe coordinator exiting with status 3 fails both Swift and Clang builds,
   including builds with previous successful outputs; restoring the controls
   lets both builds succeed again
@@ -52,6 +56,43 @@ An intermediate probe incorrectly expected every output-free Clang command to
 rerun on an unchanged build. Actual SwiftPM behavior disproved that assertion;
 the final test checks the observed no-op behavior. No production change was
 made to force extra executions.
+
+### CI environment-contract correction
+
+The Apple Swift 6.2 package run for `b9d4fef` rejected the original probe because
+both child processes inherited `INNODI_PLUGIN_UNRELATED=probe-unrelated-value`.
+After unsetting the five controls, that marker was the only observed variable.
+The resource, changed-control, no-op and gate-failure checks passed in that
+adapter run. Requiring an empty effective environment incorrectly interpreted
+an explicit forwarding allowlist as a process-environment isolation guarantee.
+The original failure trace is retained; no production environment clearing or
+workflow permission change was made to satisfy that assertion.
+
+The revised probe reads the generated validation command's explicit environment
+map from native SwiftPM's `.build/debug.yaml` or Swift Build's
+`.build/manifest.pif`, immediately after each probe build. It checks the five
+controls and unrelated marker there, then checks effective control values in
+the probe executable's report. Both observations retain only those six fixture
+keys; build-system additions and other environment values are not recorded.
+Missing or ambiguous command metadata fails the probe instead of silently
+skipping the forwarding check. Changed and unset controls must each rerun the
+Swift gate exactly once; existing no-op and failure/recovery checks remain.
+
+Six bounded Python controls cover both metadata formats, inherited-marker
+acceptance, explicit-marker rejection, missing overrides despite effective
+inheritance, stale changed/unset controls and limited recorded keys. An actual
+Swift 6.4 plugin mutant that adds the unrelated marker to its explicit map is
+rejected. The unmodified production behavior passes the revised Swift 6.4
+adapter run.
+
+Linux Swift 6.2 and 6.3 also inherit the marker; their revised environment checks
+pass. Their adapter runs still fail the unchanged Swift no-op assertion because
+the toolchain relinks the probe coordinator during the warm build, causing a
+second validation invocation. This behavior is visible in the unmodified Linux
+Swift 6.2 probe as well and is distinct from the Apple CI trace, whose warm
+invocation count stays at one. The assertion has not been weakened, and these
+Linux runs are not reported as full passes. A new Apple CI run is needed to
+qualify the revised metadata reader on that platform.
 
 ## Signature-lock owner evidence
 
@@ -95,8 +136,9 @@ result is not evidence of a remaining product failure.
 
 ## Boundaries
 
-The adapter builds ran with Linux Swift 6.4. The 34-test portable harness uses
-source-built SwiftSyntax 604 and the existing test-only Linux `statfs` C-import
+The initial adapter builds ran with Linux Swift 6.4; the CI correction above
+distinguishes later Apple CI evidence and Linux 6.2/6.3/6.4 checks. The 34-test
+portable harness uses source-built SwiftSyntax 604 and the existing test-only Linux `statfs` C-import
 shim; it is not a full native package or Apple-platform test run. Xcode adapter
 execution, multi-destination ordering and actual application packaging remain
 Apple CI qualifications. The shipped ordering source contains only a comment;

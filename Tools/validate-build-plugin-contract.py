@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Exercise the production plugin adapter with a small, dependency-free tool.
 
-This proves SwiftPM command ordering, resource classification, and environment
-propagation. The probe coordinator does not perform InnoDI graph validation.
+This proves SwiftPM command ordering, resource classification, explicit command
+environment overrides, and effective coordinator controls. The build system may
+also inherit parent variables. The probe does not perform InnoDI graph validation.
 """
 
 import argparse
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import signal
 import subprocess
@@ -23,6 +25,7 @@ CONTROLS = {
     "INNODI_VALIDATION_VERBOSE": "yes",
     "INNODI_VALIDATION_DEBUG": "no",
 }
+OBSERVED_KEYS = (*CONTROLS, "INNODI_PLUGIN_UNRELATED")
 REPORTS = (
     "dag-validation-stamp.txt",
     "dag-validation-metrics.json",
@@ -61,7 +64,7 @@ let observed = Dictionary(uniqueKeysWithValues: keys.compactMap { key in
 })
 try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
 try JSONSerialization.data(withJSONObject: [
-    "environment": observed,
+    "effectiveEnvironment": observed,
     "invocations": (previous?["invocations"] as? Int ?? 0) + 1,
 ], options: [.sortedKeys]).write(to: metrics)
 try "stamp\n".write(to: output.appendingPathComponent("dag-validation-stamp.txt"),
@@ -100,12 +103,81 @@ def run(root, label, command, environment, should_succeed=True):
     return output
 
 
+def explicit_command_environment(root, target):
+    """Read generated command metadata, retaining only the six fixture keys.
+
+    Native SwiftPM emits an llbuild YAML manifest; Swift Build emits a PIF.
+    Their command maps precede process inheritance. Do not read the merged
+    execution environment in Swift Build's XCBuildData manifest instead.
+    """
+    description = f"Validate InnoDI DAG for {target}"
+    native_manifest = root / ".build/debug.yaml"
+    pif_manifest = root / ".build/manifest.pif"
+    matches = []
+    if native_manifest.is_file():
+        # Parse only the generated command/description/env subset, whose keys
+        # and fixture values are JSON-compatible quoted scalars. No YAML
+        # dependency is needed, and unknown formats fail rather than skip proof.
+        for block in re.split(r'(?m)^  (?=")', native_manifest.read_text()):
+            if f"    description: {json.dumps(description)}" not in block.splitlines():
+                continue
+            observed = {}
+            in_environment = False
+            for line in block.splitlines():
+                if line == "    env:":
+                    in_environment = True
+                elif in_environment and line.startswith("      "):
+                    key, end = json.JSONDecoder().raw_decode(line.strip())
+                    if key in OBSERVED_KEYS:
+                        suffix = line.strip()[end:]
+                        if not suffix.startswith(": ") or key in observed:
+                            raise RuntimeError("Unexpected explicit command environment entry")
+                        observed[key] = json.loads(suffix[2:])
+                else:
+                    in_environment = False
+            matches.append(observed)
+        source = ".build/debug.yaml"
+    elif pif_manifest.is_file():
+        for element in json.loads(pif_manifest.read_text()):
+            for task in element.get("contents", {}).get("customTasks", []):
+                if task.get("executionDescription") != description:
+                    continue
+                observed = {}
+                for key, value in task.get("environment", []):
+                    if key in OBSERVED_KEYS:
+                        if key in observed:
+                            raise RuntimeError("Duplicate explicit command environment entry")
+                        observed[key] = value
+                matches.append(observed)
+        source = ".build/manifest.pif"
+    else:
+        raise RuntimeError("No supported SwiftPM command metadata found")
+    if len(matches) != 1:
+        raise RuntimeError(f"Expected one {target} command in {source}, found {len(matches)}")
+    return {"source": source, "environment": matches[0]}
+
+
 def observation(root, target):
     matches = [path for path in (root / ".build/plugins/outputs").rglob(REPORTS[1])
                if target in path.parts]
     if len(matches) != 1:
         raise RuntimeError(f"Expected one {target} report, found {matches}")
-    return json.loads(matches[0].read_text())
+    observed = json.loads(matches[0].read_text())
+    observed["explicitCommandEnvironment"] = explicit_command_environment(root, target)
+    return observed
+
+
+def environment_failures(label, observed, expected):
+    failures = []
+    # The explicit map proves allowlist forwarding. Runtime observations only
+    # prove control propagation: inherited unrelated variables are permitted.
+    if observed["explicitCommandEnvironment"]["environment"] != expected:
+        failures.append(f"{label} explicit command overrides do not match the documented controls")
+    effective_controls = {key: value for key, value in observed["effectiveEnvironment"].items()
+                          if key in CONTROLS}
+    if effective_controls != expected:
+        failures.append(f"{label} effective coordinator controls do not match the expected values")
+    return failures
 
 
 def check(plugin, root, swift):
@@ -148,29 +220,30 @@ def check(plugin, root, swift):
     bundled = sorted(str(path.relative_to(root)) for name in REPORTS
                      for path in (root / ".build").rglob(name)
                      if any(part.endswith((".resources", ".bundle")) for part in path.parts))
-    result = {"swiftCold": cold, "swiftWarm": warm, "swiftEnvironmentChange": changed,
+    result = {"observedEnvironmentKeys": OBSERVED_KEYS,
+              "swiftCold": cold, "swiftWarm": warm, "swiftEnvironmentChange": changed,
               "clangCold": clang, "clangWarm": clang_warm,
               "swiftEnvironmentUnset": unset, "bundledReports": bundled}
     (root / "observations.json").write_text(json.dumps(result, indent=2) + "\n")
     failures = []
     if bundled:
         failures.append("Validation reports were copied into target resource bundles")
-    for target, observed in [("SwiftProbe", cold), ("ClangProbe", clang)]:
-        for key, expected in CONTROLS.items():
-            if observed["environment"].get(key) != expected:
-                failures.append(f"{target} did not receive {key}={expected}")
-        if "INNODI_PLUGIN_UNRELATED" in observed["environment"]:
-            failures.append(f"{target} received an environment variable outside the allowlist")
+    for label, observed, expected in [
+        ("Swift cold", cold, CONTROLS), ("Swift warm", warm, CONTROLS),
+        ("Clang cold", clang, CONTROLS), ("Clang warm", clang_warm, CONTROLS),
+        ("Swift changed", changed, {**CONTROLS, "INNODI_LOCK_TIMEOUT": "19.5",
+                                    "INNODI_ALLOW_UNSAFE_LOCK": "yes"}),
+        ("Swift unset", unset, {}),
+    ]:
+        failures.extend(environment_failures(label, observed, expected))
     if warm["invocations"] != cold["invocations"]:
         failures.append("An unchanged Swift build reran the validation command")
-    if changed["environment"].get("INNODI_LOCK_TIMEOUT") != "19.5":
-        failures.append("Changing a documented environment control did not refresh the Swift gate")
-    if changed["environment"].get("INNODI_ALLOW_UNSAFE_LOCK") != "yes":
-        failures.append("An explicit unsafe-filesystem opt-in was not forwarded unchanged")
+    if changed["invocations"] != warm["invocations"] + 1:
+        failures.append("Changing documented controls did not rerun the Swift gate exactly once")
     if clang_warm["invocations"] != clang["invocations"]:
         failures.append("An unchanged Clang build reran the validation command")
-    if unset["environment"]:
-        failures.append("Unsetting coordinator controls retained stale environment overrides")
+    if unset["invocations"] != changed["invocations"] + 1:
+        failures.append("Unsetting documented controls did not rerun the Swift gate exactly once")
     print(json.dumps(result, indent=2))
     if failures:
         raise AssertionError("\n".join(failures))

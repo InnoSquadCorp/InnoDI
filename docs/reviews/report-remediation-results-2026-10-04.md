@@ -38,7 +38,7 @@ and complete matched-toolchain package builds remain CI requirements.
 | P2-07 | Build-plugin JSON/text reports are no longer declared as distributable outputs. The generated Swift ordering barrier remains. Exact plugin-adapter Swift/Clang package controls no longer copy reports into resources; an actual Apple application artifact remains unverified. |
 | P2-08a | Repeated conditional identities report unavailable compiler conditions before graph normalization. Branches are neither selected nor merged. This corrects the diagnostic, not support for configuration-dependent duplicate graphs. |
 | P2-08b | Every conflicting declaration gets file/line/column. Two unconditional duplicates retain the definite duplicate label even alongside conditional declarations. Root mode retains its file-based identity boundary. |
-| P2-09a | Forwarded only the documented validation environment allowlist. Exact adapter controls cover changes, unset values, unrelated-variable exclusion, and unchanged no-op behavior. |
+| P2-09a | Explicitly forwarded the documented validation controls. Adapter checks distinguish the generated command map's exclusion of the unrelated fixture marker from effective process inheritance, and cover changed/unset controls and no-op behavior. See the [CI environment-contract correction](build-plugin-boundaries-2026-10-04.md#ci-environment-contract-correction) for platform evidence and the separate Linux 6.2/6.3 no-op limitation. |
 | P2-09b | Signature locks immediately record PID/time/boot metadata so stale-owner handling can identify them. Deterministic lock/recovery tests pass. Legacy metadata-free crash windows and recovery-token crash behavior are not claimed eliminated. |
 | P2-10a | Diagnostic caches bind exact bytes, displayed source paths, and result content. Trivia edits, moved checkouts, and mixed result/metadata publication cannot reuse stale positions. Location-free successes retain semantic reuse. |
 | P2-10b | Declared in-package source-directory symlinks retain lexical logical paths while canonical containment and duplicate ownership stay enforced. External targets remain rejected. An actual SwiftPM symlink consumer is added for Apple CI. |
@@ -118,3 +118,15 @@ existing child/eager runtime tests, escape negatives, the full portable suite
 (now 35 intended negatives), and the full macro suite pass locally. The next
 exact-head Apple run remains the integration gate; earlier passing jobs are not
 substituted for it.
+
+The next head, `b9d4fef`, compiled and ran the full package contracts on hosted
+Swift 6.2 and Xcode 26.6. Both runs reached the same two test-contract failures:
+the cold-benchmark assertion still expected the pre-array generator command,
+and the plugin adapter probe treated inherited unrelated environment variables
+as explicit plugin forwarding. The command test now checks the actual argument
+array and stderr redirection. The probe distinguishes the explicit command map
+from the effective inherited environment, retaining its control-change, unset,
+no-op, ordering, and report-distribution checks. The production plugin change is
+comment-only; no environment sanitization or repository permission policy is
+introduced. Local focused verification and the subsequent exact-head hosted
+run are recorded separately from the failed runs.
