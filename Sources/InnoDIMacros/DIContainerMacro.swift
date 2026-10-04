@@ -144,7 +144,7 @@ extension DIContainerMacro: MemberAttributeMacro {
             return [
                 assistedFactoryMetadataAttribute(
                     for: model,
-                    isMainActor: options.mainActor
+                    isMainActor: model.isMainActor
                 ),
             ]
         }

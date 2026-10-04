@@ -263,6 +263,13 @@ and mixed owned preparation on Swift 6.2/6.3/6.4 consumers with the shared
 hosted external-consumer fixture proves file-level imports in supported Apple CI
 when published. No rendering/Apple result is claimed from the VM.
 
+Independent review found one remaining assisted-factory metadata path using
+only the explicit role option. Its actual-plugin baseline canary fails while
+forwarding an override closure to an explicitly MainActor child. The corrected
+path uses the same effective actor policy; both ordinary and default-MainActor
+consumer fixtures now exercise this assisted call. The updated 15-operation
+Swift 6.2/6.3/6.4 matrix passes with the versioned corrected plugin.
+
 
 ## Stage 5: declaration-local collection analysis
 
@@ -276,9 +283,14 @@ is retained separately and is not described as a valid construction graph.
 Collection metadata is now resolved against providers in the current declaration,
 then appended to the complete result. Both declarations remain present for later
 identity validation. Invalid repeated members and collection declarations never
-trap and never choose an arbitrary metadata winner. Three direct collector tests
+trap and never choose an arbitrary metadata winner. Four direct collector tests
 pass against exact production source on Linux; the baseline ordered case still
 traps as expected in its preserved source snapshot.
+
+The fourth regression covers a repeated name shared by a collection and an
+ordinary provider. An otherwise unique collection contract cannot be attached
+to either ambiguous member. This follow-up was independently identified in
+source review and passed the exact collector subset after correction.
 
 This closes the collector crash, not P2-08a's separate final-graph conditional
 identity policy. The collector neither chooses a compiler configuration nor

@@ -418,7 +418,8 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
                     )
                 }
             providers = providers.map { provider in
-                guard let contract = contractsByProviderID[provider.id] else {
+                guard providersByID[provider.id] != nil,
+                      let contract = contractsByProviderID[provider.id] else {
                     return provider
                 }
                 return provider.replacingCollectionContract(contract)

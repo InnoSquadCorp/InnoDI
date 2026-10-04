@@ -155,10 +155,25 @@ final class LocalResult { let leaf: Payload; init(_ leaf: Payload) { self.leaf =
  print("explicit actor child overrides and component mounting passed")
 }
 
+@MainActor @DIContainer struct ExplicitAssistedChild {
+ @Input var seed: Int
+ @Input(.assisted) var request: Int
+ @Provide(.shared, factory: { (seed: Int, request: Int) in seed + request }) var value: Int
+ @AssistedFactory(ExplicitAssistedChild.self, static: [\ExplicitAssistedChild.seed], assisted: [\ExplicitAssistedChild.request])
+ struct AssistedFactory {}
+}
+@MainActor func checkExplicitAssistedFactory() {
+ let factory = ExplicitAssistedChild.AssistedFactory(seed: 1)
+ let child = factory(request: 2) { $0.value = 9 }
+ precondition(child.value == 9)
+ print("explicit actor assisted override forwarding passed")
+}
+
 @main struct Check {
  @MainActor static func main() async throws {
   try await checkNeither(); try await checkOption(); try await checkExplicit(); try await checkBoth()
   await checkChildOverrideIsolation()
+  checkExplicitAssistedFactory()
   print("explicit actor overrides four-form regression passed")
  }
 }

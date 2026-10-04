@@ -15,8 +15,23 @@ struct Option {
     @Input var box: Box
     @Provide(.shared, asyncFactory: { () async in 42 }) var number: Int
 }
+@MainActor @DIContainer struct ExplicitAssistedChild {
+ @Input var seed: Int
+ @Input(.assisted) var request: Int
+ @Provide(.shared, factory: { (seed: Int, request: Int) in seed + request }) var value: Int
+ @AssistedFactory(ExplicitAssistedChild.self, static: [\ExplicitAssistedChild.seed], assisted: [\ExplicitAssistedChild.request])
+ struct AssistedFactory {}
+}
+@MainActor func checkExplicitAssistedFactory() {
+ let factory = ExplicitAssistedChild.AssistedFactory(seed: 1)
+ let child = factory(request: 2) { $0.value = 9 }
+ precondition(child.value == 9)
+ print("explicit actor assisted override forwarding passed")
+}
+
 @main struct FixtureApp { @MainActor static func main() async throws {
 let box = Box()
+checkExplicitAssistedFactory()
 let explicit = await Explicit.withOverrides(box: box, { _ in }) { graph async in graph.box }
 precondition(explicit === box)
 let explicitOwner = try await Explicit.makeOwned(box: box)

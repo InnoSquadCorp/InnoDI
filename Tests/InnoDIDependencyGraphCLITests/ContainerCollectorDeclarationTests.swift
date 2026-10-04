@@ -70,6 +70,21 @@ struct ContainerCollectorDeclarationTests {
         #expect(collector.providers.count == 3)
     }
 
+    @Test("A collection cannot attach metadata to a duplicate ordinary provider")
+    func mixedDuplicateProviderKindsStayAmbiguous() {
+        let collector = collect("""
+        @DIContainer struct App {
+            @Provide(.shared, factory: Service()) var service: Service
+            @Provide(.transient, factory: makeCollection()) var services: DIOrderedCollection<Service>
+            @Provide(.transient, collection: .ordered([\\Self.service]), factory: makeCollection())
+            var services: DIOrderedCollection<Service>
+        }
+        """)
+        let duplicates = collector.providers.filter { $0.name == "services" }
+        #expect(duplicates.count == 2)
+        #expect(duplicates.allSatisfy { $0.collection == nil })
+    }
+
     private func collect(_ source: String) -> ContainerCollector {
         let collector = ContainerCollector(moduleIdentity: "App")
         collector.walkFile(relativePath: "App.swift", tree: Parser.parse(source: source))
