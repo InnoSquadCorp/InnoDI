@@ -168,7 +168,7 @@ struct DependencyInitializationOrderTests {
         #expect(generated.contains("if let _innoDIOverride = value"))
     }
 
-    @Test("Close order and trace-owner assignments remain source ordered")
+    @Test("Close dependency order is independent of construction policy and tracing order")
     func preservesLifetimeSupportOrder() throws {
         let (model, declaration) = try parse("""
             @Provide(.shared, initialization: .onDemand, asyncFactory: { (dependency: Int) async throws in dependency }) var consumer: Int
@@ -182,12 +182,38 @@ struct DependencyInitializationOrderTests {
         #expect(model.asyncOnDemandMembers.map(\.name) == ["consumer", "dependency"])
         let function = try #require(try DIContainerCodeGenerator.generateAll(for: model)
             .compactMap { $0.as(FunctionDeclSyntax.self) }.first { $0.name.text == "closeAsyncProviders" })
-        // Compare the exact existing close implementation against declaration
-        // mode rather than imposing a new lifetime order on it.
+        // Both construction policies close dependants first. Trace owner
+        // assignments and the immutable source model retain declaration order.
         let (declarationModel, _) = try parse(declaration.memberBlock.members.description, attribute: "@DIContainer(validateDAG: false)")
         let defaultClose = try #require(try DIContainerCodeGenerator.generateAll(for: declarationModel)
             .compactMap { $0.as(FunctionDeclSyntax.self) }.first { $0.name.text == "closeAsyncProviders" })
         #expect(function.description == defaultClose.description)
+    }
+
+    @Test("On-demand teardown closes dependants before earlier declared dependencies")
+    func closesDependentBeforeDependency() throws {
+        let (model, declaration) = try parse("""
+            @Provide(.shared, initialization: .onDemand, asyncFactory: { () async in 1 }) var dependency: Int
+            @Provide(.shared, initialization: .onDemand, asyncFactory: { (dependency: Int) async throws in dependency }) var consumer: Int
+            """)
+        try validate(model, declaration)
+        let function = try #require(try DIContainerCodeGenerator.generateAll(for: model)
+            .compactMap { $0.as(FunctionDeclSyntax.self) }.first { $0.name.text == "closeAsyncProviders" })
+        try expectBefore("self._storage_consumer!.close()", "self._storage_dependency!.close()", in: function.description)
+    }
+
+    @Test("Teardown includes dependency paths through eager providers without closing eager tasks")
+    func closesAcrossEagerBridge() throws {
+        let (model, declaration) = try parse("""
+            @Provide(.shared, initialization: .onDemand, asyncFactory: { () async in 1 }) var dependency: Int
+            @Provide(.shared, asyncFactory: { (dependency: Int) async throws in dependency }) var eager: Int
+            @Provide(.shared, initialization: .onDemand, asyncFactory: { (eager: Int) async throws in eager }) var consumer: Int
+            """)
+        try validate(model, declaration)
+        let function = try #require(try DIContainerCodeGenerator.generateAll(for: model)
+            .compactMap { $0.as(FunctionDeclSyntax.self) }.first { $0.name.text == "closeAsyncProviders" })
+        try expectBefore("self._storage_consumer!.close()", "self._storage_dependency!.close()", in: function.description)
+        #expect(!function.description.contains("eager"))
     }
 
     @Test("Invalid tokens produce one anchored canonical diagnostic", arguments: [

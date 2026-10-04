@@ -257,7 +257,20 @@ override한 provider도 똑같이 닫히고 그 값을 놓아 주므로, overrid
 테스트도 production과 같은 계약을 관찰합니다. provider ID는 member 이름입니다. 여러 번
 닫아도 결과는 같습니다.
 컨테이너 복사본은 provider를 공유하므로 어느 복사본을 닫아도 모든 복사본에서
-닫힙니다. 닫기는 sub-container까지 전파되지 않습니다.
+닫힙니다. On-demand consumer를 그 on-demand 의존성보다 먼저 닫으며,
+이 순서는 선언이나 초기화 순서와 독립적입니다.
+
+기존 이름과 달리 `closeAsyncProviders()`는 비동기 on-demand provider만 닫습니다.
+Eager task, transient factory, sub-container를 닫거나 전체 graph의 admission을
+원자적으로 차단하지 않습니다. Eager와 on-demand shared 작업을 한 경계에서
+닫아야 한다면 `makeOwned`의 생성된 owner를 사용하세요. Legacy close 중에도
+실행 중인 eager consumer는 닫힌 on-demand 의존성을 관찰할 수 있습니다.
+
+명시적 작업 우선순위 승격을 지원하는 런타임(Apple OS 26 이상)에서는 실행 중인
+scope에 참여한 reader의 현재 작업 우선순위를 생성 작업에 전달합니다. 낮은
+우선순위 reader가 기존 우선순위를 내리지는 않습니다. OS QoS 값이나 실행 지연,
+이미 대기 중인 reader의 나중 우선순위 변경까지 전파한다고 보장하지 않습니다.
+이전 Apple 런타임은 기존 작업 우선순위 동작을 유지합니다.
 
 eager 비동기 consumer는 여전히 초기화 중에 시작하므로, 그 consumer가 의존하는
 on-demand provider도 그때 생성됩니다.

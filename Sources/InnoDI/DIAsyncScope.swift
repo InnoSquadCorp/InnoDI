@@ -746,6 +746,13 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
                 throwing: DIAsyncScopeError.closed(providerID: providerID)
             )
         case .idle, .running:
+            // Continuation-based waits preserve per-reader cancellation but
+            // do not create Task.value's automatic priority dependency. On
+            // runtimes with explicit escalation, carry a joining reader's
+            // current priority to the existing construction task.
+            if #available(macOS 26, iOS 26, watchOS 26, tvOS 26, visionOS 26, *) {
+                ownedTask?.escalatePriority(to: Task.currentPriority)
+            }
             waiters[waiterID] = continuation
         }
     }

@@ -92,7 +92,7 @@ struct DIContainerCodeGenerator {
                 : declaration)
         }
 
-        if let close = makeCloseAsyncProvidersDecl(model: model) {
+        if let close = try makeCloseAsyncProvidersDecl(model: model) {
             decls.append(
                 close.prependingMARK("// MARK: - Async Provider Lifetime")
             )
@@ -137,14 +137,15 @@ struct DIContainerCodeGenerator {
 /// The generated method that closes every asynchronous on-demand provider.
 let closeAsyncProvidersMethodName = "closeAsyncProviders"
 
-/// Closes each asynchronous on-demand provider cell in declaration order.
+/// Closes each asynchronous on-demand provider cell in reverse dependency order.
 ///
 /// A non-main-actor container is an arbitrary, possibly non-`Sendable` value,
 /// so the method runs on the caller's executor instead of sending `self`.
 private func makeCloseAsyncProvidersDecl(
     model: DIContainerExpansionModel
-) -> DeclSyntax? {
-    let members = model.asyncOnDemandMembers
+) throws -> DeclSyntax? {
+    guard !model.asyncOnDemandMembers.isEmpty else { return nil }
+    let members = try DIContainerInitializationPlan.asyncTeardownMembers(model: model)
     guard !members.isEmpty else { return nil }
 
     let accessPrefix = model.accessLevel.map { "\($0) " } ?? ""

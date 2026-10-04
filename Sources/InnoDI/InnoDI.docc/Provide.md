@@ -272,7 +272,22 @@ cancellation, and a value it returns anyway is discarded. An overridden
 provider closes the same way and releases its value, so a test that overrides
 it observes the production contract. The provider ID is
 the member name. Closing is idempotent. Container copies share their providers, so closing any copy closes
-them for every copy. Closing does not reach sub-containers.
+them for every copy. On-demand dependants close before their on-demand
+dependencies, independent of declaration or initialization order.
+
+Despite its existing name, `closeAsyncProviders()` closes only asynchronous
+on-demand providers. It does not close eager tasks, transient factories, or
+sub-containers, and it is not an atomic admission barrier for the whole graph.
+Use the generated owner from `makeOwned` when eager and on-demand shared work
+need one coordinated close boundary. Eager consumers still running during a
+legacy close can observe a closed on-demand dependency.
+
+On runtimes with explicit task-priority escalation (Apple OS 26 and later),
+a reader joining an in-flight scope forwards its current task priority to that
+construction task. A lower-priority reader never lowers it. This does not
+promise an OS QoS value, scheduling latency, or propagation of a later change
+to an already-waiting reader's priority. Older Apple runtimes retain the task's
+original priority behavior.
 
 An eager asynchronous consumer still starts during initialization, so it
 constructs every on-demand provider it depends on at that time.

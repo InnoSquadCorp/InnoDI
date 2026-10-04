@@ -12,6 +12,7 @@ let profile = DIAsyncScope(providerID: "App.profile") {
 }
 
 let status = await profile.prepare()
+try Task.checkCancellation()
 guard status.state == .ready else { return }
 ```
 

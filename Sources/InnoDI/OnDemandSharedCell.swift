@@ -64,7 +64,7 @@ public final class _InnoDISharedCell<Value> {
         condition.lock()
         guard activeCallers.insert(caller).inserted else {
             condition.unlock()
-            return _innoDITrap("Reentrant on-demand provider resolution detected")
+            return _innoDITrap(reentryMessage)
         }
         defer {
             condition.lock()
@@ -80,9 +80,7 @@ public final class _InnoDISharedCell<Value> {
             case .initializing(let owner, let span):
                 if owner == caller {
                     condition.unlock()
-                    return _innoDITrap(
-                        "Reentrant on-demand provider resolution detected"
-                    )
+                    return _innoDITrap(reentryMessage)
                 }
                 condition.unlock()
                 traceOwner.wait(.waitStart, member: providerName, for: span)
@@ -107,6 +105,11 @@ public final class _InnoDISharedCell<Value> {
                 return value
             }
         }
+    }
+
+    private var reentryMessage: String {
+        let message = "Reentrant on-demand provider resolution detected"
+        return providerName.isEmpty ? message : "\(message): '\(providerName)'"
     }
 }
 

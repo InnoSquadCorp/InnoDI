@@ -24,10 +24,13 @@ private struct DepthProvider: DIAsyncPreparing {
 struct DIAsyncPreparationDepthTests {
     @Test("Valid long chains use heap traversal", arguments: [1, 1_000, 5_000, 20_000])
     func longChain(count: Int) async throws {
-        let plan = try DIAsyncPreparationPlan(nodes: (0..<count).map { index in
-            .init(provider: DepthProvider(providerID: String(index)),
-                  dependencies: index + 1 < count ? [String(index + 1)] : [])
-        })
+        let nodes: [DIAsyncPreparationNode] = (0..<count).map { index in
+            let dependencies: [String] = index + 1 < count ? [String(index + 1)] : []
+            return DIAsyncPreparationNode(
+                provider: DepthProvider(providerID: String(index)), dependencies: dependencies
+            )
+        }
+        let plan = try DIAsyncPreparationPlan(nodes: nodes)
         let report = try await plan.prepare(["0"])
         #expect(report.entries.map(\.providerID) == (0..<count).reversed().map(String.init))
         try await plan.close(["0"])

@@ -2,7 +2,8 @@ import InnoDICore
 
 /// Construction order is deliberately separate from the source model. Only
 /// the two initialization loops consume these arrays; parameters, overrides,
-/// support storage, tracing ownership and teardown retain source order.
+/// support storage and tracing ownership retain source order. Teardown has a
+/// separate reverse-dependency plan independent of construction policy.
 struct DIContainerInitializationPlan {
     let syncShared: [ProvideMemberModel]
     let asyncShared: [ProvideMemberModel]
@@ -15,6 +16,12 @@ struct DIContainerInitializationPlan {
             syncShared = model.syncSharedMembers
             asyncShared = model.asyncSharedMembers
         }
+    }
+
+    /// Close dependants before dependencies, including paths through eager
+    /// providers. Eager task storage itself is not owned by legacy close.
+    static func asyncTeardownMembers(model: DIContainerExpansionModel) throws -> [ProvideMemberModel] {
+        try ordered(model.asyncSharedMembers).reversed().filter(\.isAsyncOnDemand)
     }
 
     private static func ordered(_ members: [ProvideMemberModel]) throws -> [ProvideMemberModel] {
