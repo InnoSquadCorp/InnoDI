@@ -11,6 +11,10 @@ Current development train: `7.0.0` (unreleased)
 
 ## Unreleased
 
+- Collection graph analysis keeps contributor lifetimes local to each container
+  declaration and no longer traps on repeated semantic IDs or malformed duplicate
+  members. Ambiguous contributors do not receive an invented lifetime.
+
 - Feature-root host overloads now require `FeatureRoot(..., hosted: true)` and
   explicit SwiftUI/InnoDISwiftUI imports in the container file. Plain roots no
   longer gain code based on unrelated modules becoming discoverable. The old

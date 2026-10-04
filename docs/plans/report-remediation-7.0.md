@@ -262,3 +262,25 @@ and mixed owned preparation on Swift 6.2/6.3/6.4 consumers with the shared
 6.4-built plugin. Actual SwiftUI lifecycle tests are updated to opt in, and a new
 hosted external-consumer fixture proves file-level imports in supported Apple CI
 when published. No rendering/Apple result is claimed from the VM.
+
+
+## Stage 5: declaration-local collection analysis
+
+P1-07 is reproduced and corrected. An exact production collector subset crashed
+with `Dictionary` duplicate-key SIGILL while walking two `#if`/`#else` container
+declarations with the same semantic identity and ordered collection metadata.
+The regression uses an ordered collection, which permits the shared/transient
+contributor lifetime contrast; the earlier provider-collection diagnostic input
+is retained separately and is not described as a valid construction graph.
+
+Collection metadata is now resolved against providers in the current declaration,
+then appended to the complete result. Both declarations remain present for later
+identity validation. Invalid repeated members and collection declarations never
+trap and never choose an arbitrary metadata winner. Three direct collector tests
+pass against exact production source on Linux; the baseline ordered case still
+traps as expected in its preserved source snapshot.
+
+This closes the collector crash, not P2-08a's separate final-graph conditional
+identity policy. The collector neither chooses a compiler configuration nor
+silently merges mutually exclusive declarations. Full graph/workspace validation
+and conditional-identity diagnostics remain separately tracked.

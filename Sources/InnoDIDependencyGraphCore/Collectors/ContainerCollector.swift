@@ -155,6 +155,11 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
         var requiredInputs: [String] = []
         var assistedInputs: [String] = []
         var collectionContracts: [PendingCollectionContract] = []
+        // Collection contracts belong to this declaration. A source-accurate
+        // walk can encounter another #if branch (or invalid duplicate source)
+        // with the same semantic ID. Never use that declaration's providers to
+        // resolve this declaration's contributor lifetimes.
+        var providers: [DependencyGraphProvider] = []
         for member in node.memberBlock.members {
             guard let varDecl = member.decl.as(VariableDeclSyntax.self) else { continue }
             guard let binding = varDecl.bindings.first,
@@ -387,13 +392,13 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
         }
 
         if !collectionContracts.isEmpty {
-            let providersByID = Dictionary(
-                uniqueKeysWithValues: providers
-                    .filter { $0.containerID == parentID }
-                    .map { ($0.id, $0) }
-            )
-            let contractsByProviderID = Dictionary(
-                uniqueKeysWithValues: collectionContracts.map { pending in
+            let providersByID = Dictionary(grouping: providers, by: \.id)
+                .compactMapValues { $0.count == 1 ? $0.first : nil }
+            // Invalid duplicate members remain available to declaration/
+            // identity validation. Do not trap or silently choose a winner.
+            let contractsByProviderID = Dictionary(grouping: collectionContracts, by: \.providerID)
+                .compactMapValues { contracts -> DependencyGraphProvider.CollectionContract? in
+                    guard contracts.count == 1, let pending = contracts.first else { return nil }
                     let entries = pending.entries.enumerated().map {
                         order, entry in
                         let contributorID = providerID(
@@ -407,15 +412,11 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
                             providerLifetime: providersByID[contributorID]?.lifetime
                         )
                     }
-                    return (
-                        pending.providerID,
-                        DependencyGraphProvider.CollectionContract(
-                            kind: pending.kind,
-                            entries: entries
-                        )
+                    return DependencyGraphProvider.CollectionContract(
+                        kind: pending.kind,
+                        entries: entries
                     )
                 }
-            )
             providers = providers.map { provider in
                 guard let contract = contractsByProviderID[provider.id] else {
                     return provider
@@ -424,6 +425,7 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
             }
         }
 
+        self.providers.append(contentsOf: providers)
         nodes.append(
             DependencyGraphNode(
                 id: parentID,
