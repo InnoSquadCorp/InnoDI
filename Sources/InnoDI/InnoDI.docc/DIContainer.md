@@ -21,13 +21,15 @@ mounting, or put a default-access container inside a private namespace.
 ```swift
 @DIContainer(
     validateDAG: Bool = true,
-    initializationOrder: String = ContainerInitializationOrder.declaration
+    initializationOrder: String = ContainerInitializationOrder.declaration,
+    generateOwned: Bool = false
 )
 @DIContainerRole(
     role: String,
     mainActor: Bool = false,
     validateDAG: Bool = true,
-    initializationOrder: String = ContainerInitializationOrder.declaration
+    initializationOrder: String = ContainerInitializationOrder.declaration,
+    generateOwned: Bool = false
 )
 ```
 
@@ -40,13 +42,13 @@ mounting, or put a default-access container inside a private namespace.
 - a convenience `init(<inputs...>, _ applyOverrides: ...)`
 - four `withOverrides` effect overloads
 
-For a plain `@DIContainer` or a role container without `mainActor: true`, the generated `async` and
+For a container with neither explicit `@MainActor` nor `mainActor: true`, the generated `async` and
 `async throws` `withOverrides` methods and their operation closure types are
 `nonisolated(nonsending)`. They retain the caller's actor executor, so arbitrary
 non-`Sendable` container and closure values do not cross an isolation boundary.
-The synchronous overloads are unchanged. With `mainActor: true` on
-`@DIContainerRole`, every `withOverrides` overload and operation closure
-remains `@MainActor`.
+The synchronous overloads are unchanged. With explicit `@MainActor` or
+`mainActor: true` on `@DIContainerRole`, every `withOverrides` overload and
+operation closure remains on MainActor.
 
 Every supported container, including one with no managed members, synthesizes
 the complete overrides scaffolding. A user-declared nested `Overrides` type is
@@ -72,6 +74,21 @@ The container graph reads sibling edges only from named parameters on root
 `with:` key paths. Non-closure factories and property initializers are opaque
 zero-edge sources; they must not reference sibling members. Effect
 compatibility on explicit edges is mandatory even with `validateDAG: false`.
+
+## Targets with default MainActor isolation
+
+A syntactic macro does not receive the target's implicit default actor setting.
+When using `.defaultIsolation(MainActor.self)` or the corresponding compiler
+flag, spell the container's boundary explicitly: `@MainActor @DIContainer`,
+`@DIContainerRole(role: ContainerRole.local, mainActor: true)`, or
+`@DIContainer nonisolated struct Services` for a caller-isolated container.
+This also applies to `generateOwned: true` and async `withOverrides`.
+
+Leaving the container implicitly MainActor currently makes its generated
+nonisolated async helpers call an isolated initializer. The compiler rejects
+that shape; provider-level `nonisolated(nonsending)` does not repair this
+container-construction boundary. An explicit actor declaration is the supported
+workaround, not automatic detection of the build setting.
 
 ## Parameters
 

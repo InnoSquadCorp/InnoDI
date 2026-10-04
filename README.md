@@ -598,6 +598,13 @@ let result = try await AppContainer.withOverrides(baseURL: "https://test.example
 }
 ```
 
+For a target using default MainActor isolation, explicitly mark the container
+`@MainActor` (or use `@DIContainerRole(..., mainActor: true)`), or declare the
+container `nonisolated` when it should retain the caller's isolation. The macro
+cannot infer that target setting. For an ordinary async provider returning a
+non-Sendable value, use `nonisolated(nonsending)` on its property declaration;
+see [async actor reads](Sources/InnoDI/InnoDI.docc/Provide.md#async-reads-from-an-actor).
+
 Important details:
 
 - Input-only containers still synthesize an empty builder.

@@ -119,6 +119,33 @@ consumer에는 `asyncFactory:`를 사용하고, throwing 비동기 provider를 �
 `asyncFactory:`로 생성되는 target을 거부합니다. `with:`, `@Multibinding`
 contributor, `@SubContainer` child input도 동기 parent member만 받습니다.
 
+## Actor에서 비동기 프로퍼티 읽기
+
+일반 nonisolated 컨테이너가 non-Sendable 입력을 보관하거나 transient 값으로
+반환한다면 **프로퍼티 선언 전체**에 `nonisolated(nonsending)`을 쓰세요.
+호출자 actor의 격리를 유지하면서 기존 읽기 문법을 사용할 수 있습니다.
+
+```swift
+@DIContainer
+struct Services {
+    @Input var box: Box
+    @Provide(.transient, asyncFactory: { (box: Box) async in box })
+    nonisolated(nonsending) var session: Box
+}
+// actor 안에서: let value = await services.session
+```
+
+같은 호출자 격리로 이어지는 async 의존성 프로퍼티에도 각각 modifier를 적용하세요.
+이 문법은 컨테이너, 결과, 캡처한 의존성을 Sendable로 바꾸지 않습니다. Shared async
+저장소의 결과는 여전히 Sendable이어야 합니다. 컨테이너가 별도의 동기
+non-Sendable 입력을 보관하는 경우와 구분하세요. 일반 owned view의 async
+프로퍼티에는 이미 이 modifier가 생성됩니다.
+
+MainActor 컨테이너는 actor 격리를 유지하고 MainActor에서 읽으세요.
+`mainActor: true` provider에는 이 opt-out을 추가하지 않습니다. 타깃의 기본
+격리가 MainActor인 경우는 <doc:DIContainer>를 참고하세요. 별도 resolver
+메서드 없이 `await services.session`을 계속 사용합니다.
+
 ## 타입으로 검사하는 동기 prewarm (7.0 후보)
 
 `initialization: .onDemand`를 사용하는 동기 `.shared` provider가 있으면

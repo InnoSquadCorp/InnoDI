@@ -1,0 +1,45 @@
+import InnoDI
+nonisolated final class Box { var value = 42 }
+@MainActor @DIContainer(generateOwned: true)
+struct Explicit {
+    @Input var box: Box
+    @Provide(.shared, asyncFactory: { () async in 42 }) var number: Int
+}
+@DIContainer(generateOwned: true)
+nonisolated struct Caller {
+    @Input var box: Box
+    @Provide(.shared, asyncFactory: { () async in 42 }) nonisolated(nonsending) var number: Int
+}
+@DIContainerRole(role: ContainerRole.local, mainActor: true, generateOwned: true)
+struct Option {
+    @Input var box: Box
+    @Provide(.shared, asyncFactory: { () async in 42 }) var number: Int
+}
+@main struct FixtureApp { @MainActor static func main() async throws {
+let box = Box()
+let explicit = await Explicit.withOverrides(box: box, { _ in }) { graph async in graph.box }
+precondition(explicit === box)
+let explicitOwner = try await Explicit.makeOwned(box: box)
+let explicitNumber = try await explicitOwner.container.number
+precondition(explicitNumber == 42 && explicitOwner.container.box === box)
+await explicitOwner.close()
+let explicitPrepared = try await Explicit.withPrepared(.number, box: box) { $0.box }
+precondition(explicitPrepared === box)
+let caller = await Caller.withOverrides(box: box, { _ in }) { graph async in graph.box }
+precondition(caller === box)
+let callerOwner = try await Caller.makeOwned(box: box)
+let callerNumber = try await callerOwner.container.number
+precondition(callerNumber == 42 && callerOwner.container.box === box)
+await callerOwner.close()
+let callerPrepared = try await Caller.withPrepared(.number, box: box) { $0.box }
+precondition(callerPrepared === box)
+let option = await Option.withOverrides(box: box, { _ in }) { graph async in graph.box }
+precondition(option === box)
+let optionOwner = try await Option.makeOwned(box: box)
+let optionNumber = try await optionOwner.container.number
+precondition(optionNumber == 42 && optionOwner.container.box === box)
+await optionOwner.close()
+let optionPrepared = try await Option.withPrepared(.number, box: box) { $0.box }
+precondition(optionPrepared === box)
+print("explicit default MainActor construction and prepared lifetime passed")
+} }

@@ -11,6 +11,12 @@ Current development train: `7.0.0` (unreleased)
 
 ## Unreleased
 
+- Document and compile-test the existing caller-isolated async property syntax,
+  `nonisolated(nonsending)`, including public consumers and owned views. No new
+  resolver API is introduced. Targets with default MainActor isolation must
+  spell the container isolation explicitly; implicit setting inference remains
+  unsupported. Correct the Korean container reference's obsolete `root` argument.
+
 - Legacy `Lazy`/`Provider` forwarding cells no longer bypass Swift's Sendable
   checking. Unsafe async captures are rejected; checked exclusive transfers
   and actor-local use remain available. Generated initializers finish deferred

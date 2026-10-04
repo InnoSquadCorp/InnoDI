@@ -577,6 +577,13 @@ let result = try await AppContainer.withOverrides(baseURL: "https://test.example
 }
 ```
 
+타깃의 기본 격리가 MainActor라면 컨테이너에 `@MainActor`를 명시하거나
+`@DIContainerRole(..., mainActor: true)`를 사용하세요. 호출자 격리를 따를
+컨테이너라면 `nonisolated`를 선언합니다. 매크로는 이 타깃 설정을 추론하지
+못합니다. 일반 async provider의 non-Sendable 결과를 actor에서 읽으려면
+프로퍼티 선언에 `nonisolated(nonsending)`을 쓰세요.
+[비동기 actor 읽기](Sources/InnoDI/InnoDI.docc/ko.lproj/Provide.md#actor에서-비동기-프로퍼티-읽기)를 참고하세요.
+
 중요한 점:
 
 - input-only container도 비어 있는 builder를 합성합니다.

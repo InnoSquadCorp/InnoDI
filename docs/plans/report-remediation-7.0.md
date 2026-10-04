@@ -192,3 +192,39 @@ method is excluded; its five neighboring mechanical-fix tests remain in a
 hash-recorded portable projection. The complete portable plugin validator also
 passes existing owned/prepared/public/lifetime cases and new legacy fixtures.
 This does not close P1-01 default-isolation or P1-02 async-accessor work.
+
+
+## Stage 3: caller isolation and default-actor boundary
+
+P1-02 is addressed by documenting and testing an **existing** supported
+property modifier, `nonisolated(nonsending)`. The report's accessor-only syntax
+limitation does not imply that the property declaration cannot carry it.
+The unannotated read still fails as expected. A new `resolveX()` public-method
+prototype was investigated, preserved separately, and removed from the product
+diff because it would add unnecessary names and generated API surface.
+
+Actual public consumer compilation and execution cover a non-Sendable transient
+result, an async dependency chain, a shared Sendable result on a non-Sendable
+receiver, callable payloads, overrides, errors, trace events, MainActor and an
+independent actor caller. Existing owned access and close also pass. Hidden
+members and off-MainActor non-Sendable results remain rejected. Shared async
+payloads still require Sendable; the modifier does not relax factory captures.
+
+Official Linux Swift 6.2, 6.3 and 6.4 consumers passed 51 matrix commands/runs
+plus 15 additional mixed async/owned and negative controls. The macro executable
+was built with Swift 6.4 and source-built SwiftSyntax 604 for all three consumer
+versions. This is consumer-language/runtime evidence, not a matched-version
+package build or Apple result. Two new real-package compile-pass fixtures are
+picked up by the existing hosted ExternalConsumerContractTests on publication.
+
+P1-01a/b remain a verified compiler/macro-context limitation. Unannotated
+containers under `-default-isolation MainActor` fail in all three compilers;
+explicit `@MainActor`, the role's `mainActor: true`, and `nonisolated struct`
+construction pass, including owned preparation. The documentation states this
+supported workaround and does not claim automatic default-isolation inference
+was fixed. P1-01c mock-specific behavior remains in the mock qualification stage.
+P2-14c's obsolete Korean `root` argument is corrected to the existing role API.
+
+The declaration-based approach received an independent read-only source review.
+The complete portable plugin suite is rerun with these committed consumer sources;
+Apple async-on-demand and matched-toolchain package qualification remain CI gates.

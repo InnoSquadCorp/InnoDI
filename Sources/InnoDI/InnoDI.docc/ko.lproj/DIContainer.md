@@ -26,13 +26,15 @@ build-validation plugin과 dependency-graph CLI가 전체 source tree를 scan해
 ```swift
 @DIContainer(
     validateDAG: Bool = true,
-    initializationOrder: String = ContainerInitializationOrder.declaration
+    initializationOrder: String = ContainerInitializationOrder.declaration,
+    generateOwned: Bool = false
 )
 @DIContainerRole(
     role: String,
     mainActor: Bool = false,
     validateDAG: Bool = true,
-    initializationOrder: String = ContainerInitializationOrder.declaration
+    initializationOrder: String = ContainerInitializationOrder.declaration,
+    generateOwned: Bool = false
 )
 ```
 
@@ -45,12 +47,12 @@ build-validation plugin과 dependency-graph CLI가 전체 source tree를 scan해
 - convenience `init(<inputs...>, _ applyOverrides: ...)`
 - 네 가지 `withOverrides` effect overload
 
-`mainActor: true`를 사용하지 않는 컨테이너에서는 생성되는 `async`와
+명시적 `@MainActor`와 `mainActor: true`를 모두 사용하지 않는 컨테이너에서는 생성되는 `async`와
 `async throws` `withOverrides` 메서드 및 operation closure 타입이
 `nonisolated(nonsending)`입니다. 호출자 actor executor를 유지하므로 임의의
 non-`Sendable` container와 closure 값이 isolation 경계를 넘지 않습니다. 동기
-overload는 바뀌지 않습니다. `mainActor: true`에서는 모든 `withOverrides` overload와
-operation closure가 계속 `@MainActor`입니다.
+overload는 바뀌지 않습니다. 명시적 `@MainActor` 또는 `mainActor: true`에서는 모든
+`withOverrides` overload와 operation closure가 계속 MainActor에 격리됩니다.
 
 관리 멤버가 없는 경우까지 지원되는 모든 컨테이너가 전체 overrides scaffolding을
 생성합니다. 사용자가 nested `Overrides` 타입을 직접 선언하는 것은 InnoDI 6.0에서
@@ -74,11 +76,24 @@ Sibling edge는 root `factory:`/`asyncFactory:` 클로저 리터럴의 이름 �
 factory와 property initializer는 opaque한 zero-edge source이며 sibling member를
 참조할 수 없습니다. 효과 호환성은 `validateDAG: false`에서도 필수입니다.
 
+## 기본 격리가 MainActor인 타깃
+
+문법 매크로에는 타깃의 암묵적인 기본 actor 설정이 전달되지 않습니다.
+`.defaultIsolation(MainActor.self)` 또는 대응 compiler flag를 사용한다면
+컨테이너에 격리를 명시하세요. `@MainActor @DIContainer`,
+`@DIContainerRole(role: ContainerRole.local, mainActor: true)`, 또는 호출자 격리를
+따르는 `@DIContainer nonisolated struct Services`를 사용합니다.
+`generateOwned: true`와 async `withOverrides`에도 같은 경계가 적용됩니다.
+
+컨테이너를 암묵적인 MainActor로 남겨두면 생성된 nonisolated async helper가
+격리된 initializer를 호출해 compiler가 거부합니다. Provider 프로퍼티의
+`nonisolated(nonsending)`만으로 이 생성 경계를 고칠 수는 없습니다.
+현재 지원하는 방법은 명시적인 actor 선언이며, 빌드 설정을 자동 감지하는 것은 아닙니다.
+
 ## 파라미터
 
-- `root`: 그래프 렌더 엔트리 플래그입니다. root가 하나라도 있으면
-  Mermaid, DOT, ASCII 출력은 root에서 도달 가능한 노드와 엣지 union으로
-  잘립니다.
+- `role`: `@DIContainerRole`에서 필수입니다. `ContainerRole.local`은 local 경계,
+  `.component`는 모듈 간 mount 계약, `.root`는 계층 및 그래프 reachability 진입점입니다.
 - `validateDAG`: global DAG validation과 local graph-derived 진단을 켭니다.
   `false`면 global DAG와 local availability 진단은 건너뛰지만 local ownership-cycle 검사, 선언 검증과 명시적
   sibling edge의 효과 호환성 검증은 계속 동작합니다.

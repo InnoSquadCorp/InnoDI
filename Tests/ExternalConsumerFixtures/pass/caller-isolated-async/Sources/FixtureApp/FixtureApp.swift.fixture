@@ -1,0 +1,57 @@
+import InnoDI
+import FeatureKit
+
+actor CallerIsolatedProbe {
+    func verify() async {
+        let box = CallerIsolatedBox()
+        let graph = CallerIsolatedServices(box: box)
+        let value = await graph.session
+        precondition(value === box && box.calls == 1)
+        let number = await graph.answer
+        precondition(number == 42)
+    }
+}
+
+@main struct Main {
+    @MainActor static func main() async throws {
+        await CallerIsolatedProbe().verify()
+        let box = CallerIsolatedBox()
+        let buffer = DIBoundedTraceBuffer(capacity: 100)
+        let services = CallerIsolatedServices(box: box, _innoDITrace: DITraceContext(sink: buffer))
+        let first = await services.session
+        let second = await services.chained
+        precondition(first === box && second === box && box.calls == 2)
+        let answer = await services.answer
+        precondition(answer == 42)
+        let callback = await services.callback
+        precondition(callback() == 17)
+        do { _ = try await services.failing; preconditionFailure("missing factory error") }
+        catch is CallerIsolatedFailure {}
+        let replacement = CallerIsolatedBox()
+        let overridden = CallerIsolatedServices(box: box, session: replacement)
+        let overriddenValue = await overridden.session
+        precondition(overriddenValue === replacement && box.calls == 2)
+        let scoped = await CallerIsolatedServices.withOverrides(box: box, { $0.session = replacement }) {
+            await $0.session
+        }
+        precondition(scoped === replacement)
+        let explicit = ExplicitCallerIsolatedServices(box: box)
+        let option = OptionCallerIsolatedServices(box: box)
+        let explicitResult = await explicit.session
+        let optionResult = await option.session
+        precondition(explicitResult === box && optionResult === box)
+        // Existing getters remain usable in their original compatible context.
+        let original = await explicit.session
+        precondition(original === box)
+        let owner = try await OwnedCallerIsolatedServices.makeOwned(box: box)
+        let ownedAnswer = try await owner.container.answer
+        precondition(ownedAnswer == 42 && owner.container.box === box)
+        await owner.close()
+        do { _ = try await owner.container.answer; preconditionFailure("owner remained open") }
+        catch InnoDI.DIAsyncScopeError.closed {}
+        let events = buffer.snapshot().events
+        precondition(events.filter { $0.kind == .start && $0.providerID.hasSuffix(".session") }.count == 2)
+        precondition(events.filter { $0.kind == .failure && $0.providerID.hasSuffix(".failing") }.count == 1)
+        print("caller-isolated properties: caller isolation, chaining, overrides, errors, trace, visibility, callable payload passed")
+    }
+}

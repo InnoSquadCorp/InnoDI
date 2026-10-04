@@ -130,6 +130,33 @@ a closed provider, so it always has the `async throws` consumer effect.
 targets constructed by `asyncFactory:`. `with:`, `@Multibinding` contributors,
 and `@SubContainer` child inputs also require synchronous parent members.
 
+## Async reads from an actor
+
+An ordinary nonisolated container may contain a non-Sendable input or produce a
+non-Sendable transient value. To read its async property on the caller's actor,
+write `nonisolated(nonsending)` on the **property declaration**:
+
+```swift
+@DIContainer
+struct Services {
+    @Input var box: Box
+    @Provide(.transient, asyncFactory: { (box: Box) async in box })
+    nonisolated(nonsending) var session: Box
+}
+// Inside an actor: let value = await services.session
+```
+
+Apply the modifier to each async property in a caller-isolated dependency chain.
+It preserves the caller's isolation; it does not make the container, result, or
+captured dependencies Sendable. Shared async storage still requires a Sendable
+result, even when the receiving container has non-Sendable synchronous inputs.
+Owned views already generate this modifier for ordinary async properties.
+
+For a MainActor container, keep its actor isolation and read it on MainActor;
+do not add this opt-out to a `mainActor: true` provider. See <doc:DIContainer>
+for targets using default MainActor isolation. No extra resolver method is
+needed, and `await services.session` remains the public read syntax.
+
 ## Typed Synchronous Prewarming (7.0 Candidate)
 
 A container with synchronous `.shared` providers using

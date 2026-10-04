@@ -53,6 +53,20 @@ swiftc "${FLAGS[@]}" -parse-as-library -I "$OUT" -L "$OUT" -lInnoDI -lOwnedPubli
 "$OUT/PublicClient" > "$OUT/public-client-run.log" 2>&1
 cat "$OUT/public-client-run.log"
 
+# Source-written nonisolated(nonsending) properties preserve the caller's
+# isolation across a real public module boundary; no new resolver API is needed.
+cp "$ROOT/Tests/OwnedPortablePluginFixtures/CallerIsolatedLibrary.swift.fixture" "$OUT/CallerIsolatedLibrary.swift"
+swiftc "${FLAGS[@]}" "${LOAD[@]}" -emit-module -emit-library -module-name CallerIsolatedLibrary \
+  -I "$OUT" -L "$OUT" -lInnoDI -Xlinker -rpath -Xlinker "$OUT" \
+  -o "$OUT/libCallerIsolatedLibrary.so" -emit-module-path "$OUT/CallerIsolatedLibrary.swiftmodule" \
+  "$OUT/CallerIsolatedLibrary.swift" > "$OUT/caller-isolated-library.log" 2>&1
+cp "$ROOT/Tests/OwnedPortablePluginFixtures/CallerIsolatedClient.swift.fixture" "$OUT/CallerIsolatedClient.swift"
+swiftc "${FLAGS[@]}" -parse-as-library -I "$OUT" -L "$OUT" -lInnoDI -lCallerIsolatedLibrary \
+  -Xlinker -rpath -Xlinker "$OUT" "$OUT/CallerIsolatedClient.swift" -o "$OUT/CallerIsolatedClient" \
+  > "$OUT/caller-isolated-client.log" 2>&1
+"$OUT/CallerIsolatedClient" > "$OUT/caller-isolated-client-run.log" 2>&1
+cat "$OUT/caller-isolated-client-run.log"
+
 # A source-written @MainActor must not be erased by async withOverrides helpers.
 cp "$ROOT/Tests/OwnedPortablePluginFixtures/ExplicitActorOverrides.swift.fixture" "$OUT/ExplicitActorOverrides.swift"
 swiftc "${FLAGS[@]}" "${LOAD[@]}" -parse-as-library -I "$OUT" -L "$OUT" -lInnoDI \
@@ -98,6 +112,9 @@ negative() {
   echo "Expected diagnostic passed: $name"
 }
 FIXTURES="$ROOT/Tests/OwnedPortablePluginFixtures"
+negative CallerIsolatedHidden "$FIXTURES/CallerIsolatedHidden.swift.fixture" "inaccessible due to 'fileprivate' protection level" compile
+negative CallerIsolatedActorEscape "$FIXTURES/CallerIsolatedActorEscape.swift.fixture" "non-Sendable type 'CallerIsolatedBox' of property 'session' cannot exit main actor-isolated context" compile
+
 negative PreparedNoOwned "$FIXTURES/PreparedNoOwned.swift.fixture" "has no member 'withPrepared'" compile
 negative PreparedNoAsync "$FIXTURES/PreparedNoAsync.swift.fixture" "has no member 'withPrepared'" compile
 negative PreparedWrongContainer "$FIXTURES/PreparedWrongContainer.swift.fixture" "cannot convert value of type 'Second._InnoDIOwnedProvider'" compile
