@@ -130,3 +130,15 @@ no-op, ordering, and report-distribution checks. The production plugin change is
 comment-only; no environment sanitization or repository permission policy is
 introduced. Local focused verification and the subsequent exact-head hosted
 run are recorded separately from the failed runs.
+
+At `b87081b`, the clean package/coverage, public API, and thread-sanitizer steps
+passed. The Xcode 27 external-consumer run exposed one additional fixture
+contract mismatch: `generate-mock-recording-lifetimes` listed four diagnostic
+reason fragments, while the existing matcher requires complete normalized
+messages and exact multiplicity. The fixture now records the four complete
+messages. The matcher and product diagnostics are unchanged. Replaying the
+hosted output through that exact normalizer reproduces the old failure and
+accepts the correction; actual-plugin compilation with Linux Swift 6.2, 6.3,
+and 6.4 emits the same four messages. Missing/extra diagnostic controls still
+fail. This is focused qualification; the next hosted consumer run remains
+required for its complete package/toolchain boundary.
