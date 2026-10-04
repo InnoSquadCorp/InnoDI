@@ -41,7 +41,8 @@ struct RenderedFunctionMock {
 func renderFunctionMock(
     function: FunctionDeclSyntax,
     names: MockFunctionNames,
-    concurrent: Bool = false
+    concurrent: Bool = false,
+    stateNames: MockStateNames = MockStateNames()
 ) -> RenderedFunctionMock? {
     if findStandardMainActorAttribute(in: function.attributes) != nil {
         return nil
@@ -66,19 +67,26 @@ func renderFunctionMock(
         guard !isGeneric else { return nil }
         return renderConcurrentTypedFunctionMock(
             function: function,
-            names: names
+            names: names,
+            stateNames: stateNames
         )
     }
     if isGeneric {
-        return renderGenericFunctionMock(function: function, names: names)
+        return renderGenericFunctionMock(function: function, names: names, stateNames: stateNames)
     }
-    return renderTypedFunctionMock(function: function, names: names)
+    return renderTypedFunctionMock(function: function, names: names, stateNames: stateNames)
 }
 
 private func renderConcurrentTypedFunctionMock(
     function: FunctionDeclSyntax,
-    names: MockFunctionNames
+    names: MockFunctionNames,
+    stateNames: MockStateNames
 ) -> RenderedFunctionMock? {
+    let scope = MockFunctionScope(function)
+    let generation = scope.local("generation")
+    let result = scope.local("result")
+    let error = scope.local("error")
+    let state = scope.member(stateNames.concurrentState)
     let signature = function.signature
     let isAsync = signature.effectSpecifiers?.asyncSpecifier != nil
     let throwsSpelling = signature.effectSpecifiers?.throwsClause?.trimmedDescription
@@ -87,8 +95,23 @@ private func renderConcurrentTypedFunctionMock(
 
     let baseName = function.name.text
     let parameters = signature.parameterClause.parameters
-    guard let callParameters = renderableCallParameters(parameters) else {
+    guard var callParameters = renderableCallParameters(parameters) else {
         return nil
+    }
+    // Ownership parameters are mutable bindings in Swift's capture checking.
+    // Copy before entering either @Sendable critical-region closure, then
+    // capture the immutable local instead of the borrowed/consuming parameter.
+    var capturedNames = Set(callParameters.map(\.argumentIdentifier))
+    var captures: [CodeBlockItemSyntax] = []
+    for index in callParameters.indices where callParameters[index].requiresCopy {
+        let name = freshMockIdentifier(
+            "__innodi\(callParameters[index].fieldLabel.capitalizedFirst)Copy",
+            reserving: capturedNames
+        )
+        capturedNames.insert(name)
+        captures.append("let \(raw: name) = copy \(raw: callParameters[index].argumentIdentifier)")
+        callParameters[index].argumentIdentifier = name
+        callParameters[index].requiresCopy = false
     }
     let returnsVoid = isVoidReturnType(
         signature.returnClause?.type.trimmedDescription
@@ -103,7 +126,7 @@ private func renderConcurrentTypedFunctionMock(
     let callBox = "__innodi_\(names.callsProperty)Box"
     let initializedRecordArgs = recordArguments(
         callParameters,
-        generation: "generation"
+        generation: generation
     )
     let stubbedBox = "__innodi_\(names.stem)StubbedBox"
     var resetStubStatements: [CodeBlockItemSyntax] = []
@@ -113,7 +136,7 @@ private func renderConcurrentTypedFunctionMock(
         }
         private let \(raw: callBox) = InnoDITesting.DIConcurrentValueBox<[\(raw: names.callStructName)]>([])
         var \(raw: names.callsProperty): [\(raw: names.callStructName)] {
-            __innodiMockState.withCriticalRegion { _ in \(raw: callBox).snapshot() }
+            \(raw: stateNames.concurrentState).withCriticalRegion { _ in \(raw: callBox).snapshot() }
         }
     """)
 
@@ -125,9 +148,9 @@ private func renderConcurrentTypedFunctionMock(
             private let \(raw: box) = InnoDITesting.DIConcurrentValueBox<\(raw: resultType)>(nil)
             private let \(raw: stubbedBox) = InnoDITesting.DIConcurrentValueBox(false)
             var \(raw: names.resultProperty): \(raw: resultType) {
-                get { __innodiMockState.withCriticalRegion { _ in \(raw: box).snapshot() } }
+                get { \(raw: state).withCriticalRegion { _ in \(raw: box).snapshot() } }
                 set {
-                    __innodiMockState.withCriticalRegion { _ in
+                    \(raw: state).withCriticalRegion { _ in
                         \(raw: box).replace(with: newValue)
                         \(raw: stubbedBox).replace(with: newValue != nil)
                     }
@@ -140,19 +163,19 @@ private func renderConcurrentTypedFunctionMock(
         if isThrowing {
             let box = "__innodi_\(names.resultProperty)Box"
             members.append("""
-                private let \(raw: box) = InnoDITesting.DIConcurrentValueBox<Result<\(raw: returnType), Error>>(.failure(_InnoDIMockNotStubbed(selector: \(literal: names.resultProperty))))
+                private let \(raw: box) = InnoDITesting.DIConcurrentValueBox<Result<\(raw: returnType), Error>>(.failure(\(raw: stateNames.notStubbedError)(selector: \(literal: names.resultProperty))))
                 private let \(raw: stubbedBox) = InnoDITesting.DIConcurrentValueBox(false)
                 var \(raw: names.resultProperty): Result<\(raw: returnType), Error> {
-                    get { __innodiMockState.withCriticalRegion { _ in \(raw: box).snapshot() } }
+                    get { \(raw: state).withCriticalRegion { _ in \(raw: box).snapshot() } }
                     set {
-                        __innodiMockState.withCriticalRegion { _ in
+                        \(raw: state).withCriticalRegion { _ in
                             \(raw: box).replace(with: newValue)
                             \(raw: stubbedBox).replace(with: true)
                         }
                     }
                 }
             """)
-            resetStubStatements.append("\(raw: box).replace(with: .failure(_InnoDIMockNotStubbed(selector: \(literal: names.resultProperty))))")
+            resetStubStatements.append("\(raw: box).replace(with: .failure(\(raw: stateNames.notStubbedError)(selector: \(literal: names.resultProperty))))")
             resetStubStatements.append("\(raw: stubbedBox).replace(with: false)")
         } else {
             let box = "__innodi_\(names.returnProperty)Box"
@@ -161,9 +184,9 @@ private func renderConcurrentTypedFunctionMock(
                 private let \(raw: box) = InnoDITesting.DIConcurrentValueBox<\(raw: storageType)>(nil)
                 private let \(raw: stubbedBox) = InnoDITesting.DIConcurrentValueBox(false)
                 var \(raw: names.returnProperty): \(raw: storageType) {
-                    get { __innodiMockState.withCriticalRegion { _ in \(raw: box).snapshot() } }
+                    get { \(raw: state).withCriticalRegion { _ in \(raw: box).snapshot() } }
                     set {
-                        __innodiMockState.withCriticalRegion { _ in
+                        \(raw: state).withCriticalRegion { _ in
                             \(raw: box).replace(with: newValue)
                             \(raw: stubbedBox).replace(with: true)
                         }
@@ -179,9 +202,9 @@ private func renderConcurrentTypedFunctionMock(
             private let \(raw: box) = InnoDITesting.DIConcurrentValueBox<Error?>(nil)
             private let \(raw: stubbedBox) = InnoDITesting.DIConcurrentValueBox(false)
             var \(raw: names.thrownErrorProperty): Error? {
-                get { __innodiMockState.withCriticalRegion { _ in \(raw: box).snapshot() } }
+                get { \(raw: state).withCriticalRegion { _ in \(raw: box).snapshot() } }
                 set {
-                    __innodiMockState.withCriticalRegion { _ in
+                    \(raw: state).withCriticalRegion { _ in
                         \(raw: box).replace(with: newValue)
                         \(raw: stubbedBox).replace(with: true)
                     }
@@ -197,35 +220,35 @@ private func renderConcurrentTypedFunctionMock(
     if typedFailure != nil {
         let box = "__innodi_\(names.resultProperty)Box"
         body = """
-                let result = __innodiMockState.withCriticalRegion { generation in
-                    \(raw: callBox).update { $0.append(.init(\(initializedRecordArgs))) }
-                    return \(raw: box).snapshot()
+                let \(raw: result) = \(raw: state).withCriticalRegion { \(raw: generation) in
+                    \(raw: scope.member(callBox)).update { $0.append(.init(\(initializedRecordArgs))) }
+                    return \(raw: scope.member(box)).snapshot()
                 }
-                guard let result else {
+                guard let \(raw: result) else {
                     preconditionFailure("\(raw: names.resultProperty) was not set on \\(Self.self) before \(raw: baseName) was invoked")
                 }
-                return try result.get()
+                return try \(raw: result).get()
         """
     } else if !returnsVoid {
         if isThrowing {
             let box = "__innodi_\(names.resultProperty)Box"
             body = """
-                    let result = __innodiMockState.withCriticalRegion { generation in
-                        \(raw: callBox).update { $0.append(.init(\(initializedRecordArgs))) }
-                        return \(raw: box).snapshot()
+                    let \(raw: result) = \(raw: state).withCriticalRegion { \(raw: generation) in
+                        \(raw: scope.member(callBox)).update { $0.append(.init(\(initializedRecordArgs))) }
+                        return \(raw: scope.member(box)).snapshot()
                     }
-                    return try result.get()
+                    return try \(raw: result).get()
             """
         } else {
             let box = "__innodi_\(names.returnProperty)Box"
             let storedReturn = renderStoredReturn(
-                storage: "\(box).snapshot()",
+                storage: "\(scope.member(box)).snapshot()",
                 type: returnType
             )
             body = """
-                    return __innodiMockState.withCriticalRegion { generation in
-                        \(raw: callBox).update { $0.append(.init(\(initializedRecordArgs))) }
-                        guard \(raw: stubbedBox).snapshot() else {
+                    return \(raw: state).withCriticalRegion { \(raw: generation) in
+                        \(raw: scope.member(callBox)).update { $0.append(.init(\(initializedRecordArgs))) }
+                        guard \(raw: scope.member(stubbedBox)).snapshot() else {
                             preconditionFailure("\(raw: names.returnProperty) was not set on \\(Self.self) before \(raw: baseName) was invoked")
                         }
                         \(storedReturn)
@@ -235,22 +258,23 @@ private func renderConcurrentTypedFunctionMock(
     } else if isThrowing {
         let box = "__innodi_\(names.thrownErrorProperty)Box"
         body = """
-                let error = __innodiMockState.withCriticalRegion { generation in
-                    \(raw: callBox).update { $0.append(.init(\(initializedRecordArgs))) }
-                    return \(raw: box).snapshot()
+                let \(raw: error) = \(raw: state).withCriticalRegion { \(raw: generation) in
+                    \(raw: scope.member(callBox)).update { $0.append(.init(\(initializedRecordArgs))) }
+                    return \(raw: scope.member(box)).snapshot()
                 }
-                if let error { throw error }
+                if let \(raw: error) { throw \(raw: error) }
         """
     } else {
         body = """
-                __innodiMockState.withCriticalRegion { generation in
-                    \(raw: callBox).update { $0.append(.init(\(initializedRecordArgs))) }
+                \(raw: state).withCriticalRegion { \(raw: generation) in
+                    \(raw: scope.member(callBox)).update { $0.append(.init(\(initializedRecordArgs))) }
                 }
         """
     }
+    let invocationBody = CodeBlockItemListSyntax(captures + Array(body))
     members.append("""
         func \(raw: baseName)(\(parameterList))\(raw: effectsRendered)\(raw: returnFragment) {
-    \(body)
+    \(invocationBody)
         }
     """)
 
@@ -260,7 +284,7 @@ private func renderConcurrentTypedFunctionMock(
         missingStubExpression: requiresFunctionStub(
             returnsVoid: returnsVoid,
             isThrowing: isThrowing
-        ) ? ExprSyntax("!\(raw: stubbedBox).snapshot() ? \(literal: names.stem) : nil") : nil,
+        ) ? ExprSyntax("!\(raw: scope.member(stubbedBox)).snapshot() ? \(literal: names.stem) : nil") : nil,
         recordedCallCount: recordedCallCountElement(
             stem: names.stem,
             count: "\(raw: callBox).snapshot().count"
@@ -272,8 +296,10 @@ private func renderConcurrentTypedFunctionMock(
 
 private func renderTypedFunctionMock(
     function: FunctionDeclSyntax,
-    names: MockFunctionNames
+    names: MockFunctionNames,
+    stateNames: MockStateNames
 ) -> RenderedFunctionMock? {
+    let scope = MockFunctionScope(function)
     let signature = function.signature
     let isAsync = signature.effectSpecifiers?.asyncSpecifier != nil
     let throwsSpelling = signature.effectSpecifiers?.throwsClause?.trimmedDescription
@@ -338,7 +364,7 @@ private func renderTypedFunctionMock(
             // `_InnoDIMockNotStubbed` error.
             let storage = "__innodi_\(names.resultProperty)Storage"
             members.append("""
-                private var \(raw: storage): Result<\(raw: returnTypeRendered), Error> = .failure(_InnoDIMockNotStubbed(selector: \(literal: names.resultProperty)))
+                private var \(raw: storage): Result<\(raw: returnTypeRendered), Error> = .failure(\(raw: stateNames.notStubbedError)(selector: \(literal: names.resultProperty)))
             """)
             members.append(
                 computedStubProperty(
@@ -348,7 +374,7 @@ private func renderTypedFunctionMock(
                     stubbedStorage: stubbedStorage
                 )
             )
-            resetStubStatements.append("\(raw: storage) = .failure(_InnoDIMockNotStubbed(selector: \(literal: names.resultProperty)))")
+            resetStubStatements.append("\(raw: storage) = .failure(\(raw: stateNames.notStubbedError)(selector: \(literal: names.resultProperty)))")
             resetStubStatements.append("\(raw: stubbedStorage) = false")
         } else {
             let storage = "__innodi_\(names.returnProperty)Storage"
@@ -406,17 +432,17 @@ private func renderTypedFunctionMock(
 
     let initializedRecordArgs = recordArguments(
         callParameters,
-        generation: "__innodiMockGeneration"
+        generation: scope.member(stateNames.generation)
     )
     let returnFragment = returnsVoid ? "" : " -> \(returnTypeRendered)"
     let record: CodeBlockItemListSyntax = """
-            \(raw: names.callsProperty).append(.init(\(initializedRecordArgs)))
+            \(raw: scope.member(names.callsProperty)).append(.init(\(initializedRecordArgs)))
     """
     let body: CodeBlockItemListSyntax
     if typedFailure != nil {
         body = """
         \(record)
-                guard let result = \(raw: names.resultProperty) else {
+                guard let result = \(raw: scope.member(names.resultProperty)) else {
                     preconditionFailure("\(raw: names.resultProperty) was not set on \\(Self.self) before \(raw: baseName) was invoked")
                 }
                 return try result.get()
@@ -425,16 +451,16 @@ private func renderTypedFunctionMock(
         if isThrowing {
             body = """
             \(record)
-                    return try \(raw: names.resultProperty).get()
+                    return try \(raw: scope.member(names.resultProperty)).get()
             """
         } else {
             let storedReturn = renderStoredReturn(
-                storage: names.returnProperty,
+                storage: scope.member(names.returnProperty),
                 type: returnTypeRendered
             )
             body = """
             \(record)
-                    guard \(raw: stubbedStorage) else {
+                    guard \(raw: scope.member(stubbedStorage)) else {
                         preconditionFailure("\(raw: names.returnProperty) was not set on \\(Self.self) before \(raw: baseName) was invoked")
                     }
                     \(storedReturn)
@@ -443,7 +469,7 @@ private func renderTypedFunctionMock(
     } else if isThrowing {
         body = """
         \(record)
-                if let error = \(raw: names.thrownErrorProperty) {
+                if let error = \(raw: scope.member(names.thrownErrorProperty)) {
                     throw error
                 }
         """
@@ -474,8 +500,13 @@ private func renderTypedFunctionMock(
 
 private func renderGenericFunctionMock(
     function: FunctionDeclSyntax,
-    names: MockFunctionNames
+    names: MockFunctionNames,
+    stateNames: MockStateNames
 ) -> RenderedFunctionMock? {
+    let scope = MockFunctionScope(function)
+    let handler = scope.local("handler")
+    let rawValue = scope.local("rawValue")
+    let value = scope.local("value")
     let signature = function.signature
     let isAsync = signature.effectSpecifiers?.asyncSpecifier != nil
     let isThrowing = signature.effectSpecifiers?.throwsClause != nil
@@ -504,9 +535,7 @@ private func renderGenericFunctionMock(
         elements: ArrayElementListSyntax(
             callParameters.enumerated().map { index, parameter in
                 ArrayElementSyntax(
-                    expression: DeclReferenceExprSyntax(
-                        baseName: .identifier(parameter.argumentIdentifier)
-                    ),
+                    expression: parameter.argumentExpression,
                     trailingComma: index == callParameters.count - 1
                         ? nil
                         : .commaToken(trailingTrivia: .space)
@@ -539,27 +568,27 @@ private func renderGenericFunctionMock(
     let returnFragment = returnsVoid ? "" : " -> \(returnTypeRendered)"
     let initializedRecordArgs = recordArguments(
         callParameters,
-        generation: "__innodiMockGeneration"
+        generation: scope.member(stateNames.generation)
     )
     let body: CodeBlockItemListSyntax
     if returnsVoid {
         body = """
-                \(raw: names.callsProperty).append(.init(\(initializedRecordArgs)))
-                if let handler = \(raw: names.handlerProperty) {
-                    \(raw: invocationPrefix)handler(\(handlerArguments))
+                \(raw: scope.member(names.callsProperty)).append(.init(\(initializedRecordArgs)))
+                if let \(raw: handler) = \(raw: scope.member(names.handlerProperty)) {
+                    \(raw: invocationPrefix)\(raw: handler)(\(handlerArguments))
                 }
         """
     } else {
         body = """
-                \(raw: names.callsProperty).append(.init(\(initializedRecordArgs)))
-                guard let handler = \(raw: names.handlerProperty) else {
+                \(raw: scope.member(names.callsProperty)).append(.init(\(initializedRecordArgs)))
+                guard let \(raw: handler) = \(raw: scope.member(names.handlerProperty)) else {
                     preconditionFailure("\(raw: names.handlerProperty) was not set on \\(Self.self) before \(raw: baseName) was invoked")
                 }
-                let rawValue = \(raw: invocationPrefix)handler(\(handlerArguments))
-                guard let value = rawValue as? \(raw: returnTypeRendered) else {
+                let \(raw: rawValue) = \(raw: invocationPrefix)\(raw: handler)(\(handlerArguments))
+                guard let \(raw: value) = \(raw: rawValue) as? \(raw: returnTypeRendered) else {
                     preconditionFailure("\(raw: names.handlerProperty) returned a value that cannot be cast to \(raw: returnTypeRendered)")
                 }
-                return value
+                return \(raw: value)
         """
     }
     members.append("""
@@ -592,7 +621,9 @@ struct RenderedVariableMock {
 
 func renderVariableMock(
     variable: VariableDeclSyntax,
-    concurrent: Bool = false
+    concurrent: Bool = false,
+    stateNames: MockStateNames = MockStateNames(),
+    reserving names: Set<String> = []
 ) -> RenderedVariableMock? {
     if findStandardMainActorAttribute(in: variable.attributes) != nil {
         return nil
@@ -620,12 +651,18 @@ func renderVariableMock(
     let name = (binding.pattern.as(IdentifierPatternSyntax.self))?.identifier.text ?? "<unknown>"
     let type = typeAnnotation.type.trimmedDescription
     let escapedName = name.escapedSwiftIdentifier
-    let storageName = "__innodi_\(name.safeLowerCamelIdentifier)_\(name.stableIdentifierSuffix)StubValue"
-    let stubbedName = "__innodi_\(name.safeLowerCamelIdentifier)_\(name.stableIdentifierSuffix)IsStubbed"
+    let storageName = freshMockIdentifier(
+        "__innodi_\(name.safeLowerCamelIdentifier)_\(name.stableIdentifierSuffix)StubValue",
+        reserving: names
+    )
+    let stubbedName = freshMockIdentifier(
+        "__innodi_\(name.safeLowerCamelIdentifier)_\(name.stableIdentifierSuffix)IsStubbed",
+        reserving: names
+    )
     let storageType = optionalStorageType(type)
     if concurrent {
-        let boxName = "\(storageName)Box"
-        let stubbedBoxName = "\(stubbedName)Box"
+        let boxName = freshMockIdentifier("\(storageName)Box", reserving: names)
+        let stubbedBoxName = freshMockIdentifier("\(stubbedName)Box", reserving: names)
         let storedReturn = renderStoredReturn(storage: "\(boxName).snapshot()", type: type)
         return RenderedVariableMock(
             members: MockMembers("""
@@ -633,7 +670,7 @@ func renderVariableMock(
             private let \(raw: stubbedBoxName) = InnoDITesting.DIConcurrentValueBox(false)
             var \(raw: escapedName): \(raw: type) {
                 get {
-                    return __innodiMockState.withCriticalRegion { _ in
+                    return \(raw: stateNames.concurrentState).withCriticalRegion { _ in
                         guard \(raw: stubbedBoxName).snapshot() else {
                             preconditionFailure("\(raw: name) was not set on \\(Self.self) before it was read")
                         }
@@ -641,7 +678,7 @@ func renderVariableMock(
                     }
                 }
                 set {
-                    __innodiMockState.withCriticalRegion { _ in
+                    \(raw: stateNames.concurrentState).withCriticalRegion { _ in
                         \(raw: boxName).replace(with: newValue)
                         \(raw: stubbedBoxName).replace(with: true)
                     }
@@ -685,37 +722,56 @@ func renderVariableMock(
 private struct RenderableCallParameter {
     let fieldLabel: String
     let fieldIdentifier: String
-    let argumentIdentifier: String
+    var argumentIdentifier: String
     let type: String
     let declaration: FunctionParameterSyntax
+    var requiresCopy: Bool
+
+    var argumentExpression: ExprSyntax {
+        if requiresCopy {
+            return "copy \(raw: argumentIdentifier)"
+        }
+        return ExprSyntax(DeclReferenceExprSyntax(baseName: .identifier(argumentIdentifier)))
+    }
 }
 
 private func renderableCallParameters(
     _ parameters: FunctionParameterListSyntax,
     eraseTypes: Bool = false
 ) -> [RenderableCallParameter]? {
-    var usedNames: [String: Int] = [:]
+    let originalFieldNames = Set(parameters.compactMap { parameter -> String? in
+        let name = (parameter.secondName ?? parameter.firstName).text.unescapedIdentifier
+        return name == "_" ? nil : name.safeLowerCamelIdentifier
+    })
+    var usedFieldNames: Set<String> = ["generation"]
+    var usedArgumentNames = Set(parameters.map {
+        ($0.secondName ?? $0.firstName).text.unescapedIdentifier
+    })
     var rendered: [RenderableCallParameter] = []
     for (index, parameter) in parameters.enumerated() {
         let internalName = (parameter.secondName?.text ?? parameter.firstName.text)
         let baseFieldName = internalName == "_"
             ? "value\(index + 1)"
             : internalName.unescapedIdentifier.safeLowerCamelIdentifier
-        let count = usedNames[baseFieldName, default: 0]
-        usedNames[baseFieldName] = count + 1
-        let unescapedFieldName = count == 0 ? baseFieldName : "\(baseFieldName)\(count + 1)"
-        guard let typeText = renderableCallRecordType(parameter.type.trimmedDescription, eraseTypes: eraseTypes) else {
+        let reservedFieldNames = usedFieldNames.union(
+            internalName == "_" ? originalFieldNames : originalFieldNames.subtracting([baseFieldName])
+        )
+        let unescapedFieldName = freshMockIdentifier(baseFieldName, reserving: reservedFieldNames)
+        usedFieldNames.insert(unescapedFieldName)
+        guard let typeText = renderableCallRecordType(parameter, eraseTypes: eraseTypes) else {
             return nil
         }
         let argumentName: String
         let declaration: FunctionParameterSyntax
         let parameterWithoutComma = parameter.with(\.trailingComma, nil)
         if internalName == "_" {
-            argumentName = unescapedFieldName.escapedSwiftIdentifier
+            let synthesizedName = freshMockIdentifier(unescapedFieldName, reserving: usedArgumentNames)
+            usedArgumentNames.insert(synthesizedName)
+            argumentName = synthesizedName.escapedSwiftIdentifier
             declaration = parameterWithoutComma
                 .with(
                     \.secondName,
-                    .identifier(unescapedFieldName, leadingTrivia: .space)
+                    .identifier(synthesizedName, leadingTrivia: .space)
                 )
                 .trimmed
         } else {
@@ -728,7 +784,10 @@ private func renderableCallParameters(
                 fieldIdentifier: unescapedFieldName.escapedSwiftIdentifier,
                 argumentIdentifier: argumentName,
                 type: typeText,
-                declaration: declaration
+                declaration: declaration,
+                requiresCopy: mockParameterSpecifiers(parameter.type).contains {
+                    ["consuming", "borrowing", "__owned", "__shared"].contains($0)
+                }
             )
         )
     }
@@ -761,14 +820,14 @@ private func recordArguments(
     _ parameters: [RenderableCallParameter],
     generation: String
 ) -> LabeledExprListSyntax {
-    let arguments = [(label: "generation", value: generation)]
-        + parameters.map { (label: $0.fieldLabel, value: $0.argumentIdentifier) }
+    let arguments = [(label: "generation", value: ExprSyntax("\(raw: generation)"))]
+        + parameters.map { (label: $0.fieldLabel, value: $0.argumentExpression) }
     return LabeledExprListSyntax(
         arguments.enumerated().map { index, argument in
             LabeledExprSyntax(
                 label: .identifier(argument.label),
                 colon: .colonToken(trailingTrivia: .space),
-                expression: DeclReferenceExprSyntax(baseName: .identifier(argument.value)),
+                expression: argument.value,
                 trailingComma: index == arguments.count - 1
                     ? nil
                     : .commaToken(trailingTrivia: .space)
@@ -836,20 +895,25 @@ private func renderStoredReturn(storage: String, type: String) -> CodeBlockItemL
         """
 }
 
-private func renderableCallRecordType(_ typeText: String, eraseTypes: Bool) -> String? {
-    if typeText.hasPrefix("inout ") {
+private func renderableCallRecordType(
+    _ parameter: FunctionParameterSyntax,
+    eraseTypes: Bool
+) -> String? {
+    if mockParameterSpecifiers(parameter.type).contains("inout") {
         return nil
     }
     if eraseTypes {
         return "Any"
     }
-    if isOpaqueType(typeText) {
+    if isOpaqueType(parameter.type.trimmedDescription) {
         return nil
     }
 
-    return typeText
-        .replacingOccurrences(of: "@escaping ", with: "")
-        .replacingOccurrences(of: "@autoclosure ", with: "")
+    let storedType = mockCallRecordType(parameter.type).trimmed
+    if parameter.ellipsis != nil {
+        return ArrayTypeSyntax(element: storedType).trimmedDescription
+    }
+    return storedType.trimmedDescription
 }
 
 private func effectInvocationPrefix(isAsync: Bool, isThrowing: Bool) -> String {

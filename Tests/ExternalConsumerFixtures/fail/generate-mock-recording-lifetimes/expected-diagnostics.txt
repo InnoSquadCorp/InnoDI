@@ -1,0 +1,4 @@
+call (nonescaping closure parameter 'callback' cannot be retained in call history)
+check (nonescaping closure parameter 'condition' cannot be retained in call history)
+load (sending results cannot be repeatedly returned from retained stub storage)
+record (noncopyable or nonescapable generic parameters cannot be retained in call history)

@@ -11,6 +11,18 @@ Current development train: `7.0.0` (unreleased)
 
 ## Unreleased
 
+- Experimental generated mocks now record variadics as arrays, bind protocol
+  `Self` to the final mock class, preserve explicit `nonisolated` protocols,
+  and copy retained Copyable ownership parameters correctly. Nonescaping
+  closures, noncopyable generic inputs, and `sending` results receive a source
+  diagnostic instead of an invalid peer. Escaping autoclosures remain lazy.
+  Argument names such as `handler` no longer replace valid generic-handler
+  inputs. Call history reserves `generation`; a same-named argument uses
+  `generation2` or the next available suffix. Helper names are disambiguated
+  from method requirements and private storage; fixed aggregate-API collisions
+  remain unsupported. See Auto Mock Generation for affected test setup/record
+  access and the existing erased-handler return-type contract.
+
 - Preparation now distinguishes caller cancellation from provider cancellation.
   A cancelled plan/owner preparation throws `CancellationError`; the nonthrowing
   scope preparation returns the provider's real state. Caller cancellation alone

@@ -1,0 +1,47 @@
+import InnoDI
+import InnoDITesting
+
+@GenerateMock
+protocol SharedRecordingAPI: Sendable {
+    func record(generation: UInt64, _ values: Int...)
+    func own(_ value: consuming String)
+    func borrow(_ value: borrowing String)
+    func shadow(__innodi_recordCallsBox: Int, __innodiMockState: Int)
+    func copy() -> Self
+    func compare(_ other: Self)
+    func InnoDICallHistorySnapshot(generation: UInt64, recordedCallCounts: [String: Int]) -> Int
+    var __innodiMockState: Int { get }
+}
+
+func runConcurrentContracts() async {
+    let mock = SharedRecordingAPIMock()
+    mock.__innodiMockState = 99
+    await withTaskGroup(of: Void.self) { group in
+        for value in 0..<10 {
+            group.addTask { mock.record(generation: UInt64(value + 100), value, value + 1) }
+        }
+    }
+    precondition(mock.recordCalls.count == 10)
+    precondition(mock.recordCalls.allSatisfy { $0.generation == 0 })
+    precondition(Set(mock.recordCalls.map(\.generation2)) == Set((100..<110).map(UInt64.init)))
+    precondition(mock.recordCalls.allSatisfy { $0.values == [Int($0.generation2) - 100, Int($0.generation2) - 99] })
+    mock.own("owned")
+    mock.borrow("borrowed")
+    precondition(mock.ownCalls[0].value == "owned")
+    precondition(mock.borrowCalls[0].value == "borrowed")
+    mock.shadow(__innodi_recordCallsBox: 11, __innodiMockState: 22)
+    precondition(mock.shadowCalls[0].innodiRecordCallsBox == 11)
+    precondition(mock.shadowCalls[0].innodiMockState == 22)
+    precondition(mock.__innodiMockState == 99)
+    mock.copyReturnValue = mock
+    precondition(mock.copy() === mock)
+    mock.compare(mock)
+    precondition(mock.compareCalls[0].other === mock)
+    mock.innoDICallHistorySnapshotReturnValue = 17
+    precondition(mock.InnoDICallHistorySnapshot(generation: 2, recordedCallCounts: [:]) == 17)
+    _ = mock.innoDIReset(.all)
+    mock.record(generation: 200, 3, 4)
+    precondition(mock.recordCalls[0].generation == 1)
+    precondition(mock.recordCalls[0].generation2 == 200)
+    precondition(mock.recordCalls[0].values == [3, 4])
+}
