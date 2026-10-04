@@ -53,6 +53,12 @@ public struct AppContainer {
     @_Concurrency.MainActor public struct Overrides {
         public var feature: FeatureContainer? = nil
         public var featureOverrides: (@_Concurrency.MainActor (inout FeatureContainer._InnoDIMountOverrides) -> Void)? = nil
+        public mutating func set<Value>(_ keyPath: Swift.WritableKeyPath<Self, Value?>, to value: Value) {
+            self[keyPath: keyPath] = .some(value)
+        }
+        public mutating func useDefault<Value>(_ keyPath: Swift.WritableKeyPath<Self, Value?>) {
+            self[keyPath: keyPath] = .none
+        }
     }
 
     public typealias _InnoDIMountOverrides = Overrides

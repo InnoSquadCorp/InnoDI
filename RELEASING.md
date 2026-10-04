@@ -14,6 +14,13 @@ the latest-stable metadata there and the README installation references, and the
 workflow validates that exact commit before it creates the immutable annotated
 tag.
 
+For the current 7.0 preparation branch, use the
+[release-readiness checklist](docs/reviews/7.0.0-release-readiness.md) to review
+the included API scope and final-head evidence. A preparation PR keeps the
+unreleased banner and latest-stable metadata truthful. Only the final candidate
+transition below changes those fields; opening or validating the PR does not
+publish 7.0.0.
+
 ## Release Checklist
 
 Before dispatching the `Release Gate` workflow:

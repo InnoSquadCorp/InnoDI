@@ -1,0 +1,5 @@
+import InnoDI
+@DIContainerRole(role: ContainerRole.local, mainActor: true, generateOwned: true) struct Container {
+    @Provide(.transient, factory: 1) var fresh: Int
+    @Provide(.shared, asyncFactory: { (fresh: Int) async in fresh }) var shared: Int
+}

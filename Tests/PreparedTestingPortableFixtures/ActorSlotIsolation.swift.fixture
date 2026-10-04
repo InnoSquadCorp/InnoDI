@@ -1,0 +1,11 @@
+import InnoDITesting
+
+@DIContainerRole(role: ContainerRole.local, mainActor: true)
+struct ActorSlotServices {
+    @Provide(.shared, effect: .sideEffect, factory: 1)
+    var service: Int
+}
+
+func mutateFromWrongExecutor(_ overrides: inout ActorSlotServices.Overrides) {
+    overrides.set(\.service, to: 2)
+}

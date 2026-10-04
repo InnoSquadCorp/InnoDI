@@ -50,7 +50,7 @@ class PublicAPIAliasTests(unittest.TestCase):
         # Compile the actual self-contained runtime files, including nested
         # generic/actor/function aliases, on every compiler running this gate.
         for module, filenames in [
-            ("InnoDI", ["DIAsyncScope.swift", "DICollections.swift"]),
+            ("InnoDI", ["DIAsyncScope.swift", "DIAsyncOwner.swift", "DICollections.swift"]),
             ("InnoDISwiftUI", ["DIContainerHost.swift"]),
         ]:
             with tempfile.TemporaryDirectory(prefix="innodi-product-alias-") as directory:

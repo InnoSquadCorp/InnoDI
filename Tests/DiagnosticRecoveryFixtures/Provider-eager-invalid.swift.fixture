@@ -1,0 +1,7 @@
+import InnoDI
+
+@DIContainer
+struct App {
+    @Provide(.transient, factory: 1) var request: Int
+    @Provide(.shared, factory: { (request: Provider<Int>) in request() }) var consumer: Int
+}

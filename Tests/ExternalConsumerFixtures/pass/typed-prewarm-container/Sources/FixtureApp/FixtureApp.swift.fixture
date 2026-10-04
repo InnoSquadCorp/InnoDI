@@ -1,0 +1,33 @@
+import FeatureKit
+
+func requireSendable<T: Sendable>(_ value: T) -> T { value }
+
+@main struct FixtureApp {
+    @MainActor static func main() async throws {
+        let token = await Task.detached {
+            requireSendable(Container._InnoDIPrewarmProvider.second)
+        }.value
+        let container = Container()
+        container.prewarm(token, .first, .second, .internalService)
+        container.prewarm()
+        container.prewarm(.first)
+        precondition(container.first === container.first)
+        let plain = CallerIsolatedContainer(PrewarmProvider: 7)
+        plain.prewarm(.value)
+        precondition(plain.value === plain.value)
+        precondition(plain.PrewarmProvider == 7)
+        let identifiers = IdentifierContainer()
+        identifiers.prewarm(.some, .any, .actor, .nonisolated, .package, .서비스)
+        precondition(identifiers.서비스 == 6)
+        let global = GlobalPayloadContainer()
+        global.prewarm(.service)
+        let globalValue: PrewarmProvider = global.service
+        let globalExtension: PrewarmProvider = global.extensionPayload
+        precondition(globalValue == .service && globalExtension == .service)
+        let nested = NestedPayloadContainer()
+        nested.prewarm(.service)
+        let nestedValue: NestedPayloadContainer.PrewarmProvider = nested.service
+        let nestedExtension: NestedPayloadContainer.PrewarmProvider = nested.extensionPayload
+        precondition(nestedValue == .service && nestedExtension == .service)
+    }
+}

@@ -69,6 +69,51 @@ The category prefix reflects the stage that emits the diagnostic:
 
 ## Common recovery patterns
 
+Factory-name candidates respect the requested hard, Lazy or Provider edge. A
+unique eligible candidate receives a parameter-only rename fix-it only when
+the closure signature/body cannot make that edit change or break a binding. If
+the old or replacement name appears in the body, InnoDI instead asks you to
+rename the parameter and its bound uses manually, checking nested scopes. It
+never guesses between multiple candidates or silently rewrites a closure body.
+
+Unavailable hard references underline the factory parameter or `with:` key path
+and retain a note at the provider's declaration. A forward shared reference can
+be repaired by moving the provider earlier or selecting
+`initializationOrder: ContainerInitializationOrder.dependency`. A shared
+consumer's hard reference to a transient provider is a scope error under either
+policy, even when the transient is declared first. Reordering cannot repair it.
+Nearby-name suggestions explain each candidate's own scope, order, or effect
+constraint; they do not offer automatic scope or order changes.
+
+For a transient provider, choose a transient consumer, explicit manual wiring,
+or a supported deferred handle. This standalone example retains `Provider<Int>`
+and calls it after container construction. Calling the handle immediately inside
+the shared factory is still invalid; deferred targets must satisfy their existing
+synchronous construction requirements.
+
+<!-- diagnostic-recovery: Provider-repaired -->
+```swift
+import InnoDI
+
+struct Consumer {
+    let requests: Provider<Int>
+    func next() -> Int { requests() }
+}
+
+@DIContainer
+struct App {
+    @Provide(.transient, factory: 1)
+    var request: Int
+    @Provide(.shared, factory: { (request: Provider<Int>) in Consumer(requests: request) })
+    var consumer: Consumer
+}
+
+@main enum Check {
+    static func main() { precondition(App().consumer.next() == 1) }
+}
+```
+<!-- /diagnostic-recovery -->
+
 Most diagnostics embed the fix directly in the message. Patterns you'll see
 repeatedly:
 
@@ -178,8 +223,13 @@ Most frequently-hit codes:
   lookup tables or generating peer storage.
 - `provide.unresolved-factory-parameter` — a named parameter on the root
   factory closure doesn't match any container member or `with:` key path.
-- `provide.unavailable-dependency-reference` — a factory references a member
-  that is declared later and is unavailable at that construction point.
+- `provide.unavailable-dependency-reference` — a factory parameter or `with:`
+  key path references a member unavailable under the selected initialization
+  policy or construction scope. The message distinguishes the target's actual
+  constraint: move a forward shared provider earlier or opt in to dependency
+  order; a hard transient dependency is unavailable to a shared consumer under
+  either policy and in either declaration order. Use a transient consumer or
+  supported deferred/manual wiring for that scope error.
 - `provide.async-dependency-requires-async-consumer` — a synchronous factory
   consumes an async provider through an explicit sibling edge. Move the
   consumer to `asyncFactory:`. This check also runs with `validateDAG: false`.
@@ -259,6 +309,19 @@ Most frequently-hit codes:
   an error; rename the custom declaration. A diagnostic-only recovery
   initializer prevents mounted child containers from producing unrelated
   Swift argument errors.
+- `container.owned-name-conflict` — `generateOwned: true` would introduce
+  `makeOwned(...)` or `makeOwnedWithOverrides(...)`, but a direct declaration
+  already uses that name. Rename
+  the authored declaration or remove the owned opt-in.
+- `container.owned-unsupported` — the owned prototype cannot reproduce the
+  annotated shape: async transient providers, assisted inputs/factories,
+  collection providers, transient children, feature-root helpers, and custom
+  global actors or per-member actor isolation are not supported yet. Synchronous
+  transients and eligible synchronous Lazy/Provider edges are supported. See
+  <doc:OwnedContainers> for the non-Sendable deferred-capture boundary, or retain
+  the legacy API by removing `generateOwned: true`.
+- `container.owned-requires-dag` — owned construction requires
+  `validateDAG: true`; its lifecycle graph must have validated dependencies.
 - `container.prewarm-name-conflict` — an on-demand container already has a
   direct value or function named `prewarm`. Rename it so the generated
   selective prewarm API remains unambiguous.
@@ -275,7 +338,12 @@ Most frequently-hit codes:
 - `container.role-token-required` — `@DIContainerRole role:` is not one of
   `ContainerRole.local`, `ContainerRole.component`, or `ContainerRole.root`.
   Use the named token rather than a string literal or variable.
-- `container.bool-literal-required` — `root:`, `validateDAG:`, or `mainActor:`
+- `container.initialization-order-token-required` — `initializationOrder:` is
+  not exactly `ContainerInitializationOrder.declaration` or
+  `ContainerInitializationOrder.dependency` (optionally qualified by `InnoDI`),
+  or the argument occurs more than once. Use one named token; string literals,
+  shorthand members, aliases and computed expressions are unsupported.
+- `container.bool-literal-required` — `root:`, `validateDAG:`, `mainActor:`, or `generateOwned:`
   was not literal `true` or `false`; use conditional compilation to choose
   different attribute spellings.
 - `container.duplicate-member-name` — two direct managed instance members use
@@ -292,6 +360,9 @@ Most frequently-hit codes:
   support declarations (`_storage_`, `_override_`, `_innoDI`, or `_InnoDI`).
   Rename the declaration. This includes plain variables, functions, nested
   nominal types, typealiases, and declarations inside a top-level `#if`.
+  The typed-prewarm selection name `_InnoDIPrewarmProvider` uses this existing
+  compiler-owned namespace; ordinary payload types named `PrewarmProvider`
+  are not reserved.
 - `container.reserved-module-name` — the container, an enclosing nominal, or a
   direct declaration named `InnoDI`, or a direct nested type/typealias named
   `Swift` or `_Concurrency`, shadows a module qualifier used by generated

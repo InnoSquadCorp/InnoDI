@@ -619,13 +619,13 @@ func hasDuplicateManagedMemberName(
     var matchingCount = 0
     for sibling in declaration.memberBlock.members {
         guard let variable = sibling.decl.as(VariableDeclSyntax.self),
+              variable.bindings.first?
+                .pattern.as(IdentifierPatternSyntax.self)?.identifier.text
+                == memberName,
               isEligibleManagedMemberForDuplicateIdentity(
                   variable,
                   options: options
-              ),
-              variable.bindings.first?
-                .pattern.as(IdentifierPatternSyntax.self)?.identifier.text
-                == memberName else {
+              ) else {
             continue
         }
         matchingCount += 1

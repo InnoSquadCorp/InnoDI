@@ -1,0 +1,43 @@
+import InnoDI
+
+public final class Value {
+    public init() {}
+}
+
+@DIContainerRole(role: ContainerRole.local, mainActor: true)
+public struct Container {
+    @Provide(.shared, initialization: .onDemand, factory: Value()) public var first: Value
+    @Provide(.shared, initialization: .onDemand, factory: Value()) public var second: Value
+    @Provide(.shared, initialization: .onDemand, factory: Value()) var internalService: Value
+}
+
+@DIContainer
+public struct CallerIsolatedContainer {
+    @Input public var PrewarmProvider: Int
+    @Provide(.shared, initialization: .onDemand, factory: Value()) public var value: Value
+}
+
+@DIContainer
+public struct IdentifierContainer {
+    @Provide(.shared, initialization: .onDemand, factory: 1) public var some: Int
+    @Provide(.shared, initialization: .onDemand, factory: 2) public var any: Int
+    @Provide(.shared, initialization: .onDemand, factory: 3) public var actor: Int
+    @Provide(.shared, initialization: .onDemand, factory: 4) public var nonisolated: Int
+    @Provide(.shared, initialization: .onDemand, factory: 5) public var package: Int
+    @Provide(.shared, initialization: .onDemand, factory: 6) public var 서비스: Int
+}
+
+public enum PrewarmProvider: Equatable { case service }
+
+@DIContainer
+public struct GlobalPayloadContainer {
+    @Provide(.shared, initialization: .onDemand, factory: PrewarmProvider.service)
+    public var service: PrewarmProvider
+}
+
+@DIContainer
+public struct NestedPayloadContainer {
+    public enum PrewarmProvider: Equatable { case service }
+    @Provide(.shared, initialization: .onDemand, factory: PrewarmProvider.service)
+    public var service: PrewarmProvider
+}

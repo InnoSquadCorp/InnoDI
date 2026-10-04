@@ -1,0 +1,6 @@
+import InnoDI
+struct Holder { let value: InnoDI.Provider<Holder> }
+@DIContainer(generateOwned: true) struct Container {
+    @Provide(.shared, factory: { (b: InnoDI.Provider<Holder>) in Holder(value: b) }) var a: Holder
+    @Provide(.transient, factory: { (a: Holder) in a }) var b: Holder
+}

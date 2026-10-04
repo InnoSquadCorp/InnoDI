@@ -17,6 +17,89 @@ Current development train: `7.0.0` (unreleased)
 needs a Swift 6.2 compiler canary result, which this train does not have, so
 that change moves to 8.0.
 
+### Macro-first API scope for the 7.0 candidate
+
+The following APIs are included in the unreleased 7.0 candidate. Public API
+baseline review and supported Apple toolchain qualification remain release
+requirements; inclusion here does not mean those gates have passed.
+Owned construction, preparation, initialization ordering and override helpers
+are additive or opt-in. Typed synchronous prewarming replaces the existing
+key-path method and requires the source migration listed below.
+
+- Owned async graphs gain `withPrepared`: selected readiness gates the consumer
+  operation, and close is awaited on success, preparation failure and operation
+  failure. `DIAsyncPreparationFailure` carries a structured report. Caller
+  cancellation and operation-error precedence are explicit; borrowed values,
+  escaped views and cancellation-ignoring factories keep their existing limits.
+  `requireReady` and one-shot `retryAndRequireReady` support explicit long-lived
+  owners. A user declaration named `withPrepared` now conflicts only in an
+  owned async graph where the helper is generated.
+
+- Typed Overrides gain `set(_:to:)` and `useDefault(_:)` to distinguish an
+  explicit optional nil from leaving a live factory enabled. Transient value
+  overrides still return the stored value. `DIOverridePreset.applyValidated`
+  serves directly as a strict throwing preflight callback for marked effects;
+  unmarked effects remain unverified.
+
+- Public Lazy/Provider examples and deferred candidate diagnostics now reflect
+  the same non-caching, scope and effect rules as actual provider resolution.
+  Parameter-only rename fixes are withheld when binding uses or capture risks
+  require a manual, scope-aware edit.
+
+- Async `withOverrides` overloads now preserve a source-written `@MainActor`
+  on the container instead of emitting a conflicting `nonisolated(nonsending)`
+  modifier. Calls to an explicitly actor-isolated container stay on MainActor;
+  no `Sendable` constraint or unchecked conversion is added. The existing
+  `DIContainerRole(..., mainActor: true)` path is unchanged. Consumers using an
+  explicit actor annotation no longer need to duplicate that isolation option
+  merely to make the generated override helpers compile.
+
+- `generateOwned: true` adds a separate `makeOwned` construction path with typed
+  async preparation, selected running-work cancellation, retry, status, and
+  idempotent close. The distinct generated view preserves typed service access;
+  its async reads can throw lifecycle errors. Synchronous shared/transient getters
+  stay usable after close, borrowed children are not adopted, and value overrides
+  bypass live factories. Async transient, assisted and collection owner
+  shapes remain unsupported. See the [owned-container guide](Sources/InnoDI/InnoDI.docc/OwnedContainers.md)
+  for copy/admission/close contracts and nominal-type migration costs.
+- `makeOwnedWithOverrides` accepts the existing `Overrides` builder through a required
+  nonescaping trailing closure. Throwing override preflight finishes before any
+  live construction, and cancellation is checked before the builder runs. Its
+  separate name preserves existing child-override trailing closures. Preset reuse
+  and explicit optional-nil overrides forward to
+  the same direct factory. Owner lifetime and explicit close remain unchanged.
+- Owned containers support synchronous Lazy/Provider targets and forward
+  references through non-Sendable typed local cells. Existing target/effect/cycle
+  checks and after-close synchronous access are preserved. Ordinary async or
+  Sendable on-demand factories cannot capture those cells; MainActor consumers
+  remain compiler-checked. No async wrapper or unchecked transfer is added.
+- Containers with synchronous on-demand shared providers gain a generated
+  `_InnoDIPrewarmProvider: Sendable` selection enum and nonthrowing
+  `prewarm(.provider, ...)` method. Direct switch dispatch preserves selected
+  order, caching, and isolation without a runtime registry. The 7.0 candidate
+  replaces throwing key-path selections; empty calls are nonthrowing no-ops.
+  Migrate simple `try prewarm(\Container.service)` calls to `prewarm(.service)`.
+  Dynamic/generic `PartialKeyPath` adapters require explicit token or closure
+  migration and have no automatic fallback. The compiler-owned prefixed name avoids
+  capturing ordinary payload types named `PrewarmProvider`; no natural-name
+  alias is emitted. Explicit token annotations use the longer nested spelling,
+  and visible cases expose construction names even for less-visible getters.
+  API review and supported-Apple-toolchain qualification remain pending. See the
+  [Provide guide](Sources/InnoDI/InnoDI.docc/Provide.md).
+- Indexed macro dependency availability removes repeated full-member set
+  construction while preserving declaration-order diagnostics and ownership
+  edges. This is a compiler-analysis optimization, not a measured app-runtime
+  or cross-library performance claim.
+- `@DIContainer` and `@DIContainerRole` accept an opt-in
+  `initializationOrder: ContainerInitializationOrder.dependency` policy.
+  Shared providers can hard-reference later shared declarations within their
+  synchronous/asynchronous construction stage. The default remains
+  `ContainerInitializationOrder.declaration`; existing call sites need no
+  migration. Review factory side-effect order when opting in. Lazy construction,
+  effects, ownership-cycle rejection, parameter order and lifecycle rules remain
+  unchanged. The named tokens follow the existing Swift 6.2 enum-macro crash
+  workaround. See [the implementation plan](docs/plans/macro-first-next-major.md).
+
 ### Highlights
 
 - `DIContainerHost` passes one stable lifecycle handle to hosted content and
@@ -118,6 +201,13 @@ that change moves to 8.0.
   Xcode 26.6, where the root package builds SwiftSyntax from source as before.
 
 ### Breaking or Behavior Changes
+
+- Generated synchronous `prewarm` accepts only the container's typed provider
+  selections and is nonthrowing. The `PartialKeyPath` overload is removed;
+  unsupported providers now fail at compilation. `DIPrewarmError` remains
+  declared for compatibility but is no longer thrown by generated prewarming.
+  This is a 6.x-to-7.0 source break, including for dynamic and generic key-path
+  adapters; `InnoDI-Migrate` does not rewrite these calls.
 
 - The macOS floor is 14. `DIContainerHostOwner` is an `@Observable` class
   instead of an `ObservableObject`, so its `objectWillChange` and `$phase`
@@ -271,6 +361,26 @@ that change moves to 8.0.
   7.0 rules. No action is required.
 
 ### Upgrade Actions
+
+- Replace literal key-path prewarming such as
+  `try container.prewarm(\FeatureContainer.metrics)` with
+  `container.prewarm(.metrics)`, and remove `try` from empty calls. Adapt
+  dynamic/generic key-path consumers by hand to concrete generated tokens or
+  explicit warming closures. See the [migration guide](Sources/InnoDI/InnoDI.docc/MigrationGuide.md).
+
+- Adopt `generateOwned: true` only where explicit async lifetime control is
+  needed. Use `makeOwned`/`makeOwnedWithOverrides` with explicit `close()`, or
+  `withPrepared` for one prepared operation. The dependency view has a distinct
+  nominal type; existing container methods, conformances and key paths do not
+  transfer. Rename authored `makeOwned`/`makeOwnedWithOverrides` declarations
+  when opting in, and `withPrepared` when the owned graph has async providers.
+  Existing initializer call sites and non-owned graphs need no such migration.
+
+- Existing override assignments remain valid. Prefer
+  `overrides.set(\.optional, to: nil)` for an explicit optional-nil replacement;
+  assigning `nil` to the slot or calling `useDefault` enables its live default.
+  Pass `preset.applyValidated` to a throwing override builder when strict
+  preflight of marked effects is required. Unmarked effects are not verified.
 
 - Rewrite named-root parent key paths to `\Self.member`. `\Self.member` also
   compiles with 6.0, so this can land before the upgrade. Run the read-only

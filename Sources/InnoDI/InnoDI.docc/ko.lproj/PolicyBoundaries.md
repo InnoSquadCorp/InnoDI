@@ -49,6 +49,14 @@ InnoDI는 몇 가지 명시적 경계를 두어 검증을 결정적으로 유지
 - async `.shared`는 input, sync shared, 이전 async shared를 참조할 수 있습니다.
 - `.transient`는 어떤 멤버도 참조할 수 있지만 이름 해석은 여전히 엄격합니다.
 
+위 규칙은 기본값 `ContainerInitializationOrder.declaration`의 계약입니다.
+`ContainerInitializationOrder.dependency`는 sync-shared 및 async-shared 단계
+각각에서 안정적인 위상 순서로 생성하는 opt-in입니다. 같은 단계의 hard forward
+reference를 허용하며, async 단계는 입력과 모든 sync-shared 값에 접근합니다.
+scope/effect 제한과 ownership-cycle 검사는 유지하고 deferred edge는 생성 순서를
+정하지 않습니다. factory 부수효과의 순서가 바뀔 수 있으므로 도입 전에
+<doc:DIContainer>를 확인하세요.
+
 ## Provider 효과
 
 - 동기 provider는 sync, `async`, `async throws` factory에서 소비할 수 있습니다.

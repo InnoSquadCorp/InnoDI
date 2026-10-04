@@ -1,0 +1,11 @@
+import InnoDI
+
+final class Value {}
+@DIContainerRole(role: ContainerRole.local, mainActor: true)
+struct Container {
+    @Provide(.shared, initialization: .onDemand, factory: Value()) var service: Value
+}
+
+nonisolated func warmOffActor(_ container: Container) {
+    container.prewarm(.service)
+}

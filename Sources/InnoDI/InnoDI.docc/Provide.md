@@ -130,6 +130,58 @@ a closed provider, so it always has the `async throws` consumer effect.
 targets constructed by `asyncFactory:`. `with:`, `@Multibinding` contributors,
 and `@SubContainer` child inputs also require synchronous parent members.
 
+## Typed Synchronous Prewarming (7.0 Candidate)
+
+A container with synchronous `.shared` providers using
+`initialization: .onDemand` generates a nested `_InnoDIPrewarmProvider: Sendable` enum.
+Its cases use those providers' names, so selections are checked by Swift:
+
+```swift
+@DIContainer
+struct FeatureContainer {
+    @Provide(.shared, initialization: .onDemand, factory: Metrics())
+    var metrics: Metrics
+    @Provide(.shared, initialization: .onDemand, factory: Analytics())
+    var analytics: Analytics
+}
+
+let container = FeatureContainer()
+container.prewarm(.metrics)
+container.prewarm(.analytics, .metrics)
+
+// An empty selection is a nonthrowing no-op.
+container.prewarm()
+```
+
+The typed method is synchronous, nonthrowing, and returns no value. An empty
+selection does nothing. Each selection dispatches directly to its provider in
+argument order. The 7.0 candidate replaces the key-path overload.
+Repeated selections and container copies reuse the existing shared cache.
+Unselected providers stay lazy unless a selected factory needs them.
+
+Inputs, eager providers, asynchronous providers, and transient providers have no
+cases. A selection from another container has a different Swift type. The enum
+is selection-only: it does not expose `get`, `resolve`, registration, or a runtime
+registry. A token is `Sendable`; its provider's value need not be. Generated
+prewarming methods preserve the container's main-actor isolation, and ordinary
+synchronous containers keep value access on the caller.
+
+The enum and typed method follow the container's access level, like its generated
+initializer and `Overrides`. Cases expose construction names even when the
+corresponding getters are less visible; selecting a case does not expose the
+value. For an explicit annotation, spell
+`FeatureContainer._InnoDIPrewarmProvider`. Contextual `.metrics` calls avoid that
+longer compiler-owned name.
+
+The `_InnoDI` prefix is already reserved for generated support. Authored direct
+container declarations using it receive `container.reserved-name-prefix`.
+No `PrewarmProvider` alias is generated, so ordinary global or nested payload
+types with that name keep their meaning. The fixed prefixed spelling is an
+explicit usability tradeoff, not a claim of universally collision-proof naming;
+do not author names in the compiler-owned namespace. This API is included in
+the unreleased 7.0 candidate; public API baseline review and supported Apple
+toolchain qualification remain pending.
+
 ## Asynchronous Shared Lifetime
 
 A `.shared` provider constructed by `asyncFactory:` is eager by default. It
@@ -200,10 +252,25 @@ constructs every on-demand provider it depends on at that time.
 
 Choose a `.transient` provider with `asyncFactory:` when every read should
 construct a fresh value. Inject a ``DIAsyncScope`` as an `@Input` when
-construction also needs explicit preparation or retry.
+that transient use case needs a custom lifecycle adapter. For supported shared
+graphs, `generateOwned: true` adds typed preparation, retry and explicit close;
+see <doc:OwnedContainers>.
 
 ## See Also
 
 - ``Provide(_:_:with:initialization:effect:collection:factory:asyncFactory:)``
 - ``DIScope``
 - <doc:Validation>
+
+### Migrating prewarm selections
+
+Replace `try container.prewarm(\FeatureContainer.metrics)` with
+`container.prewarm(.metrics)` and remove `try` from empty calls. A codemod can
+rewrite simple literal key paths once their receiver/container identity is
+resolved, but arbitrary `PartialKeyPath` variables and generic key-path APIs do
+not convert automatically. Store the concrete container's generated token type,
+or redesign the generic adapter around an explicit warming closure. Unsupported
+providers now fail at compilation instead of throwing `DIPrewarmError` at runtime.
+There is no reflection-based conversion or fallback key-path resolver.
+`InnoDI-Migrate` does not rewrite prewarm calls; apply this migration by hand.
+`DIPrewarmError` remains declared for compatibility.

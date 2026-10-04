@@ -1,0 +1,6 @@
+import InnoDI
+
+@DIContainer struct Container {
+    @Provide(.shared, initialization: .onDemand, factory: 1) var service: Int
+    struct _InnoDIPrewarmProvider {}
+}

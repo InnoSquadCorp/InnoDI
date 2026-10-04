@@ -13,6 +13,9 @@ validation, dependency-graph tooling, hierarchy checks, and SwiftUI helpers.
 
 ## Minimum Useful Example
 
+First complete [Installation](#installation), including the required validation
+plugin. This example constructs the same service with live and test values.
+
 <!-- innodi:compile -->
 ```swift
 import InnoDI
@@ -26,7 +29,12 @@ struct AppContainer {
     var apiClient: APIClient
 }
 
-let client = AppContainer(baseURL: "https://api.example.com").apiClient
+let live = AppContainer(baseURL: "https://api.example.com")
+let test = AppContainer(baseURL: "https://api.example.com") {
+    $0.apiClient = APIClient(baseURL: "https://test.example.com")
+}
+precondition(live.apiClient.baseURL == "https://api.example.com")
+precondition(test.apiClient.baseURL == "https://test.example.com")
 ```
 
 For expensive shared services that may never be used, opt into first-access
@@ -41,10 +49,11 @@ var metrics: MetricsClient
 The generated `prewarm` method resolves only selected on-demand providers;
 `Lazy` and `Provider` dependencies remain deferred. The same
 `initialization: .onDemand` option works with `asyncFactory:`, and the
-container then gains `closeAsyncProviders()`. For asynchronous owned work that
-needs status or retry, `DIAsyncScope` separates waiter cancellation from owner
-shutdown, while `DIAsyncPreparationPlan` reports failure and blocked downstream
-providers.
+container then gains `closeAsyncProviders()`. For asynchronous work that needs
+readiness, retry, and explicit shutdown, start with
+[`generateOwned: true` and owned containers](Sources/InnoDI/InnoDI.docc/OwnedContainers.md).
+`makeOwned` does not mean ready. When using the report-returning `prepare`,
+check `report.isReady` before proceeding.
 
 ## Why InnoDI
 
@@ -244,6 +253,14 @@ struct AppContainer {
 
 let container = AppContainer(baseURL: "https://api.example.com")
 _ = container.apiClient
+
+struct MockAPIClient: APIClientProtocol {
+    func fetch() async throws -> Data { Data([0x01]) }
+}
+let test = AppContainer(baseURL: "https://api.example.com") {
+    $0.apiClient = MockAPIClient()
+}
+_ = test.apiClient
 ```
 
 Use a factory closure when names or construction logic do not line up with
@@ -258,15 +275,15 @@ var apiClient: any APIClientProtocol
 
 ## Read This Next
 
-Start with these documents in order:
+Start with the task you need:
 
-1. [Overview](Sources/InnoDI/InnoDI.docc/Overview.md)
-2. [Validation](Sources/InnoDI/InnoDI.docc/Validation.md)
-3. [Policy Boundaries](Sources/InnoDI/InnoDI.docc/PolicyBoundaries.md)
-4. [Anti-Patterns](Sources/InnoDI/InnoDI.docc/AntiPatterns.md)
-5. [Module-Wide Init Detection](Sources/InnoDI/InnoDI.docc/ModuleWideInitDetection.md)
-6. [CHANGELOG.md](CHANGELOG.md)
-7. [ROADMAP.md](ROADMAP.md)
+1. Synchronous services and values: [Overview](Sources/InnoDI/InnoDI.docc/Overview.md)
+2. Asynchronous readiness and shutdown: [Owned Containers](Sources/InnoDI/InnoDI.docc/OwnedContainers.md)
+3. Tests and previews: the mock override in Quick Start above, then [Auto Mock](Sources/InnoDI/InnoDI.docc/AutoMock.md)
+
+For failures, see [Validation](Sources/InnoDI/InnoDI.docc/Validation.md) and
+[Policy Boundaries](Sources/InnoDI/InnoDI.docc/PolicyBoundaries.md). For upgrades,
+see [CHANGELOG.md](CHANGELOG.md).
 
 ## Core API
 
@@ -295,8 +312,18 @@ Every stored instance member in a container must use `@Provide` or
 the generated initializer complete and prevents memberwise-initializer drift.
 
 ```swift
-@DIContainer(validateDAG: Bool = true)
-@DIContainerRole(role: String, mainActor: Bool = false, validateDAG: Bool = true)
+@DIContainer(
+    validateDAG: Bool = true,
+    initializationOrder: String = ContainerInitializationOrder.declaration,
+    generateOwned: Bool = false
+)
+@DIContainerRole(
+    role: String,
+    mainActor: Bool = false,
+    validateDAG: Bool = true,
+    initializationOrder: String = ContainerInitializationOrder.declaration,
+    generateOwned: Bool = false
+)
 ```
 
 | Parameter | Default | Meaning |
@@ -304,6 +331,51 @@ the generated initializer complete and prevents memberwise-initializer drift.
 | `role` | required for `@DIContainerRole` | `ContainerRole.local`, `.component`, or `.root`. Root role selects graph-render reachability; component role exposes the cross-module mount contract. |
 | `validateDAG` | `true` | Enables global DAG validation plus local graph-derived checks. `false` skips global DAG and local availability checks; local ownership-cycle, declaration, and explicit sibling effect checks remain mandatory. |
 | `mainActor` | `false` | Applies `@MainActor` to dependency accessors, all generated initializers, `Overrides`, the `applyOverrides` function types used by convenience initializers, `withOverrides`, child overrides, and component mounting, all four `withOverrides` operation closures, and feature-root helpers. With `@DIContainerRole(role: ContainerRole.component)`, it also isolates the generated dependency protocol and `init(dependencies:_:)`, and uses the dedicated `_InnoDIMainActorComponentMountable` conformance. Components without the option continue to use `_InnoDIComponentMountable`. Recommended for UI-root containers. |
+| `initializationOrder` | `ContainerInitializationOrder.declaration` | Opt into `.dependency` with the full named token to construct shared providers in dependency order. Review factory side effects before adopting. |
+| `generateOwned` | `false` | Generates `makeOwned(...)` and a separate owned view for readiness, retry, and shutdown. Custom methods and conformances on the original container do not transfer to the view. |
+
+## Opt-in Dependency Ordering
+
+The default `ContainerInitializationOrder.declaration` preserves the existing
+construction rules. Select `ContainerInitializationOrder.dependency` to wire
+acyclic shared providers without moving their declarations above their users.
+Only these named tokens, optionally qualified with `InnoDI.`, are accepted;
+string literals, variables, and shorthand `.dependency` are not supported.
+
+```swift
+@DIContainer(initializationOrder: ContainerInitializationOrder.dependency)
+struct AppContainer {
+    @Provide(.shared, factory: { (configuration: Configuration) in
+        Client(configuration: configuration)
+    }) var client: Client
+    @Provide(.shared, factory: Configuration()) var configuration: Configuration
+}
+```
+
+The macro orders synchronous shared construction first, then asynchronous
+shared handle creation. Within each stage, a hard dependency precedes its
+consumer; among ready providers the earliest source declaration wins. Already
+valid declaration-ordered containers retain their construction order. Inputs,
+initializer argument order, override fields and child mounting stay unchanged.
+
+This is an explicit behavior choice: a forward dependency can move observable
+factory side effects. Review initialization traces when adopting it; no factory
+is assumed pure. Async completion order is still determined by execution, and
+independent tasks are not serialized. On-demand providers remain on-demand;
+ordering their capture/cell setup does not prewarm unused services.
+
+`Lazy` and `Provider` edges remain deferred, but still count for ownership-cycle
+validation. Cycles remain errors, including with `validateDAG: false`. The opt-in
+does not permit a sync factory to consume async work, a shared hard edge to a
+transient provider, or a provider to depend on a child container. It does not
+change close, cancellation, retry, or container-copy lifetime contracts.
+
+Existing containers need no migration. Adoption adds one argument; do not
+mechanically reorder declarations or change the default across an app without
+reviewing side effects. This API is included in the unreleased 7.0 candidate;
+public API baseline review and supported Apple toolchain qualification remain
+pending.
+
 
 In 6.0, generic component-mounting helpers must distinguish the two marker
 protocols. Keep `_InnoDIComponentMountable` for ordinary components and add an
@@ -552,11 +624,17 @@ var consumer: Consumer
 ```
 
 ```swift
-@Provide(.shared, factory: { (requests: Provider<Request>) in
-    RequestLogger(requests: requests)
+// The synchronous .transient target is named `request`.
+@Provide(.shared, factory: { (request: Provider<Request>) in
+    RequestLogger(requests: request)
 })
 var logger: RequestLogger
 ```
+
+Neither wrapper caches values. `Lazy<T>` follows the target's shared or
+transient scope; `Provider<T>` requires a transient target. A transient value
+override returns that same stored value on every call, so fresh identity comes
+from the live factory, not from the wrapper itself.
 
 Both wrappers are intentionally non-`Sendable` and must stay on the container's
 original isolation domain. They also remain synchronous: neither wrapper can

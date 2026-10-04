@@ -116,7 +116,8 @@ internal func makeUnresolvedFactoryParameterDiagnostic(
     let candidates = matchingDependencyCandidates(
         for: dependencyName,
         resolutionContext: resolutionContext,
-        memberIndex: memberIndex
+        memberIndex: memberIndex,
+        kind: reference?.kind ?? .hard
     )
     var notes = [
         Note(
@@ -144,7 +145,12 @@ internal func makeUnresolvedFactoryParameterDiagnostic(
             Note(
                 node: Syntax(member.attribute),
                 message: SimpleNote(
-                    "Closest matching member exists, but declaration order still makes it unavailable here: \(candidates.unavailable.joined(separator: ", ")).",
+                    unavailableFactoryCandidateMessage(
+                        candidates.unavailable,
+                        kind: reference?.kind ?? .hard,
+                        resolutionContext: resolutionContext,
+                        memberIndex: memberIndex
+                    ),
                     code: .provideUnresolvedFactoryParameter,
                     suffix: "candidate-unavailable"
                 )
@@ -163,12 +169,26 @@ internal func makeUnresolvedFactoryParameterDiagnostic(
         )
     }
 
-    let fixIts = makeRenameTokenFixIts(
+    let safeRename = candidates.available.count == 1
+        && canRenameUnusedFactoryParameter(reference?.token, to: candidates.available[0])
+    if candidates.available.count == 1 && !safeRename {
+        notes.append(
+            Note(
+                node: node,
+                message: SimpleNote(
+                    "Rename parameter '\(dependencyName)' to '\(candidates.available[0])' and update its bound uses manually, checking nested scopes. A parameter-only edit could leave unresolved references or capture another name.",
+                    code: .provideUnresolvedFactoryParameter,
+                    suffix: "manual-rename"
+                )
+            )
+        )
+    }
+    let fixIts = safeRename ? makeRenameTokenFixIts(
         token: reference?.token,
         replacementCandidates: candidates.available,
         code: .provideUnresolvedFactoryParameter,
         label: "Rename parameter"
-    )
+    ) : []
 
     return Diagnostic(
         node: node,
@@ -302,7 +322,11 @@ internal func makeUnresolvedWithDependencyDiagnostic(
             Note(
                 node: Syntax(member.attribute),
                 message: SimpleNote(
-                    "Closest matching member exists, but declaration order still makes it unavailable here: \(candidates.unavailable.joined(separator: ", ")).",
+                    unavailableHardCandidateMessage(
+                        candidates.unavailable,
+                        resolutionContext: resolutionContext,
+                        memberIndex: memberIndex
+                    ),
                     code: .provideUnresolvedWithDependency,
                     suffix: "candidate-unavailable"
                 )
@@ -342,15 +366,38 @@ internal func makeUnresolvedWithDependencyDiagnostic(
 internal func makeUnavailableDependencyDiagnostic(
     member: ProvideMemberModel,
     dependencyName: String,
-    referencedMember: ProvideMemberModel?
+    referencedMember: ProvideMemberModel?,
+    initializationOrder: ContainerInitializationOrderValue = .declaration
 ) -> Diagnostic {
+    let reason = unavailableDependencyReason(
+        member: member,
+        referencedMember: referencedMember,
+        initializationOrder: initializationOrder
+    )
+    let guidance: String
+    let suffix: String
+    switch reason {
+    case .transientScope:
+        guidance = "Shared members cannot directly inject transient providers. "
+            + transientDependencyRecovery(for: referencedMember.map { [$0] } ?? [])
+        suffix = "scope"
+    case .declarationOrder:
+        guidance = "Move shared provider '\(dependencyName)' before '\(member.name)', or opt in to initializationOrder: ContainerInitializationOrder.dependency to order compatible shared providers by dependency."
+        suffix = "declaration-order"
+    case .incompatibleEffects:
+        guidance = incompatibleDependencyEffectsRecovery(memberName: member.name)
+        suffix = "effects"
+    case .constructionScope:
+        guidance = "Use an input or shared provider with compatible effects for '\(dependencyName)', or switch to supported deferred/manual wiring."
+        suffix = "scope"
+    }
     var notes = [
         Note(
             node: Syntax(member.attribute),
             message: SimpleNote(
-                "Shared members can only reference inputs and dependencies that are already available in declaration order. Transient members can reference any container member.",
+                guidance,
                 code: .provideUnavailableDependencyReference,
-                suffix: "declaration-order"
+                suffix: suffix
             )
         )
     ]
@@ -371,7 +418,7 @@ internal func makeUnavailableDependencyDiagnostic(
             Note(
                 node: Syntax(member.bindingSyntax),
                 message: SimpleNote(
-                    "Declare '\(dependencyName)' before '\(member.name)', or switch to explicit transient/manual wiring if declaration order cannot change.",
+                    guidance,
                     code: .provideUnavailableDependencyReference,
                     suffix: "resolution"
                 )
@@ -379,14 +426,59 @@ internal func makeUnavailableDependencyDiagnostic(
         )
     }
 
+    let node = member.closureParameterReferences.first(where: { $0.name == dependencyName })
+        .map { Syntax($0.token) }
+        ?? member.withDependencyReferences.first(where: { $0.name == dependencyName })
+        .map { Syntax($0.anchorExpression) }
+        ?? Syntax(member.attribute)
     return Diagnostic(
-        node: Syntax(member.attribute),
+        node: node,
         message: SimpleDiagnostic.provideUnavailableDependencyReference(
             memberName: member.name,
-            dependencyName: dependencyName
+            dependencyName: dependencyName,
+            reason: reason
         ),
         notes: notes
     )
+}
+
+private func unavailableDependencyReason(
+    member: ProvideMemberModel,
+    referencedMember: ProvideMemberModel?,
+    initializationOrder: ContainerInitializationOrderValue
+) -> DependencyUnavailabilityReason {
+    guard let referencedMember else { return .constructionScope }
+    if member.scope == .shared && referencedMember.scope == .transient {
+        return .transientScope
+    }
+    if dependencyEffectMismatch(
+        consumer: member.constructionEffect,
+        provider: referencedMember.providerEffect
+    ) != nil {
+        return .incompatibleEffects
+    }
+    if referencedMember.scope == .shared,
+       referencedMember.sourceOrder > member.sourceOrder,
+       initializationOrder == .declaration {
+        return .declarationOrder
+    }
+    return .constructionScope
+}
+
+private func incompatibleDependencyEffectsRecovery(memberName: String) -> String {
+    "Use a provider with compatible effects, or rewrite '\(memberName)' with asyncFactory: and the required async/throwing effects. Type.self with: wiring requires synchronous providers; changing declaration order cannot supply missing effects."
+}
+
+private func transientDependencyRecovery(for targets: [ProvideMemberModel]) -> String {
+    if !targets.isEmpty && targets.allSatisfy({
+        $0.hasLocallyValidConstructionConfiguration && $0.supportsLazySoftTarget
+    }) {
+        return "Use a transient consumer, a deferred Lazy<T> or Provider<T> handle retained for later use with a valid synchronous target, or explicit manual wiring; changing declaration order cannot make it injectable."
+    }
+    if targets.contains(where: { $0.isAsyncFactory }) {
+        return "Use an async transient consumer with compatible throwing effects, or explicit manual wiring; changing declaration order cannot make it injectable. Lazy<T> and Provider<T> cannot wrap asynchronous targets."
+    }
+    return "Repair the target's construction configuration before choosing a transient consumer or explicit manual wiring; deferred handles require a valid synchronous target, and changing declaration order cannot make it injectable."
 }
 
 private func matchingDependencyCandidates(for dependencyName: String, in knownNames: Set<String>) -> [String] {
@@ -453,9 +545,28 @@ private struct MatchingDependencyCandidates {
 private func matchingDependencyCandidates(
     for dependencyName: String,
     resolutionContext: DependencyResolutionContext,
-    memberIndex: Int
+    memberIndex: Int,
+    kind: DependencyKind = .hard
 ) -> MatchingDependencyCandidates {
     let matches = matchingDependencyCandidates(for: dependencyName, in: resolutionContext.knownNames)
+    if kind != .hard {
+        // Deferred edges bypass declaration order, but their target contract
+        // still applies. Use the same scope/effect rules as exact-name
+        // validation rather than recommending a rename that cannot compile.
+        let available = matches.filter { name in
+            let targets = resolutionContext.members.filter { $0.name == name }
+            return !targets.isEmpty && targets.allSatisfy { target in
+                target.hasLocallyValidConstructionConfiguration
+                    && target.supportsLazySoftTarget
+                    && (kind == .soft || target.scope == .transient)
+            }
+        }
+        let availableNames = Set(available)
+        return MatchingDependencyCandidates(
+            available: available,
+            unavailable: matches.filter { !availableNames.contains($0) }
+        )
+    }
     let available = matches.filter {
         resolutionContext.status(of: $0, forMemberAt: memberIndex) == .available
     }
@@ -465,10 +576,96 @@ private func matchingDependencyCandidates(
     return MatchingDependencyCandidates(available: available, unavailable: unavailable)
 }
 
+private func unavailableFactoryCandidateMessage(
+    _ names: [String],
+    kind: DependencyKind,
+    resolutionContext: DependencyResolutionContext,
+    memberIndex: Int
+) -> String {
+    let candidates = names.joined(separator: ", ")
+    switch kind {
+    case .soft:
+        return "Closest matching member cannot be injected as Lazy<T>; Lazy targets must have a valid synchronous construction: \(candidates)."
+    case .provider:
+        return "Closest matching member cannot be injected as Provider<T>; Provider targets must be valid synchronous .transient providers: \(candidates)."
+    case .hard:
+        return unavailableHardCandidateMessage(
+            names,
+            resolutionContext: resolutionContext,
+            memberIndex: memberIndex
+        )
+    }
+}
+
+private func unavailableHardCandidateMessage(
+    _ names: [String],
+    resolutionContext: DependencyResolutionContext,
+    memberIndex: Int
+) -> String {
+    guard resolutionContext.members.indices.contains(memberIndex) else {
+        return "Closest matching members are unavailable here: \(names.joined(separator: ", "))."
+    }
+    let member = resolutionContext.members[memberIndex]
+    // Explain each target separately: nearby spellings can have different
+    // scopes or effects, so one policy-wide cause would be misleading.
+    return names.map { name in
+        let targets = resolutionContext.members.filter { $0.name == name }
+        let reasons = targets.map {
+            unavailableDependencyReason(
+                member: member,
+                referencedMember: $0,
+                initializationOrder: resolutionContext.initializationOrder
+            )
+        }
+        guard let reason = reasons.first, reasons.allSatisfy({ $0 == reason }) else {
+            return "Closest matching member '\(name)' is unavailable here; check its declarations and construction requirements."
+        }
+        switch reason {
+        case .transientScope:
+            return "Closest matching member '\(name)' has transient scope and cannot be injected directly into a shared member. "
+                + transientDependencyRecovery(for: targets)
+        case .declarationOrder:
+            return "Closest matching member '\(name)' is unavailable in this declaration order. Move the shared provider before '\(member.name)', or opt in to initializationOrder: ContainerInitializationOrder.dependency."
+        case .incompatibleEffects:
+            return "Closest matching member '\(name)' requires incompatible construction effects. "
+                + incompatibleDependencyEffectsRecovery(memberName: member.name)
+        case .constructionScope:
+            return "Closest matching member '\(name)' is unavailable in this construction scope."
+        }
+    }.joined(separator: " ")
+}
+
 private func normalizedDependencyLookupKey(_ name: String) -> String {
     name
         .filter { $0 != "_" }
         .lowercased()
+}
+
+/// A token-only fix is safe only when it cannot break uses of the old
+/// binding or capture uses of the new name. This deliberately scans nested
+/// scopes too: avoiding a fix-it is safer than pretending to resolve Swift
+/// lexical bindings, labels, macro arguments, or shadowed declarations.
+private func canRenameUnusedFactoryParameter(_ token: TokenSyntax?, to replacement: String) -> Bool {
+    guard let token,
+          !isEscapedInnoDIIdentifier(token),
+          !swiftReservedKeywords.contains(replacement),
+          !replacement.contains("`") else { return false }
+    let originalName = unescapedInnoDIIdentifierName(token)
+    var ancestor = token.parent
+    while let node = ancestor {
+        if let closure = node.as(ClosureExprSyntax.self) {
+            let conflictingBodyToken = closure.statements.tokens(viewMode: .sourceAccurate).contains {
+                let name = unescapedInnoDIIdentifierName($0)
+                return name == originalName || name == replacement
+            }
+            let conflictingSignatureToken = closure.signature?.tokens(viewMode: .sourceAccurate).contains {
+                unescapedInnoDIIdentifierName($0) == replacement
+            } ?? true
+            return !conflictingBodyToken && !conflictingSignatureToken
+        }
+        ancestor = node.parent
+    }
+    return false
 }
 
 private func makeRenameTokenFixIts(

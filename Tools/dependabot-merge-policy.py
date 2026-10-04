@@ -297,6 +297,9 @@ def proof(api, number, notification=None):
         if name in CORE:
             steps = job.get("steps", [])
             require(CORE[name] in {s.get("name") for s in steps}, "missing validation step: " + name)
+            if name == "Swift 6.2 compatibility":
+                require(sum(s.get("name") == "Run minimum-toolchain package contracts" for s in steps) == 1,
+                        "missing or duplicate minimum-toolchain package proof")
             if name == "Thread and address sanitizers (Xcode 26.6)":
                 require("Run thread sanitizer suite" in {s.get("name") for s in steps}, "missing thread sanitizer proof")
             if name == "remote-consumer / Exact-SHA macro and plugin consumer":

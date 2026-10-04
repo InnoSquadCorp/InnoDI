@@ -1,0 +1,136 @@
+import InnoDI
+final class Payload: Sendable { let number: Int; init(_ n: Int) { number = n } }
+final class LocalResult { let leaf: Payload; init(_ leaf: Payload) { self.leaf = leaf } }
+
+@DIContainer(generateOwned: true) struct GraphNeither {
+ @Provide(.shared, initialization: .onDemand, factory: { Payload(7) }) var leaf: Payload
+ @Provide(.shared, asyncFactory: { (leaf: Payload) async in leaf.number }) var number: Int
+}
+ nonisolated func checkNeither() async throws {
+  let legacy = GraphNeither()
+  legacy.prewarm(.leaf)
+  let first = legacy.leaf
+  let copy = legacy
+  precondition(first === copy.leaf && first !== GraphNeither().leaf)
+  let legacyNumber = await legacy.number
+  precondition(legacyNumber == 7)
+  let replacement = Payload(13)
+  precondition(GraphNeither(leaf: replacement).leaf === replacement)
+  let owner = try await GraphNeither.makeOwned()
+  let leaf = owner.container.leaf
+  let ownedNumber = try await owner.container.number
+  precondition(leaf === owner.container.leaf && ownedNumber == 7)
+  await owner.close()
+  precondition(owner.container.leaf === leaf)
+  let overridden = try await GraphNeither.makeOwned(leaf: replacement)
+  precondition(overridden.container.leaf === replacement)
+  await overridden.close()
+  let sync = GraphNeither.withOverrides({ $0.leaf = replacement }, operation: { LocalResult($0.leaf) })
+  let syncThrow = try GraphNeither.withOverrides({ $0.leaf = replacement }, operation: { (g: GraphNeither) throws -> LocalResult in LocalResult(g.leaf) })
+  let asyncResult = await GraphNeither.withOverrides({ $0.leaf = replacement }, operation: { (g: GraphNeither) async -> LocalResult in LocalResult(g.leaf) })
+  let asyncThrow = try await GraphNeither.withOverrides({ $0.leaf = replacement }, operation: { (g: GraphNeither) async throws -> LocalResult in LocalResult(g.leaf) })
+  precondition([sync, syncThrow, asyncResult, asyncThrow].allSatisfy { $0.leaf === replacement })
+  print("selection identity/async/override/close passed")
+ }
+
+@DIContainerRole(role: ContainerRole.local, mainActor: true, generateOwned: true) struct GraphOption {
+ @Provide(.shared, initialization: .onDemand, factory: { Payload(7) }) var leaf: Payload
+ @Provide(.shared, asyncFactory: { (leaf: Payload) async in leaf.number }) var number: Int
+}
+ @MainActor func checkOption() async throws {
+  let legacy = GraphOption()
+  legacy.prewarm(.leaf)
+  let first = legacy.leaf
+  let copy = legacy
+  precondition(first === copy.leaf && first !== GraphOption().leaf)
+  let legacyNumber = await legacy.number
+  precondition(legacyNumber == 7)
+  let replacement = Payload(13)
+  precondition(GraphOption(leaf: replacement).leaf === replacement)
+  let owner = try await GraphOption.makeOwned()
+  let leaf = owner.container.leaf
+  let ownedNumber = try await owner.container.number
+  precondition(leaf === owner.container.leaf && ownedNumber == 7)
+  await owner.close()
+  precondition(owner.container.leaf === leaf)
+  let overridden = try await GraphOption.makeOwned(leaf: replacement)
+  precondition(overridden.container.leaf === replacement)
+  await overridden.close()
+  let sync = GraphOption.withOverrides({ $0.leaf = replacement }, operation: { LocalResult($0.leaf) })
+  let syncThrow = try GraphOption.withOverrides({ $0.leaf = replacement }, operation: { (g: GraphOption) throws -> LocalResult in LocalResult(g.leaf) })
+  let asyncResult = await GraphOption.withOverrides({ $0.leaf = replacement }, operation: { (g: GraphOption) async -> LocalResult in LocalResult(g.leaf) })
+  let asyncThrow = try await GraphOption.withOverrides({ $0.leaf = replacement }, operation: { (g: GraphOption) async throws -> LocalResult in LocalResult(g.leaf) })
+  precondition([sync, syncThrow, asyncResult, asyncThrow].allSatisfy { $0.leaf === replacement })
+  print("selection identity/async/override/close passed")
+ }
+
+@MainActor
+@DIContainer(generateOwned: true) struct GraphExplicit {
+ @Provide(.shared, initialization: .onDemand, factory: { Payload(7) }) var leaf: Payload
+ @Provide(.shared, asyncFactory: { (leaf: Payload) async in leaf.number }) var number: Int
+}
+ @MainActor func checkExplicit() async throws {
+  let legacy = GraphExplicit()
+  legacy.prewarm(.leaf)
+  let first = legacy.leaf
+  let copy = legacy
+  precondition(first === copy.leaf && first !== GraphExplicit().leaf)
+  let legacyNumber = await legacy.number
+  precondition(legacyNumber == 7)
+  let replacement = Payload(13)
+  precondition(GraphExplicit(leaf: replacement).leaf === replacement)
+  let owner = try await GraphExplicit.makeOwned()
+  let leaf = owner.container.leaf
+  let ownedNumber = try await owner.container.number
+  precondition(leaf === owner.container.leaf && ownedNumber == 7)
+  await owner.close()
+  precondition(owner.container.leaf === leaf)
+  let overridden = try await GraphExplicit.makeOwned(leaf: replacement)
+  precondition(overridden.container.leaf === replacement)
+  await overridden.close()
+  let sync = GraphExplicit.withOverrides({ $0.leaf = replacement }, operation: { LocalResult($0.leaf) })
+  let syncThrow = try GraphExplicit.withOverrides({ $0.leaf = replacement }, operation: { (g: GraphExplicit) throws -> LocalResult in LocalResult(g.leaf) })
+  let asyncResult = await GraphExplicit.withOverrides({ $0.leaf = replacement }, operation: { (g: GraphExplicit) async -> LocalResult in LocalResult(g.leaf) })
+  let asyncThrow = try await GraphExplicit.withOverrides({ $0.leaf = replacement }, operation: { (g: GraphExplicit) async throws -> LocalResult in LocalResult(g.leaf) })
+  precondition([sync, syncThrow, asyncResult, asyncThrow].allSatisfy { $0.leaf === replacement })
+  print("selection identity/async/override/close passed")
+ }
+
+@MainActor
+@DIContainerRole(role: ContainerRole.local, mainActor: true, generateOwned: true) struct GraphBoth {
+ @Provide(.shared, initialization: .onDemand, factory: { Payload(7) }) var leaf: Payload
+ @Provide(.shared, asyncFactory: { (leaf: Payload) async in leaf.number }) var number: Int
+}
+ @MainActor func checkBoth() async throws {
+  let legacy = GraphBoth()
+  legacy.prewarm(.leaf)
+  let first = legacy.leaf
+  let copy = legacy
+  precondition(first === copy.leaf && first !== GraphBoth().leaf)
+  let legacyNumber = await legacy.number
+  precondition(legacyNumber == 7)
+  let replacement = Payload(13)
+  precondition(GraphBoth(leaf: replacement).leaf === replacement)
+  let owner = try await GraphBoth.makeOwned()
+  let leaf = owner.container.leaf
+  let ownedNumber = try await owner.container.number
+  precondition(leaf === owner.container.leaf && ownedNumber == 7)
+  await owner.close()
+  precondition(owner.container.leaf === leaf)
+  let overridden = try await GraphBoth.makeOwned(leaf: replacement)
+  precondition(overridden.container.leaf === replacement)
+  await overridden.close()
+  let sync = GraphBoth.withOverrides({ $0.leaf = replacement }, operation: { LocalResult($0.leaf) })
+  let syncThrow = try GraphBoth.withOverrides({ $0.leaf = replacement }, operation: { (g: GraphBoth) throws -> LocalResult in LocalResult(g.leaf) })
+  let asyncResult = await GraphBoth.withOverrides({ $0.leaf = replacement }, operation: { (g: GraphBoth) async -> LocalResult in LocalResult(g.leaf) })
+  let asyncThrow = try await GraphBoth.withOverrides({ $0.leaf = replacement }, operation: { (g: GraphBoth) async throws -> LocalResult in LocalResult(g.leaf) })
+  precondition([sync, syncThrow, asyncResult, asyncThrow].allSatisfy { $0.leaf === replacement })
+  print("selection identity/async/override/close passed")
+ }
+
+@main struct Check {
+ @MainActor static func main() async throws {
+  try await checkNeither(); try await checkOption(); try await checkExplicit(); try await checkBoth()
+  print("explicit actor overrides four-form regression passed")
+ }
+}

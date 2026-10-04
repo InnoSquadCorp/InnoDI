@@ -119,6 +119,56 @@ consumer에는 `asyncFactory:`를 사용하고, throwing 비동기 provider를 �
 `asyncFactory:`로 생성되는 target을 거부합니다. `with:`, `@Multibinding`
 contributor, `@SubContainer` child input도 동기 parent member만 받습니다.
 
+## 타입으로 검사하는 동기 prewarm (7.0 후보)
+
+`initialization: .onDemand`를 사용하는 동기 `.shared` provider가 있으면
+컨테이너에 중첩 `_InnoDIPrewarmProvider: Sendable` enum이 생성됩니다. Case 이름은
+해당 provider 이름이며 Swift 컴파일러가 선택을 검사합니다.
+
+```swift
+@DIContainer
+struct FeatureContainer {
+    @Provide(.shared, initialization: .onDemand, factory: Metrics())
+    var metrics: Metrics
+    @Provide(.shared, initialization: .onDemand, factory: Analytics())
+    var analytics: Analytics
+}
+
+let container = FeatureContainer()
+container.prewarm(.metrics)
+container.prewarm(.analytics, .metrics)
+
+// 빈 선택은 오류를 던지지 않고 아무 작업도 하지 않습니다.
+container.prewarm()
+```
+
+타입 기반 메서드는 동기이며 오류를 던지거나 값을 반환하지 않습니다. 빈 선택은
+아무 작업도 하지 않습니다. 각 선택은 인자 순서대로 해당 provider에 직접
+전달됩니다. 7.0 후보는 기존 key path overload를 대체합니다.
+반복 선택과 컨테이너 복사본은 기존 shared cache를 재사용합니다. 선택한 factory가
+필요로 하지 않는 한, 선택하지 않은 provider는 생성되지 않습니다.
+
+Input, eager, 비동기, transient provider에는 case가 없습니다. 다른 컨테이너의
+선택은 서로 다른 Swift 타입입니다. 이 enum은 선택 전용이며 `get`, `resolve`,
+등록 기능이나 런타임 registry를 제공하지 않습니다. Token은 `Sendable`이지만
+provider 값까지 `Sendable`일 필요는 없습니다. 생성되는 prewarm 메서드는
+컨테이너의 main actor 격리를 유지하며, 일반 동기 컨테이너의 값 접근은 호출한
+쪽에서 실행됩니다.
+
+Enum과 타입 기반 메서드는 생성되는 initializer 및 `Overrides`처럼 컨테이너의
+접근 수준을 따릅니다. Getter의 접근 수준이 더 좁아도 case는 생성 대상의 이름을
+노출하지만, case를 선택해서 값을 얻을 수는 없습니다. 명시적인 타입 annotation은
+`FeatureContainer._InnoDIPrewarmProvider`로 작성합니다. `.metrics`처럼 문맥에서
+추론하는 호출은 이 긴 compiler-owned 이름을 쓰지 않아도 됩니다.
+
+`_InnoDI` 접두사는 이미 생성 지원 코드에 예약되어 있습니다. 이 접두사를 사용하는
+직접 작성한 컨테이너 선언에는 `container.reserved-name-prefix` 진단이 발생합니다.
+`PrewarmProvider` alias는 생성하지 않으므로, 같은 이름의 기존 전역 또는 중첩
+payload 타입의 의미를 유지합니다. 고정 접두사 이름은 명시적 표기의 편의성과
+교환한 선택이며 모든 이름 충돌을 방지한다는 뜻은 아닙니다. Compiler-owned
+namespace에 사용자 이름을 만들지 마세요. 이 API는 미출시 7.0 후보에 포함되며,
+공개 API baseline 검토와 지원 Apple toolchain 검증이 남아 있습니다.
+
 ## 비동기 shared 수명
 
 `asyncFactory:`로 생성하는 `.shared` provider는 기본적으로 eager입니다. 컨테이너
@@ -186,11 +236,26 @@ eager 비동기 consumer는 여전히 초기화 중에 시작하므로, 그 cons
 on-demand provider도 그때 생성됩니다.
 
 읽을 때마다 새 값을 만들어야 한다면 `asyncFactory:`를 쓰는 `.transient`
-provider를 선택하세요. 명시적 준비나 재시도까지 필요하다면
-``DIAsyncScope``를 `@Input`으로 주입하세요.
+provider를 선택하세요. 그 transient 사용 사례에 custom 수명 adapter가 필요하면
+``DIAsyncScope``를 `@Input`으로 주입하세요. 지원되는 shared graph에는
+`generateOwned: true`로 typed preparation, retry와 명시적 close를 추가할 수
+있습니다. <doc:OwnedContainers>를 참고하세요.
 
 ## See Also
 
 - ``Provide(_:_:with:initialization:effect:collection:factory:asyncFactory:)``
 - ``DIScope``
 - <doc:Validation>
+
+### Prewarm 선택 마이그레이션
+
+`try container.prewarm(\FeatureContainer.metrics)`를
+`container.prewarm(.metrics)`로 바꾸고 빈 호출의 `try`를 제거합니다. Receiver와
+컨테이너의 타입을 확인할 수 있는 단순 key path literal은 codemod로 바꿀 수
+있지만, 임의의 `PartialKeyPath` 변수나 generic key path API는 자동 변환되지
+않습니다. 해당 컨테이너의 생성된 token 타입을 저장하거나, 명시적인 warming
+closure를 받도록 generic adapter를 바꿔야 합니다. 지원하지 않는 provider는
+런타임 `DIPrewarmError` 대신 컴파일 단계에서 거부됩니다. Reflection 기반 변환이나
+key path resolver fallback은 제공하지 않습니다.
+`InnoDI-Migrate`는 prewarm 호출을 재작성하지 않으므로 직접 옮기세요.
+`DIPrewarmError` 선언은 호환성을 위해 유지됩니다.

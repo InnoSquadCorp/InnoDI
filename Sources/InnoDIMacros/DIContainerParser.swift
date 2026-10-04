@@ -260,6 +260,7 @@ struct DIContainerParser {
         }
 
         return DIContainerExpansionModel(
+            explicitlyMainActor: findStandardMainActorAttribute(in: decl.attributes) != nil,
             options: options,
             accessLevel: accessLevel,
             members: members,
@@ -838,9 +839,18 @@ private func diagnoseInvalidContainerArguments(
     let states: [(label: String, state: BoolArgumentParseState)] = [
         ("root", options.rootParseState),
         ("validateDAG", options.validateDAGParseState),
-        ("mainActor", options.mainActorParseState)
+        ("mainActor", options.mainActorParseState),
+        ("generateOwned", options.generateOwnedParseState)
     ]
     var hadErrors = false
+    if options.initializationOrderParseState == .invalid {
+        context.emit(
+            SimpleDiagnostic.containerInitializationOrderTokenRequired(),
+            at: extractArgumentExpression(label: "initializationOrder", from: attribute)
+                .map(Syntax.init) ?? Syntax(attribute)
+        )
+        hadErrors = true
+    }
     if !options.roleArgumentIsValid {
         context.emit(
             SimpleDiagnostic.containerRoleTokenRequired(),

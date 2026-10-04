@@ -1,0 +1,30 @@
+import FeatureKit
+
+@main struct FixtureApp {
+    @MainActor static func main() async throws {
+        let owner = try await Container.makeOwned(input: 7)
+        let report = try await owner.prepare(.service)
+        precondition(report.isReady)
+        let result: Int = try await owner.container.service
+        precondition(result == 8)
+        let _: Owner = try await owner.container.ownerPayload
+        let _: OwnedView = try await owner.container.viewPayload
+        let _: OwnedProvider = try await owner.container.providerPayload
+        let copy = owner
+        await copy.cancel(.service)
+        await copy.close()
+        let status = await owner.status(.service)
+        precondition(status.state == .closed)
+
+        let local = LocalValue()
+        let caller = try await CallerContainer.makeOwned(local: local)
+        precondition(caller.container.lazy === local)
+        await caller.close()
+        precondition(caller.container.lazy === local)
+
+        let main = try await MainContainer.makeOwned(local: local)
+        let _: MainContainer.Value = try await main.container.service
+        precondition(main.container.lazy === local)
+        await main.close()
+    }
+}

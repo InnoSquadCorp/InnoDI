@@ -1,0 +1,9 @@
+import InnoDI
+final class LocalValue {}
+@DIContainerRole(role: ContainerRole.local, mainActor: true, generateOwned: true)
+struct Container {
+    @Input var value: LocalValue
+}
+nonisolated func invalid(_ owner: Container._InnoDIOwner) {
+    _ = owner.container.value
+}

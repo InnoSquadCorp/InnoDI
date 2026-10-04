@@ -425,6 +425,18 @@ jobs:
           set -euo pipefail
           [[ "$(xcodebuild -version)" == Xcode\ 27* ]]
           [[ "$(swift --version)" == *"Apple Swift version 6.4"* ]]
+      - name: Run minimum-toolchain package contracts
+        if: matrix.xcode == '26.2'
+        # Compile and execute runtime, macro, SwiftUI, and InnoDITesting suites.
+        # The two clean-consumer suites still run in the next step, unfiltered.
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          swift test --no-parallel \
+            -Xswiftc -strict-concurrency=complete \
+            -Xswiftc -warnings-as-errors \
+            --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)' \
+            2>&1 | tee build/swift-62-package-contracts.log
       - name: Run strict external compatibility contracts
         run: |
           set -euo pipefail

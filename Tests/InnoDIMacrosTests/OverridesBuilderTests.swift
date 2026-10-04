@@ -18,10 +18,37 @@ import Testing
 struct OverridesBuilderTests {
     private static let macros: [String: any Macro.Type] = [
         "DIContainer": DIContainerMacro.self,
+        "DIContainerRole": DIContainerRoleMacro.self,
         "Provide": ProvideMacro.self,
         "_InnoDIProvideAccessor": InnoDIProvideAccessorMacro.self,
         "InnoDI._InnoDIProvideAccessor": InnoDIProvideAccessorMacro.self,
     ]
+
+    @Test("typed slot helpers preserve the outer optional and builder isolation", arguments: [false, true])
+    func typedSlotMutation(mainActor: Bool) {
+        let result = expandMacroSource(
+            """
+            @DIContainerRole(role: ContainerRole.local, mainActor: \(mainActor))
+            public struct Container {
+                @Provide(.shared, factory: Optional<Int>.none)
+                public var optional: Int?
+                @Provide(.transient, factory: 1)
+                public var set: Int
+                @Provide(.transient, factory: 2)
+                public var useDefault: Int
+            }
+            """,
+            macros: Self.macros
+        )
+        #expect(result.diagnostics.isEmpty)
+        #expect(result.expansion.contains("public var optional: Int?? = nil"))
+        #expect(result.expansion.contains("public mutating func set<Value>(_ keyPath: Swift.WritableKeyPath<Self, Value?>, to value: Value)"))
+        #expect(result.expansion.contains("self[keyPath: keyPath] = .some(value)"))
+        #expect(result.expansion.contains("public mutating func useDefault<Value>(_ keyPath: Swift.WritableKeyPath<Self, Value?>)"))
+        #expect(result.expansion.contains("self[keyPath: keyPath] = .none"))
+        #expect(!result.expansion.contains("nonisolated mutating"))
+        #expect(result.expansion.contains("@_Concurrency.MainActor public struct Overrides") == mainActor)
+    }
 
     @Test("input + shared + transient mix generates full Overrides scaffolding")
     func inputSharedTransientAll() {

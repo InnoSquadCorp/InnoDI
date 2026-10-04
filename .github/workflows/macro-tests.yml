@@ -326,7 +326,15 @@ jobs:
       - name: Validate public API baseline
         # Compiler-emitted symbol graphs cover macro declarations, runtime
         # wrappers, SwiftUI protocols, and public SwiftUI extensions.
-        run: Tools/check-public-api.py
+        run: Tools/check-public-api.py --current-output build/public-api-current.json
+      - name: Upload current public API contract
+        # Preserve the compiler contract for review when the baseline differs.
+        if: ${{ always() && hashFiles('build/public-api-current.json') != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: public-api-current-${{ github.sha }}
+          path: build/public-api-current.json
+          if-no-files-found: error
       - name: Validate Global DAG
         run: swift run InnoDI-DependencyGraph --root . --validate-dag
       - name: Report Build-Validation Escape Hatches
@@ -572,6 +580,18 @@ jobs:
           DEPENDENCY_CACHE_HIT: ${{ steps.dependency-cache.outputs.cache-hit }}
           CONSUMER_CACHE_HIT: ${{ steps.consumer-cache.outputs.cache-hit }}
         run: python3 -B Tools/ci-cache.py restored
+      - name: Run minimum-toolchain package contracts
+        # Compile and execute runtime, macro, SwiftUI, and InnoDITesting suites.
+        # The two clean-consumer suites still run in the next step, unfiltered.
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          swift test --no-parallel \
+            -Xswiftc -strict-concurrency=complete \
+            -Xswiftc -warnings-as-errors \
+            --skip 'InnoDIBuildSupportTests.PublicAPIContractTests/compilerDefaultArgumentContract' \
+            --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)' \
+            2>&1 | tee build/swift-62-package-contracts.log
       - name: Run strict external compatibility contracts
         run: |
           swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors --filter StrictConcurrencyBuildTests
@@ -580,6 +600,13 @@ jobs:
         run: |
           python3 -B -m unittest discover -s Tools/tests -p 'test_public_api*.py'
           Tools/check-public-api.py
+      - name: Upload minimum-toolchain package evidence
+        if: ${{ always() && hashFiles('build/swift-62-package-contracts.log') != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: swift-62-package-contracts
+          path: build/swift-62-package-contracts.log
+          if-no-files-found: error
       - name: Report compiler canaries (informational)
         # Swift 6.2 builds SwiftSyntax from source for the canary package, so
         # the known-crashing control toolchain runs it on manual dispatch only.

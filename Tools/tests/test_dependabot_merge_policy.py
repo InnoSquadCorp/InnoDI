@@ -265,6 +265,21 @@ class DependabotPolicyTests(unittest.TestCase):
         for change in changes:
             with self.subTest(change=change): self.reject(change)
 
+    def test_minimum_toolchain_package_step_is_mandatory(self):
+        for outcome in ("missing", "skipped", "failure", "cancelled", "duplicate"):
+            api = Transcript()
+            job = next(j for j in api.jobs if j["name"] == "Swift 6.2 compatibility")
+            step = next(s for s in job["steps"] if s["name"] == "Run minimum-toolchain package contracts")
+            if outcome == "missing":
+                job["steps"].remove(step)
+            elif outcome == "duplicate":
+                job["steps"].append(copy.deepcopy(step))
+            else:
+                step["conclusion"] = outcome
+            with self.subTest(outcome=outcome), self.assertRaises(p.Rejected):
+                p.proof(api, NUMBER)
+            self.assertFalse(api.mutations)
+
     def test_only_predefined_non_target_skips(self):
         p.proof(self.api, NUMBER)  # Pages, main-tip-only and origin guard are PR non-targets.
         for name in ['CI Required', 'examples / swiftui-example', 'docc / docc']:

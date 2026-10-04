@@ -69,6 +69,50 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 
 ## 자주 보이는 복구 패턴
 
+Factory 이름 후보는 hard, Lazy, Provider 연결의 실제 대상 조건을 따릅니다.
+유일한 적격 후보가 있어도 클로저 서명·본문의 binding을 깨뜨리지 않는 경우에만
+parameter 이름 자동 수정을 제공합니다. 기존 이름이나 새 이름이 본문에 있으면
+중첩 scope를 확인하며 parameter와 그 binding을 사용하는 곳을 직접 바꾸도록
+안내합니다. 여러 후보 중 하나를 추측하거나 클로저 본문을 임의로 다시 쓰지 않습니다.
+
+사용할 수 없는 hard 참조는 factory parameter 또는 `with:` key path에 표시하며,
+provider 선언 위치 note도 유지합니다. 뒤에 선언된 shared 참조는 provider를
+앞으로 옮기거나 `initializationOrder: ContainerInitializationOrder.dependency`를
+선택해 복구할 수 있습니다. Shared consumer가 transient provider를 hard
+dependency로 참조하면 두 정책 모두 scope 오류입니다. Transient가 먼저
+선언되어 있어도 마찬가지이며, 선언 순서를 바꿔서는 복구되지 않습니다.
+비슷한 이름의 후보도 각각의 scope·순서·effect 제약을 설명하며, scope나
+순서를 자동으로 바꾸는 수정은 제공하지 않습니다.
+
+Transient provider에는 transient consumer, 명시적인 수동 wiring, 또는 지원되는
+deferred handle을 선택하세요. 다음 독립 실행 예제는 `Provider<Int>`를 저장하고
+컨테이너 생성 이후 호출합니다. Shared factory 안에서 handle을 즉시 호출하는
+것은 여전히 유효하지 않으며, deferred target은 기존 동기 생성 조건을 만족해야
+합니다.
+
+<!-- diagnostic-recovery: Provider-repaired -->
+```swift
+import InnoDI
+
+struct Consumer {
+    let requests: Provider<Int>
+    func next() -> Int { requests() }
+}
+
+@DIContainer
+struct App {
+    @Provide(.transient, factory: 1)
+    var request: Int
+    @Provide(.shared, factory: { (request: Provider<Int>) in Consumer(requests: request) })
+    var consumer: Consumer
+}
+
+@main enum Check {
+    static func main() { precondition(App().consumer.next() == 1) }
+}
+```
+<!-- /diagnostic-recovery -->
+
 대부분의 진단은 메시지 안에 fix를 직접 담고 있습니다. 반복적으로
 보게 되는 패턴은 다음과 같습니다.
 
@@ -179,8 +223,13 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   전에 해당 provider를 거부합니다.
 - `provide.unresolved-factory-parameter` — root factory 클로저의 이름 있는
   파라미터가 컨테이너 멤버나 `with:` key path와 매칭되지 않습니다.
-- `provide.unavailable-dependency-reference` — factory가 더 늦게
-  선언되어 그 construction 시점에 사용할 수 없는 멤버를 참조합니다.
+- `provide.unavailable-dependency-reference` — factory parameter 또는 `with:`
+  key path가 선택한 초기화 정책이나 construction scope에서 사용할 수 없는
+  멤버를 참조합니다. 메시지는 실제 target의 제약을 구분합니다. 뒤에 선언된
+  shared provider는 앞에 옮기거나 dependency 정책을 선택하세요. Shared
+  consumer의 hard transient dependency는 두 정책과 앞/뒤 선언 순서 모두에서
+  사용할 수 없습니다. 이 scope 오류에는 transient consumer 또는 지원되는
+  deferred/수동 wiring을 사용하세요.
 - `provide.async-dependency-requires-async-consumer` — 동기 factory가 async
   provider를 명시적 sibling edge로 소비합니다. Consumer를 `asyncFactory:`로
   옮기세요. 이 검증은 `validateDAG: false`에서도 동작합니다.
@@ -260,6 +309,17 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   타입이 필수 합성 빌더와 충돌합니다. InnoDI 6.0에서는 오류로 처리하므로
   사용자 선언의 이름을 바꾸세요. 진단 전용 recovery initializer가 mount된
   child container에서 무관한 Swift argument 오류가 연쇄되는 것을 막습니다.
+- `container.owned-name-conflict` — `generateOwned: true`가 생성할
+  `makeOwned(...)` 또는 `makeOwnedWithOverrides(...)`와 같은 이름의 직접 선언이 있습니다. 사용자 선언의 이름을
+  바꾸거나 owned opt-in을 제거하세요.
+- `container.owned-unsupported` — 현재 owned prototype은 async transient provider,
+  assisted input/factory, collection provider, transient
+  child, feature-root helper, custom global actor, member별 actor 격리는 지원하지 않습니다.
+  동기 transient와 조건에 맞는 동기 Lazy/Provider edge는 지원합니다.
+  Non-Sendable deferred capture의 경계는 <doc:OwnedContainers>를 참고하세요.
+  또는 `generateOwned: true`를 제거해 기존 컨테이너 API를 유지하세요.
+- `container.owned-requires-dag` — owned lifecycle graph의 모든 의존성을
+  검증하려면 `validateDAG: true`가 필요합니다.
 - `container.prewarm-name-conflict` — on-demand 컨테이너에 `prewarm`이라는
   direct value 또는 function이 이미 있습니다. 생성되는 선택적 prewarm API가
   모호하지 않도록 이름을 바꾸세요.
@@ -276,8 +336,13 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 - `container.role-token-required` — `@DIContainerRole role:`이
   `ContainerRole.local`, `ContainerRole.component`, `ContainerRole.root` 중
   하나가 아닙니다. 문자열 literal이나 변수 대신 named token을 사용하세요.
+- `container.initialization-order-token-required` — `initializationOrder:`가
+  `ContainerInitializationOrder.declaration` 또는
+  `ContainerInitializationOrder.dependency` named token이 아니거나 같은
+  인자가 두 번 이상 나왔습니다. `InnoDI` qualification은 허용됩니다.
+  문자열 literal, 축약 member, 별칭, 계산식 대신 named token 하나를 쓰세요.
 - `container.bool-literal-required` — `root:`, `validateDAG:`,
-  `mainActor:`가 literal `true` 또는 `false`가 아닙니다. build
+  `mainActor:`, `generateOwned:`가 literal `true` 또는 `false`가 아닙니다. build
   configuration별 attribute 분기는 conditional compilation을 쓰세요.
 - `container.duplicate-member-name` — `@Provide`/`@SubContainer` 조합을
   포함해 직접 선언된 managed instance member 둘이 같은 property 이름을
@@ -293,6 +358,9 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
   generated storage와 support용으로 예약한 prefix (`_storage_`, `_override_`,
   `_innoDI`, `_InnoDI`)로 시작합니다. Plain variable, function, nested nominal
   type, typealias, top-level `#if` 안의 선언도 포함합니다. 선언 이름을 변경하세요.
+  타입 기반 prewarm의 선택 이름 `_InnoDIPrewarmProvider`도 이 기존 compiler-owned
+  namespace를 사용합니다. 일반 payload 타입 이름 `PrewarmProvider`는 예약하지
+  않습니다.
 - `container.reserved-module-name` — container 자체, enclosing nominal,
   `InnoDI`라는 direct declaration, 또는 `Swift`나 `_Concurrency`라는 direct
   nested type/typealias가 generated support의 module qualifier를 가립니다.
