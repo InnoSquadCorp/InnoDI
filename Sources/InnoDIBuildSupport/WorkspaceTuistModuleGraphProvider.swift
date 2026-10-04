@@ -8,6 +8,10 @@ enum TuistModuleGraphProvider {
     ) throws -> [WorkspaceModuleRecord] {
         let source = try String(contentsOf: manifestURL, encoding: .utf8)
         let syntax = Parser.parse(source: source)
+        return modules(from: manifestURL, syntax: syntax)
+    }
+
+    static func modules(from manifestURL: URL, syntax: SourceFileSyntax) -> [WorkspaceModuleRecord] {
         let collector = TuistManifestCollector(manifestURL: manifestURL)
         collector.walk(syntax)
         return collector.modules

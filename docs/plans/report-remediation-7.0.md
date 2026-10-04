@@ -284,3 +284,27 @@ This closes the collector crash, not P2-08a's separate final-graph conditional
 identity policy. The collector neither chooses a compiler configuration nor
 silently merges mutually exclusive declarations. Full graph/workspace validation
 and conditional-identity diagnostics remain separately tracked.
+
+## Stage 6: validation snapshot and cache binding
+
+P1-08 is reproduced with a valid forbidden-extension-initializer control. After
+signature collection, the original coordinator can validate replacement bytes
+and persist a success under the original invalid source signature. The corrected
+coordinator retains cache-hit bytes, reuses reparsed syntax trees, and validates
+that closed source set. Package.swift and Project.swift module graphs also use
+the captured syntax. Explicit external validators retain their execution path
+but cannot reuse or populate this snapshot-bound shared-result cache.
+
+The earliest attempted canary placed its initializer directly in the container,
+which belongs to macro validation rather than the build validator. Its failed
+assertions are retained as invalid evidence. The corrected canary first proves
+fresh build validation rejects the extension initializer, then reproduces the
+baseline poisoning and verifies the fix. Five final strict Swift 6.4 portable
+tests cover the corrected canary, closed root inputs, manifest coverage,
+captured package syntax, and uncached external validator execution. Independent
+review bound their source/module hashes and confirmed all five passes.
+
+Linux qualification uses an isolated real statfs C declaration adapter and omits
+an unrelated Darwin-only process wrapper. Production filesystem behavior is not
+replaced, and this does not claim a full Apple package pass. P2-10a's separate
+cached diagnostic-location behavior remains open.

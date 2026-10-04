@@ -11,6 +11,10 @@ Current development train: `7.0.0` (unreleased)
 
 ## Unreleased
 
+- Coordinated validation now consumes the exact source bytes and package/project
+  syntax captured for its cache signature. An explicitly supplied external
+  validator runs without shared-result caching because it rereads live paths.
+
 - Collection graph analysis keeps contributor lifetimes local to each container
   declaration and no longer traps on repeated semantic IDs or malformed duplicate
   members. Ambiguous contributors do not receive an invented lifetime.

@@ -36,11 +36,18 @@ package struct ValidationExecutionOutcome: Equatable, Sendable {
 /// Abstraction over the DAG validation command so tests can inject deterministic
 /// runners.
 package protocol ValidationCommandRunning: Sendable {
+    /// Shared results require a validator that consumes the supplied snapshot.
+    /// A process that rereads live paths cannot bind its result to this key.
+    func canCacheValidationResult(toolPath: String?) -> Bool
     func runValidationTool(
         toolPath: String?,
         rootPath: String,
         snapshot: WorkspaceSourceSnapshot
     ) throws -> ValidationCommandResult
+}
+
+package extension ValidationCommandRunning {
+    func canCacheValidationResult(toolPath: String?) -> Bool { true }
 }
 
 /// Shared record persisted for one live validation run keyed by the normalized
@@ -283,7 +290,7 @@ package enum BootIDProvider {
 // semantics across `combine` call boundaries. Keep validator and digest
 // behavior in the cache salt so an unchanged workspace cannot reuse a result
 // produced by an older contract.
-package let sharedRunCacheVersion = 11
+package let sharedRunCacheVersion = 12
 
 package func sharedRunCacheKey(for signature: String) -> String {
     "shared-run-v\(sharedRunCacheVersion)-\(signature)"
@@ -321,6 +328,10 @@ package struct InProcessValidationCommandRunner: ValidationCommandRunning {
 /// package-internal callers that still need to exercise an external tool.
 package struct LiveValidationCommandRunner: ValidationCommandRunning {
     package init() {}
+
+    package func canCacheValidationResult(toolPath: String?) -> Bool {
+        toolPath?.isEmpty != false
+    }
 
     package func runValidationTool(
         toolPath: String?,
@@ -607,7 +618,8 @@ package enum ValidationCoordinator {
             in: stateDirectoryURL
         )
 
-        if let cachedRun = paths.loadCachedRun() {
+        if runner.canCacheValidationResult(toolPath: toolPath),
+           let cachedRun = paths.loadCachedRun() {
             return try outcomeWriter.finalize(
                 result: cachedRun.result,
                 wasCached: true,

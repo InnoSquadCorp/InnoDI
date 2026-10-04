@@ -120,6 +120,8 @@ struct ValidationLockedRunExecutor<Runner: ValidationCommandRunning> {
     let paths: ValidationSharedRunPaths
     let outcomeWriter: ValidationOutcomeWriter
 
+    var canCacheResult: Bool { runner.canCacheValidationResult(toolPath: toolPath) }
+
     func acquireAndExecute(
         recoveredStaleLock: Bool
     ) throws -> ValidationExecutionOutcome? {
@@ -156,7 +158,7 @@ struct ValidationLockedRunExecutor<Runner: ValidationCommandRunning> {
             releaseLock(descriptor: lockDescriptor, at: paths.lock)
         }
 
-        if let cachedRun = paths.loadCachedRun() {
+        if canCacheResult, let cachedRun = paths.loadCachedRun() {
             return try outcomeWriter.finalize(
                 result: cachedRun.result,
                 wasCached: true,
@@ -167,12 +169,11 @@ struct ValidationLockedRunExecutor<Runner: ValidationCommandRunning> {
         let liveRun = try executeValidationPipeline(
             recoveredStaleLock: recoveredStaleLock
         )
-        try persistSharedRunRecord(liveRun.record, to: paths.record)
-        try persistResult(liveRun.result, to: paths.result)
-        try persistSharedSummary(
-            result: liveRun.result,
-            record: liveRun.record
-        )
+        if canCacheResult {
+            try persistSharedRunRecord(liveRun.record, to: paths.record)
+            try persistResult(liveRun.result, to: paths.result)
+            try persistSharedSummary(result: liveRun.result, record: liveRun.record)
+        }
 
         return try outcomeWriter.finalize(
             result: liveRun.result,
@@ -192,12 +193,14 @@ struct ValidationLockedRunExecutor<Runner: ValidationCommandRunning> {
         if let analysisManifest {
             workspaceSnapshot = try loadWorkspaceSourceSnapshot(
                 validated: analysisManifest,
-                reusingParsedSources: signatureCollectionOutput.parsedSources
+                reusingParsedSources: signatureCollectionOutput.parsedSources,
+                capturedSourceBytes: signatureCollectionOutput.capturedSourceBytes
             )
         } else {
             workspaceSnapshot = try loadWorkspaceSourceSnapshot(
                 rootPath: rootPath,
-                reusingParsedSources: signatureCollectionOutput.parsedSources
+                reusingParsedSources: signatureCollectionOutput.parsedSources,
+                capturedSourceBytes: signatureCollectionOutput.capturedSourceBytes
             )
         }
 
@@ -240,6 +243,7 @@ struct ValidationLockedRunExecutor<Runner: ValidationCommandRunning> {
         var reasonCodes: [ValidationReasonCode] = recoveredStaleLock
             ? [.staleLockRecovered]
             : []
+        if !canCacheResult { reasonCodes.append(.externalToolUncached) }
         if let customInitFailure {
             reasonCodes.append(.liveRunCustomInitFailure)
             return ValidationPipelineResult(
@@ -283,7 +287,7 @@ struct ValidationLockedRunExecutor<Runner: ValidationCommandRunning> {
                 validated: analysisManifest
             )
         } else {
-            moduleGraph = try ModuleGraphProvider.snapshot(rootPath: rootPath)
+            moduleGraph = ModuleGraphProvider.snapshot(sourceSnapshot: workspaceSnapshot)
         }
         let hierarchyValidation = try WorkspaceHierarchyBuildValidator.validate(
             snapshot: workspaceSnapshot,
@@ -451,7 +455,7 @@ struct ValidationSharedRunResolver<Runner: ValidationCommandRunning> {
     }
 
     private func finalizeCachedRun() throws -> ValidationExecutionOutcome? {
-        guard let cachedRun = paths.loadCachedRun() else {
+        guard executor.canCacheResult, let cachedRun = paths.loadCachedRun() else {
             return nil
         }
         return try outcomeWriter.finalize(

@@ -119,6 +119,7 @@ package enum WorkspaceSourceSnapshotError: LocalizedError {
     case unreadableRoot(rootPath: String, rootURL: URL)
     case failedToCreateEnumerator(rootPath: String, rootURL: URL)
     case enumerationFailed(rootPath: String, rootURL: URL, underlying: Error)
+    case inconsistentCapturedSources
 
     package var errorDescription: String? {
         switch self {
@@ -132,17 +133,40 @@ package enum WorkspaceSourceSnapshotError: LocalizedError {
             return "Failed to enumerate workspace root: '\(rootPath)' (\(rootURL.path(percentEncoded: false)))."
         case .enumerationFailed(let rootPath, let rootURL, let underlying):
             return "Failed to enumerate workspace source path '\(rootURL.path(percentEncoded: false))' under root '\(rootPath)': \(underlying)."
+        case .inconsistentCapturedSources:
+            return "Captured validation sources do not match the declared source set; retry the build."
         }
     }
+}
+
+/// Decodes the signature collector's retained bytes without reopening a live
+/// path. The nil form preserves ordinary, non-coordinator snapshot loading.
+private func snapshotSourceText(fileURL: URL, capturedBytes: Data?) throws -> String {
+    guard let capturedBytes else {
+        return try String(contentsOf: fileURL, encoding: .utf8)
+    }
+    guard let text = String(data: capturedBytes, encoding: .utf8) else {
+        throw CocoaError(.fileReadInapplicableStringEncoding, userInfo: [NSFilePathErrorKey: fileURL.path])
+    }
+    return text
 }
 
 package func loadWorkspaceSourceSnapshot(
     rootPath: String,
     onFileReadError: ((String, URL, Error) -> Void)? = nil,
-    reusingParsedSources: [String: SourceFileSyntax] = [:]
+    reusingParsedSources: [String: SourceFileSyntax] = [:],
+    capturedSourceBytes: [String: Data]? = nil
 ) throws -> WorkspaceSourceSnapshot {
     let rootURL = try validatedWorkspaceRootURL(rootPath: rootPath)
-    let sourceFiles = try discoverWorkspaceSourceFiles(rootPath: rootPath)
+    let sourceFiles: [String]
+    if let capturedSourceBytes {
+        guard Set(capturedSourceBytes.keys).isDisjoint(with: reusingParsedSources.keys) else {
+            throw WorkspaceSourceSnapshotError.inconsistentCapturedSources
+        }
+        sourceFiles = (Array(capturedSourceBytes.keys) + Array(reusingParsedSources.keys)).sorted()
+    } else {
+        sourceFiles = try discoverWorkspaceSourceFiles(rootPath: rootPath)
+    }
 
     // Trees the signature collector already parsed (keyed by the same
     // workspace-relative path) are assembled serially; only the remainder
@@ -166,7 +190,9 @@ package func loadWorkspaceSourceSnapshot(
         let relativePath = sourceFiles[frozenPendingIndices[pendingIndex]]
         let fileURL = rootURL.appendingPathComponent(relativePath)
         do {
-            let source = try String(contentsOf: fileURL, encoding: .utf8)
+            let source = try snapshotSourceText(
+                fileURL: fileURL, capturedBytes: capturedSourceBytes?[relativePath]
+            )
             return .parsed(
                 WorkspaceSourceFile(
                     relativePath: relativePath,
@@ -233,7 +259,8 @@ package func loadWorkspaceSourceSnapshot(
 /// from.
 package func loadWorkspaceSourceSnapshot(
     validated: ValidatedWorkspaceAnalysisManifest,
-    reusingParsedSources: [String: SourceFileSyntax] = [:]
+    reusingParsedSources: [String: SourceFileSyntax] = [:],
+    capturedSourceBytes: [String: Data]? = nil
 ) throws -> WorkspaceSourceSnapshot {
     let manifest = validated.manifest
     let rootURL = URL(fileURLWithPath: manifest.rootPackageDirectory)
@@ -241,6 +268,14 @@ package func loadWorkspaceSourceSnapshot(
         .standardizedFileURL
     let jobs = manifest.targets.flatMap { target in
         target.sources.map { source in (targetID: target.id, source: source) }
+    }
+    if let capturedSourceBytes {
+        let parsed = Set(reusingParsedSources.keys)
+        let captured = Set(capturedSourceBytes.keys)
+        let declared = Set(jobs.map { $0.source.identity(in: $0.targetID) })
+        guard parsed.isDisjoint(with: captured), parsed.union(captured) == declared else {
+            throw WorkspaceSourceSnapshotError.inconsistentCapturedSources
+        }
     }
 
     var slots = [WorkspaceSourceFile?](repeating: nil, count: jobs.count)
@@ -265,7 +300,10 @@ package func loadWorkspaceSourceSnapshot(
         let job = jobs[frozenPendingIndices[pendingIndex]]
         let fileURL = URL(fileURLWithPath: job.source.filePath)
         do {
-            let contents = try String(contentsOf: fileURL, encoding: .utf8)
+            let contents = try snapshotSourceText(
+                fileURL: fileURL,
+                capturedBytes: capturedSourceBytes?[job.source.identity(in: job.targetID)]
+            )
             return .parsed(
                 WorkspaceSourceFile(
                     relativePath: job.source.logicalPath,

@@ -229,6 +229,7 @@ struct ValidationSignatureCollector<Parser: ValidationSyntaxParsing> {
         }
         let existingManifest = loadedManifest.manifest
         let sourceKeys = sources.map(\.cacheKey)
+        var capturedSourceBytes: [String: Data] = [:]
         var updatedRecords: [String: ValidationFileDigestRecord] = [:]
         var metadataCacheHitCount = 0
         var contentHashReuseCount = 0
@@ -275,6 +276,10 @@ struct ValidationSignatureCollector<Parser: ValidationSyntaxParsing> {
 
             if let cached = existingManifest.files[cacheKey],
                cached.contentHash == contentHash {
+                // A later live run must validate these bytes, not reopen the
+                // path after the signature has already been fixed. Changed
+                // sources retain their parsed tree below instead.
+                capturedSourceBytes[cacheKey] = data
                 updatedRecords[cacheKey] = ValidationFileDigestRecord(
                     fingerprint: fingerprint,
                     contentHash: contentHash,
@@ -345,7 +350,8 @@ struct ValidationSignatureCollector<Parser: ValidationSyntaxParsing> {
                     contentHashReusedFiles: contentHashReusedFiles.sorted()
                 )
             ),
-            parsedSources: parsedSources
+            parsedSources: parsedSources,
+            capturedSourceBytes: capturedSourceBytes
         )
     }
 }
@@ -364,6 +370,9 @@ struct ValidationSignatureCollectionOutput {
     /// mode. Only files on the reparse path appear here; metadata and
     /// content-hash cache hits never parse.
     let parsedSources: [String: SourceFileSyntax]
+    /// Cache-hit files whose bytes were hashed but did not need parsing. The
+    /// union with parsedSources is the closed source set for this signature.
+    let capturedSourceBytes: [String: Data]
 }
 
 /// Convenience entry point used by callers that only need the final signature.
