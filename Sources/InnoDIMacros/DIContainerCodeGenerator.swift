@@ -24,7 +24,7 @@ struct DIContainerCodeGenerator {
             transientMembers: model.transientMembers,
             subContainerMembers: model.subContainerMembers,
             accessLevel: model.accessLevel,
-            mainActorEnabled: model.options.mainActor,
+            mainActorEnabled: model.options.mainActor || model.explicitlyMainActor,
             validateDAGEnabled: model.options.validateDAG,
             emittingStatements: false
         )
@@ -44,7 +44,7 @@ struct DIContainerCodeGenerator {
             transientMembers: model.transientMembers,
             subContainerMembers: model.subContainerMembers,
             accessLevel: model.accessLevel,
-            mainActorEnabled: model.options.mainActor,
+            mainActorEnabled: model.options.mainActor || model.explicitlyMainActor,
             validateDAGEnabled: model.options.validateDAG
         )
         if prependingInitializationMARK {
@@ -557,87 +557,6 @@ private func makeInitDecl(
         }
     }
 
-    for member in initializationPlan.asyncShared {
-        let createExpr = try makeAsyncFactoryExpr(
-            member: member,
-            resolvedDependencyExpressions: resolvedDependencyExpressions,
-            taskBindings: taskBindings,
-            deferredTargetNameSet: deferredTargetNameSet,
-            fallbackOverrideNames: fallbackOverrideNames,
-            allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
-        )
-
-        let awaitedFactoryExpr: ExprSyntax = member.asyncFactoryIsThrowing
-            ? "try await \(createExpr)"
-            : "await \(createExpr)"
-
-        if member.isAsyncOnDemand {
-            // Nothing starts here. The cell's owned task runs the factory on
-            // the first read, and later async members await the same cell.
-            let cellName = "_innoDIOnDemandAsync_\(member.name)"
-            let typeDescription = member.type.trimmedDescription
-            let isolation = mainActorEnabled ? "@_Concurrency.MainActor in\n" : ""
-            statements.append("""
-                let \(raw: cellName): InnoDI._InnoDIAsyncSharedCell<\(raw: typeDescription)> = if let _innoDIOverride = \(raw: member.name) {
-                    InnoDI._InnoDIAsyncSharedCell(
-                        traceOwner: _innoDITraceOwner,
-                        providerName: "\(raw: member.name)",
-                        value: _innoDIOverride
-                    )
-                } else {
-                    InnoDI._InnoDIAsyncSharedCell(
-                        traceOwner: _innoDITraceOwner,
-                        providerName: "\(raw: member.name)"
-                    ) { \(raw: isolation)\(awaitedFactoryExpr) }
-                }
-                """)
-            statements.append(
-                CodeBlockItemSyntax(
-                    item: .expr(
-                        assignExpr(
-                            targetName: "_storage_\(member.name)",
-                            valueName: cellName
-                        )
-                    )
-                )
-            )
-            resolvedDependencyExpressions[member.name] = "try await \(raw: cellName).value()"
-            continue
-        }
-
-        let taskName = "_innoDITask_\(member.name)"
-        let traceSpanName = "_innoDITraceSpan_\(member.name)"
-        let successType = taskSuccessTypeDescription(for: member.type)
-        let failureType = member.asyncFactoryIsThrowing ? "Error" : "Never"
-
-        let traceSpanDecl: DeclSyntax = """
-            let \(raw: traceSpanName) = _innoDITraceOwner.start(
-                member: "\(raw: member.name)"
-            )
-            """
-        statements.append(CodeBlockItemSyntax(item: .decl(traceSpanDecl)))
-
-        let taskDecl = makeAsyncTaskDecl(
-            taskName: taskName,
-            overrideName: member.name,
-            providerName: member.name,
-            traceSpanName: traceSpanName,
-            successType: successType,
-            failureType: failureType,
-            awaitedFactoryExpr: awaitedFactoryExpr
-        )
-        statements.append(CodeBlockItemSyntax(item: .decl(taskDecl)))
-
-        let storageName = "_storage_task_\(member.name)"
-        statements.append(CodeBlockItemSyntax(item: .expr(assignExpr(targetName: storageName, valueName: taskName))))
-
-        taskBindings[member.name] = AsyncTaskBinding(
-            name: taskName,
-            providerName: member.name,
-            isThrowing: member.asyncFactoryIsThrowing
-        )
-    }
-
     for member in transientMembers {
         let overrideName = "_override_\(member.name)"
         statements.append(CodeBlockItemSyntax(item: .expr(assignExpr(targetName: overrideName, valueName: member.name))))
@@ -687,7 +606,7 @@ private func makeInitDecl(
 
     }
 
-    // Build dependency-only contexts after every stored peer is initialized.
+    // Build dependency-only contexts after synchronous storage is initialized.
     // Inputs are captured from their init parameters. Eager shared values are
     // copied into locals; on-demand shared dependencies retain their cell and
     // remain unevaluated until a transient resolver actually asks for them.
@@ -805,6 +724,90 @@ private func makeInitDecl(
                 """
             statements.append(assignStmt)
         }
+    }
+
+    // A task may execute as soon as it is created. Finish every deferred
+    // resolver binding first, including detached transient dependency contexts,
+    // so no generated async factory can race initialization of a captured cell.
+    for member in initializationPlan.asyncShared {
+        let createExpr = try makeAsyncFactoryExpr(
+            member: member,
+            resolvedDependencyExpressions: resolvedDependencyExpressions,
+            taskBindings: taskBindings,
+            deferredTargetNameSet: deferredTargetNameSet,
+            fallbackOverrideNames: fallbackOverrideNames,
+            allowUnresolvedDependencyFallback: allowUnresolvedDependencyFallback
+        )
+
+        let awaitedFactoryExpr: ExprSyntax = member.asyncFactoryIsThrowing
+            ? "try await \(createExpr)"
+            : "await \(createExpr)"
+
+        if member.isAsyncOnDemand {
+            // Nothing starts here. The cell's owned task runs the factory on
+            // the first read, and later async members await the same cell.
+            let cellName = "_innoDIOnDemandAsync_\(member.name)"
+            let typeDescription = member.type.trimmedDescription
+            let isolation = mainActorEnabled ? "@_Concurrency.MainActor in\n" : ""
+            statements.append("""
+                let \(raw: cellName): InnoDI._InnoDIAsyncSharedCell<\(raw: typeDescription)> = if let _innoDIOverride = \(raw: member.name) {
+                    InnoDI._InnoDIAsyncSharedCell(
+                        traceOwner: _innoDITraceOwner,
+                        providerName: "\(raw: member.name)",
+                        value: _innoDIOverride
+                    )
+                } else {
+                    InnoDI._InnoDIAsyncSharedCell(
+                        traceOwner: _innoDITraceOwner,
+                        providerName: "\(raw: member.name)"
+                    ) { \(raw: isolation)\(awaitedFactoryExpr) }
+                }
+                """)
+            statements.append(
+                CodeBlockItemSyntax(
+                    item: .expr(
+                        assignExpr(
+                            targetName: "_storage_\(member.name)",
+                            valueName: cellName
+                        )
+                    )
+                )
+            )
+            resolvedDependencyExpressions[member.name] = "try await \(raw: cellName).value()"
+            continue
+        }
+
+        let taskName = "_innoDITask_\(member.name)"
+        let traceSpanName = "_innoDITraceSpan_\(member.name)"
+        let successType = taskSuccessTypeDescription(for: member.type)
+        let failureType = member.asyncFactoryIsThrowing ? "Error" : "Never"
+
+        let traceSpanDecl: DeclSyntax = """
+            let \(raw: traceSpanName) = _innoDITraceOwner.start(
+                member: "\(raw: member.name)"
+            )
+            """
+        statements.append(CodeBlockItemSyntax(item: .decl(traceSpanDecl)))
+
+        let taskDecl = makeAsyncTaskDecl(
+            taskName: taskName,
+            overrideName: member.name,
+            providerName: member.name,
+            traceSpanName: traceSpanName,
+            successType: successType,
+            failureType: failureType,
+            awaitedFactoryExpr: awaitedFactoryExpr
+        )
+        statements.append(CodeBlockItemSyntax(item: .decl(taskDecl)))
+
+        let storageName = "_storage_task_\(member.name)"
+        statements.append(CodeBlockItemSyntax(item: .expr(assignExpr(targetName: storageName, valueName: taskName))))
+
+        taskBindings[member.name] = AsyncTaskBinding(
+            name: taskName,
+            providerName: member.name,
+            isThrowing: member.asyncFactoryIsThrowing
+        )
     }
 
     let initDecl = InitializerDeclSyntax(

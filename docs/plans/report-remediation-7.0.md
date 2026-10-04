@@ -169,3 +169,26 @@ tests, plus before/after public API and strict internal-only consumer builds
 under both import-default modes. Native Darwin `--write`/rollback qualification
 remains covered by committed tests for the subsequent Apple CI run. Do not
 interpret the portable subset as a full migration package pass.
+
+## Stage 2: legacy deferred isolation
+
+P1-03a/03b are confirmed by actual-plugin consumers: the baseline accepts
+three unsafe capture cases, and a separate executable reaches the premature
+deferred-resolution trap while initialization is still in progress. The
+candidate removes the legacy unchecked conformance and completes resolver
+bindings before creating async work. The three captures receive their intended
+full-compilation diagnostics; the formerly trapping consumer returns 42.
+Checked exclusive transfer, synchronous non-Sendable values and actor-local
+access remain supported. No TSan result or runtime performance gain is claimed.
+
+The related P2-04 initializer inconsistency is corrected for explicit versus
+option-enabled MainActor containers. Macro and portable-consumer evidence pass;
+the added native async-on-demand runtime test still requires Apple CI.
+
+Portable validation: 112 core and 534 executed macro tests passed, with four
+opt-in benchmark/export skips (Swift Testing reports 538 macro registrations).
+Only the Darwin-dependent `uniqueBindingRepairBuildsAndGraphs` integration
+method is excluded; its five neighboring mechanical-fix tests remain in a
+hash-recorded portable projection. The complete portable plugin validator also
+passes existing owned/prepared/public/lifetime cases and new legacy fixtures.
+This does not close P1-01 default-isolation or P1-02 async-accessor work.

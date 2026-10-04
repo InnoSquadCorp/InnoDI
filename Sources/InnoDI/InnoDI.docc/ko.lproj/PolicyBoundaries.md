@@ -90,9 +90,15 @@ scope/effect 제한과 ownership-cycle 검사는 유지하고 deferred edge는 �
   값을 생성하고 소비하는 방식을 권장합니다. direct `await`는 `withOverrides`
   operation result처럼 격리된 작업이 `Sendable` 결과를 반환할 때 적합합니다.
   non-`Sendable` container를 actor 밖으로 가져와도 안전하게 만들지는 않습니다.
-- `Lazy<T>`와 `Provider<T>` wrapper는 actor 사이의 전송 수단이 아닙니다. `T`와
-  주변 호출 경로를 옮겨도 안전한 경우가 아니라면 컨테이너의 격리 domain 안에
-  머무르는 것으로 취급하세요.
+- `Lazy<T>`, `Provider<T>`와 생성된 deferred cell은 non-`Sendable`입니다.
+  생성된 비동기 작업이 격리 경계를 넘으면 Swift가 payload와 resolver capture를
+  검사합니다. 결과가 `Sendable`이어도 capture한 non-`Sendable` 의존성이 안전해지는
+  것은 아니며, 동기 on-demand factory를 통한 간접 capture에도 같은 규칙이
+  적용됩니다. 이런 그래프는 하나의 actor에 유지하거나 전체 capture 경로가
+  컴파일러 검사를 통과하는 의존성을 사용하세요. 생성된 eager task는 deferred
+  target의 binding이 모두 끝난 뒤 시작합니다.
+- 컨테이너에 명시한 `@MainActor`도 `mainActor: true` 옵션과 동일하게 생성된
+  on-demand factory capture의 격리를 유지합니다.
 - non-`Sendable` 의존성은 global lookup 뒤에 숨기지 말고 명시적인 컨테이너
   경계를 통해 전달하고 앱 레이어에서 격리하세요.
 

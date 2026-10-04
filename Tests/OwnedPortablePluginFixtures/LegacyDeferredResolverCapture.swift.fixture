@@ -1,0 +1,9 @@
+import InnoDI
+final class Payload { var value = 1 }
+@DIContainer struct Container {
+    static func read(_ value: InnoDI.Provider<Int>) -> Int { value() }
+    @Input var payload: Payload
+    @Provide(.transient, factory: { (payload: Payload) in payload.value }) var value: Int
+    @Provide(.shared, asyncFactory: { (value: InnoDI.Provider<Int>) async in Self.read(value) })
+    var result: Int
+}

@@ -423,7 +423,7 @@ private func makeOwnedFactory(
     ]
     if !deferredMembers.isEmpty {
         statements.append(CodeBlockItemSyntax(item: .decl(
-            makeDeferredCellSupportDecl(uncheckedSendable: false)
+            makeDeferredCellSupportDecl()
         )))
         for member in deferredMembers {
             statements.append(CodeBlockItemSyntax(item: .decl(

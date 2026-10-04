@@ -1,0 +1,7 @@
+import InnoDI
+@DIContainer struct Container {
+    @Input var source: Int
+    @Provide(.transient) var value: Int = 1
+    @Provide(.shared, asyncFactory: { (source: InnoDI.Lazy<Int>) async in source() }) var lazy: Int
+    @Provide(.shared, asyncFactory: { (value: InnoDI.Provider<Int>) async in value() }) var provider: Int
+}

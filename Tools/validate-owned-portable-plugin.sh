@@ -28,6 +28,18 @@ swiftc "${FLAGS[@]}" "${LOAD[@]}" -parse-as-library -I "$OUT" -L "$OUT" -lInnoDI
 "$OUT/Deferred" > "$OUT/deferred-run.log" 2>&1
 cat "$OUT/deferred-run.log"
 
+# Legacy deferred captures keep Swift's isolation checking. These consumers
+# cover non-Sendable synchronous handles, actor-local captures, ordinary
+# Sendable async dependencies, and an exclusively transferred resolver.
+for fixture in LegacyDeferredPositive LegacyDeferredTransfer LegacyDeferredBinding; do
+  cp "$ROOT/Tests/OwnedPortablePluginFixtures/$fixture.swift.fixture" "$OUT/$fixture.swift"
+  swiftc "${FLAGS[@]}" "${LOAD[@]}" -parse-as-library -I "$OUT" -L "$OUT" -lInnoDI \
+    -Xlinker -rpath -Xlinker "$OUT" "$OUT/$fixture.swift" -o "$OUT/$fixture" \
+    > "$OUT/$fixture-compile.log" 2>&1
+  "$OUT/$fixture" > "$OUT/$fixture-run.log" 2>&1
+  cat "$OUT/$fixture-run.log"
+done
+
 # Public generated APIs must also work across a real consumer module boundary.
 cp "$ROOT/Tests/OwnedPortablePluginFixtures/PublicLibrary.swift.fixture" "$OUT/PublicLibrary.swift"
 swiftc "${FLAGS[@]}" "${LOAD[@]}" -emit-module -emit-library -module-name OwnedPublicLibrary \
@@ -92,8 +104,13 @@ negative PreparedWrongContainer "$FIXTURES/PreparedWrongContainer.swift.fixture"
 negative PreparedReservedName "$FIXTURES/PreparedReservedName.swift.fixture" "already uses 'withPrepared'" compile
 negative SelfWitnessCollision "$FIXTURES/SelfWitnessCollision.swift.fixture" "uses the reserved generated prefix"
 negative OwnedOverridesNameCollision "$FIXTURES/OwnedOverridesNameCollision.swift.fixture" "already uses 'makeOwnedWithOverrides'"
-negative DeferredSendable "$FIXTURES/DeferredSendable.swift.fixture" "with non-Sendable type '_InnoDIDeferredCell<Int>'"
-negative DeferredIndirectSendable "$FIXTURES/DeferredIndirectSendable.swift.fixture" "with non-Sendable type '_InnoDIDeferredCell<Int>'"
+negative DeferredSendable "$FIXTURES/DeferredSendable.swift.fixture" "with non-Sendable type '_InnoDIDeferredCell<Int>'" compile
+negative DeferredIndirectSendable "$FIXTURES/DeferredIndirectSendable.swift.fixture" "with non-Sendable type '_InnoDIDeferredCell<Int>'" compile
+negative LegacyDeferredPayload "$FIXTURES/LegacyDeferredPayload.swift.fixture" "passing closure as a 'sending' parameter risks causing data races" compile
+negative LegacyDeferredResolverCapture "$FIXTURES/LegacyDeferredResolverCapture.swift.fixture" "passing closure as a 'sending' parameter risks causing data races" compile
+negative LegacyDeferredIndirectCapture "$FIXTURES/LegacyDeferredIndirectCapture.swift.fixture" "with non-Sendable type '_InnoDIDeferredCell<Int>'" compile
+negative LegacyDeferredEagerCall "$FIXTURES/LegacyDeferredEagerCall.swift.fixture" "cannot call Lazy<T> during .shared construction" compile
+negative LegacyDeferredProviderEagerCall "$FIXTURES/LegacyDeferredEagerCall.swift.fixture" "cannot call Provider<T> during .shared construction" compile
 negative DeferredEagerCall "$FIXTURES/DeferredEagerCall.swift.fixture" "cannot call Lazy<T> during .shared construction"
 negative DeferredCycle "$FIXTURES/DeferredCycle.swift.fixture" "Dependency cycle detected"
 negative DeferredProviderCycle "$FIXTURES/DeferredProviderCycle.swift.fixture" "Dependency cycle detected"

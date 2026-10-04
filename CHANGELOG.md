@@ -11,6 +11,12 @@ Current development train: `7.0.0` (unreleased)
 
 ## Unreleased
 
+- Legacy `Lazy`/`Provider` forwarding cells no longer bypass Swift's Sendable
+  checking. Unsafe async captures are rejected; checked exclusive transfers
+  and actor-local use remain available. Generated initializers finish deferred
+  binding before starting asynchronous factories. Explicit `@MainActor`
+  containers now use the same initializer capture policy as the role option.
+
 - SwiftUI import migration preserves modifier/attribute trivia and comments,
   and keeps exported imports explicitly public. Ambiguous access now blocks
   writes with `migrate.swiftui-import-access-ambiguous`; use

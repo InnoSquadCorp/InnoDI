@@ -1,0 +1,89 @@
+import InnoDI
+
+final class LocalPayload {
+    var value: Int
+    init(_ value: Int) { self.value = value }
+}
+
+struct LocalHandles {
+    let input: InnoDI.Lazy<LocalPayload>
+    let transient: InnoDI.Provider<LocalPayload>
+}
+
+@DIContainer
+struct LocalDeferredContainer {
+    @Input var input: LocalPayload
+    @Provide(.transient, factory: { (input: LocalPayload) in LocalPayload(input.value) })
+    var transient: LocalPayload
+    @Provide(.shared, factory: { (input: InnoDI.Lazy<LocalPayload>, transient: InnoDI.Provider<LocalPayload>) in
+        LocalHandles(input: input, transient: transient)
+    })
+    var handles: LocalHandles
+}
+
+@DIContainer
+struct SendableAsyncContainer {
+    @Input var seed: Int
+    @Provide(.shared, initialization: .onDemand, factory: { (seed: Int) in seed + 1 })
+    var value: Int
+    @Provide(.shared, asyncFactory: { (value: Int) async in value + 1 })
+    var result: Int
+}
+
+@MainActor
+@DIContainer
+struct ExplicitActorDeferredContainer {
+    static func read(_ value: InnoDI.Lazy<LocalPayload>) -> Int { value().value }
+    static func read(_ value: InnoDI.Provider<LocalPayload>) -> Int { value().value }
+    @Input var input: LocalPayload
+    @Provide(.transient, factory: { (input: LocalPayload) in LocalPayload(input.value) })
+    var transient: LocalPayload
+    @Provide(.shared, asyncFactory: { (input: InnoDI.Lazy<LocalPayload>) async in Self.read(input) })
+    var lazyResult: Int
+    @Provide(.shared, asyncFactory: { (transient: InnoDI.Provider<LocalPayload>) async in Self.read(transient) })
+    var providerResult: Int
+    @Provide(.shared, initialization: .onDemand, factory: { (input: LocalPayload) in input })
+    var onDemand: LocalPayload
+    @Provide(.shared, asyncFactory: { (onDemand: LocalPayload) async in onDemand.value })
+    var onDemandResult: Int
+}
+
+@DIContainerRole(role: ContainerRole.local, mainActor: true)
+struct OptionActorDeferredContainer {
+    @Input var input: LocalPayload
+    @Provide(.shared, initialization: .onDemand, factory: { (input: LocalPayload) in input })
+    var onDemand: LocalPayload
+    @Provide(.shared, asyncFactory: { (onDemand: LocalPayload) async in onDemand.value })
+    var result: Int
+}
+
+@main struct Check {
+    nonisolated static func checkOrdinaryAsync() async {
+        let ordinary = SendableAsyncContainer(seed: 40)
+        let result = await ordinary.result
+        precondition(result == 42)
+    }
+
+    @MainActor static func main() async {
+        let input = LocalPayload(21)
+        let handles: LocalHandles = {
+            let container = LocalDeferredContainer(input: input)
+            return container.handles
+        }()
+        precondition(handles.input() === input)
+        precondition(handles.transient() !== handles.transient())
+        input.value = 22
+        precondition(handles.transient().value == 22)
+
+        await checkOrdinaryAsync()
+        let explicit = ExplicitActorDeferredContainer(input: input)
+        let lazy = await explicit.lazyResult
+        let provider = await explicit.providerResult
+        let onDemand = await explicit.onDemandResult
+        precondition(lazy == 22 && provider == 22 && onDemand == 22)
+        let option = OptionActorDeferredContainer(input: input)
+        let optionResult = await option.result
+        precondition(optionResult == 22)
+        print("legacy deferred isolation and safe async paths passed")
+    }
+}

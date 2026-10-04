@@ -7,7 +7,7 @@ struct AppContainer {
 
     // MARK: - Initialization
     init(holder: Holder? = nil, service: Service? = nil, _innoDITrace: DITraceContext = .disabled) {
-        final class _InnoDIDeferredCell<T>: @unchecked Swift.Sendable {
+        final class _InnoDIDeferredCell<T> {
             private var value: T?
             private var resolver: (() -> T)?
 

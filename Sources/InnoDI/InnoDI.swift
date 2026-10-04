@@ -460,9 +460,12 @@ public macro _InnoDIProvideAccessor(
 /// manually. `Lazy<T>` remains synchronous, so it cannot target `.shared` or
 /// `.transient` members provided by `asyncFactory`.
 ///
-/// `Lazy<T>` is intentionally a non-`Sendable` deferred handle. The wrapper
-/// keeps evaluation on the container's original isolation domain, so actor
-/// boundary transport is not supported even when `T: Sendable`.
+/// `Lazy<T>` and its generated deferred cell are intentionally non-`Sendable`.
+/// Swift checks the complete resolver capture path when async work crosses an
+/// isolation boundary, including indirect on-demand captures. `T: Sendable`
+/// alone does not make that path safe. Keep shared non-`Sendable` resolver state
+/// on the container's actor; an exclusive transfer remains subject to Swift's
+/// region-isolation checks.
 ///
 /// ### Detection
 /// The macro recognizes `Lazy` by its written identifier at the factory
@@ -553,9 +556,12 @@ public struct Lazy<T> {
 /// eager calls routed through helper APIs can still fail if they resolve too
 /// early.
 ///
-/// `Provider<T>` is intentionally a non-`Sendable` deferred handle. Provider
-/// re-entry happens on the container's original isolation domain, so actor
-/// boundary transport is not supported even when `T: Sendable`.
+/// `Provider<T>` and its generated deferred cell are intentionally
+/// non-`Sendable`. Swift checks the complete resolver capture path when async
+/// work crosses an isolation boundary, including indirect on-demand captures.
+/// `T: Sendable` alone does not make that path safe. Keep shared non-`Sendable`
+/// resolver state on the container's actor; an exclusive transfer remains
+/// subject to Swift's region-isolation checks.
 ///
 /// ### Detection
 /// The macro recognizes `Provider` by its written identifier at the factory
