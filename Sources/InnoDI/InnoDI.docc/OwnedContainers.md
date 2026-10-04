@@ -1,5 +1,7 @@
 # Explicitly Owned Containers
 
+<!-- innodi:compile-all -->
+
 Opt in to a generated owner when asynchronous shared providers need explicit
 preparation, cancellation, retry, and shutdown.
 
@@ -12,6 +14,8 @@ review and supported Apple toolchain qualification remain pending.
 Keep the same `@Input`, `@Provide`, factories, and dependency parameters:
 
 ```swift
+import InnoDI
+
 @DIContainer(generateOwned: true)
 struct Services {
     @Input var seed: Int
@@ -156,9 +160,10 @@ Use `makeOwnedWithOverrides` with the existing `Overrides` builder when
 several tests share an override preset:
 
 ```swift
-let owner = try await Services.makeOwnedWithOverrides(seed: 40) {
+let overriddenOwner = try await Services.makeOwnedWithOverrides(seed: 40) {
     $0.service = 99
 }
+await overriddenOwner.close()
 // A prebuilt or validated preset can be assigned with: { $0 = preset }
 ```
 
@@ -219,6 +224,23 @@ container type. Its concrete dependency getters are available, but original
 custom methods, protocol conformances, and key paths do not transfer. Migrate
 consumers to their service dependencies or the explicit view type. Prefer
 inferred owner/view types and contextual selections such as `.service`.
+
+For stored properties or public signatures, the generated names are supported
+types with the container's access level. A leading underscore here avoids
+silently shadowing service types named `Owner` or `PrewarmProvider`; it does not
+make these types inaccessible. Give them application-specific names outside the
+container when explicit spelling helps:
+
+```swift
+typealias ServicesOwner = Services._InnoDIOwner
+typealias ServicesView = Services._InnoDIOwnedView
+typealias ServicesPreparation = Services._InnoDIOwnedProvider
+```
+
+An on-demand synchronous selection can similarly be named with a typealias to
+that container's `_InnoDIPrewarmProvider`. A selection enum exists only when the
+container declares eligible providers; aliases do not add Sendable conformance
+or transfer lifecycle ownership.
 
 MainActor containers isolate the owned factory, view, and lifecycle methods.
 Other containers retain the caller's executor for async APIs; owners and views

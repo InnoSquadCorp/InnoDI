@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # CI guard: Swift snippets marked with `<!-- innodi:compile -->` must compile
-# against the local package. Unmarked snippets remain illustrative.
+# against the local package. `innodi:compile-all` compiles all Swift blocks in
+# one document together, for examples that intentionally share declarations.
+# Other unmarked snippets remain illustrative.
 
 set -euo pipefail
 
@@ -18,8 +20,14 @@ extract_snippets() {
     local marked=false
     local in_block=false
     local current=""
+    local group_path=""
+    local whole_file=false
     local line_no=0
     local line
+
+    if grep -Fxq '<!-- innodi:compile-all -->' "$file"; then
+        whole_file=true
+    fi
 
     while IFS= read -r line || [[ -n "$line" ]]; do
         line_no=$((line_no + 1))
@@ -27,6 +35,7 @@ extract_snippets() {
         if [[ "$in_block" == true ]]; then
             case "$line" in
                 '```')
+                    printf '\n' >> "$current"
                     in_block=false
                     current=""
                     ;;
@@ -34,6 +43,18 @@ extract_snippets() {
                     printf '%s\n' "$line" >> "$current"
                     ;;
             esac
+            continue
+        fi
+
+        if [[ "$whole_file" == true && ( "$line" == '```swift' || "$line" == '```swift '* ) ]]; then
+            if [[ -z "$group_path" ]]; then
+                count=$((count + 1))
+                group_path="$SNIPPET_DIR/$(printf '%03d' "$count").swift"
+                printf '// Source: %s:%d (all Swift blocks)\n\n' "$file" "$line_no" > "$group_path"
+            fi
+            current="$group_path"
+            in_block=true
+            marked=false
             continue
         fi
 
@@ -67,6 +88,10 @@ extract_snippets() {
     fi
     if [[ "$marked" == true ]]; then
         echo "Missing marked Swift code block after innodi:compile marker in $file" >&2
+        exit 1
+    fi
+    if [[ "$whole_file" == true && -z "$group_path" ]]; then
+        echo "Missing Swift code block in compile-all document $file" >&2
         exit 1
     fi
 }

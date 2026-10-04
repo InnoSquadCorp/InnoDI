@@ -113,6 +113,10 @@ SCRATCH_PATH="$TEMP_DIR/scratch"
 
 BUILD_COMMAND=(
     "$SWIFT_EXECUTABLE" build
+    # Swift Build can consume the compiler's dump as structured task output
+    # without forwarding it to stdout/stderr. The native backend preserves
+    # that inspection stream on supported Swift 6.2+ toolchains.
+    --build-system native
     --package-path "$PACKAGE_PATH"
     --scratch-path "$SCRATCH_PATH"
     -c "$CONFIG"

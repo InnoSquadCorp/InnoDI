@@ -23,3 +23,15 @@ public enum PublicNamespace {
         @Input public var children: [Self]
     }
 }
+
+// Application names are explicit aliases, so the generator never shadows
+// unrelated payload types named Owner, OwnedView, or PrewarmProvider.
+public typealias PublicOwner = PublicNamespace.Container._InnoDIOwner
+public typealias PublicServices = PublicNamespace.Container._InnoDIOwnedView
+public typealias PublicPreparation = PublicNamespace.Container._InnoDIOwnedProvider
+
+@DIContainer
+public struct PublicPrewarming {
+    @Provide(.shared, initialization: .onDemand, factory: { 42 }) public var value: Int
+}
+public typealias PublicPrewarmSelection = PublicPrewarming._InnoDIPrewarmProvider

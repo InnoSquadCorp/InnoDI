@@ -1,5 +1,7 @@
 # 명시적으로 소유하는 컨테이너
 
+<!-- innodi:compile-all -->
+
 비동기 shared provider의 준비, 취소, 재시도, 종료를 명시적으로 관리할 때
 생성되는 owner를 opt-in으로 사용합니다.
 
@@ -12,6 +14,8 @@ toolchain 검증이 남아 있습니다.
 기존 `@Input`, `@Provide`, factory, dependency parameter를 그대로 사용합니다.
 
 ```swift
+import InnoDI
+
 @DIContainer(generateOwned: true)
 struct Services {
     @Input var seed: Int
@@ -143,9 +147,10 @@ Override된 consumer가 더 이상 필요로 하지 않더라도 다른 eager pr
 preset을 재사용할 수 있습니다:
 
 ```swift
-let owner = try await Services.makeOwnedWithOverrides(seed: 40) {
+let overriddenOwner = try await Services.makeOwnedWithOverrides(seed: 40) {
     $0.service = 99
 }
+await overriddenOwner.close()
 // 미리 만들거나 검증한 preset은 { $0 = preset }으로 대입할 수 있습니다
 ```
 
@@ -201,6 +206,21 @@ Concrete dependency getter는 있지만 기존 사용자 메서드, protocol con
 key path는 옮겨지지 않습니다. Consumer를 필요한 서비스 의존성이나 명시적인
 view 타입으로 변경하세요. Owner/view의 타입 추론과 `.service` 같은 contextual
 selection을 권장합니다.
+
+저장 프로퍼티나 공개 signature에 타입을 적어야 한다면 생성된 이름을 사용할 수
+있습니다. 컨테이너와 같은 access level의 지원되는 타입입니다. 앞의 underscore는
+`Owner`나 `PrewarmProvider`라는 서비스 타입을 가리지 않기 위한 것이며, 타입을
+접근 불가능하게 만들지 않습니다. 컨테이너 밖에서 앱에 맞는 별칭을 둘 수 있습니다:
+
+```swift
+typealias ServicesOwner = Services._InnoDIOwner
+typealias ServicesView = Services._InnoDIOwnedView
+typealias ServicesPreparation = Services._InnoDIOwnedProvider
+```
+
+동기 on-demand 선택도 해당 컨테이너의 `_InnoDIPrewarmProvider`를 typealias로
+이름 붙일 수 있습니다. 선택 enum은 대상 provider가 있을 때만 생성됩니다.
+별칭이 Sendable conformance를 추가하거나 lifecycle 소유권을 옮기지는 않습니다.
 
 MainActor 컨테이너는 owned factory, view, lifecycle 메서드를 같은 actor로
 격리합니다. 그 외 컨테이너의 async API는 호출자의 executor를 유지하며 owner와

@@ -230,12 +230,12 @@ import Foundation
 import InnoDI
 
 protocol APIClientProtocol {
-    func fetch() async throws -> Data
+    nonisolated(nonsending) func fetch() async throws -> Data
 }
 
 struct APIClient: APIClientProtocol {
     let baseURL: String
-    func fetch() async throws -> Data { Data() }
+    nonisolated(nonsending) func fetch() async throws -> Data { Data() }
 }
 
 @DIContainer
@@ -251,13 +251,23 @@ let container = AppContainer(baseURL: "https://api.example.com")
 _ = container.apiClient
 
 struct MockAPIClient: APIClientProtocol {
-    func fetch() async throws -> Data { Data([0x01]) }
+    nonisolated(nonsending) func fetch() async throws -> Data { Data([0x01]) }
 }
 let test = AppContainer(baseURL: "https://api.example.com") {
     $0.apiClient = MockAPIClient()
 }
 _ = test.apiClient
+
+let result = try await AppContainer.withOverrides(baseURL: "https://test.example.com") { overrides in
+    overrides.apiClient = MockAPIClient()
+} operation: { container in
+    try await container.apiClient.fetch()
+}
+precondition(result == Data([0x01]))
 ```
+
+비동기 프로토콜 메서드의 `nonisolated(nonsending)`은 호출자의 격리를 유지하므로
+MainActor에서도 Sendable이 아닌 서비스를 이 작업에 사용할 수 있습니다.
 
 이름이나 생성 로직이 `Type.self` + `with:`와 맞지 않으면 factory closure를
 사용합니다.
@@ -801,7 +811,10 @@ InnoDI checkout에서 스크립트를 실행하고 `--package-path`로 consumer�
 지정하세요. 별도 scratch build를 사용해 전체 결과를 기본적으로 consumer의
 `.build/innodi/macro-expansions.swift`에 기록하며, 생성 조각이 `Sources/`나
 `Tests/`에 들어가는 것은 차단합니다. consumer의 일반 build cache는 건드리지
-않습니다. 선언 하나만 볼 때는 Xcode의 **Expand Macro**가 가장 빠르고, 이
+않습니다. Swift 6.4에서도 compiler dump가 보이도록 이 검사 빌드는 SwiftPM의
+native backend를 선택합니다. 선택한 target이 실제로 매크로를 호출해야 하며,
+선언만 빌드하면 확장 결과가 나오지 않습니다.
+선언 하나만 볼 때는 Xcode의 **Expand Macro**가 가장 빠르고, 이
 명령은 target 전체를 리뷰 가능한 artifact로 남길 때 사용합니다.
 
 DocC 생성:

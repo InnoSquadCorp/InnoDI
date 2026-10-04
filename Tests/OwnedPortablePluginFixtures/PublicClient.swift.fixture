@@ -10,10 +10,11 @@ func verifyPublicSelf(_ owner: PublicNamespace.Same._InnoDIOwner) {
 @main struct PublicCheck {
     static func main() async throws {
         let owner = try await PublicNamespace.Container.makeOwned(seed: 9)
-        let token: PublicNamespace.Container._InnoDIOwnedProvider = .service
+        let _: PublicOwner = owner
+        let token: PublicPreparation = .service
         let report = try await owner.prepare(token)
         precondition(report.isReady)
-        let view: PublicNamespace.Container._InnoDIOwnedView = owner.container
+        let view: PublicServices = owner.container
         let value = try await view.service
         precondition(value == 10 && view.seed == 9)
         await owner.cancel(.service)
@@ -45,6 +46,10 @@ func verifyPublicSelf(_ owner: PublicNamespace.Same._InnoDIOwner) {
         let required = try await PublicNamespace.Container.makeOwned(seed: 5)
         try await required.requireReady(.service)
         await required.close()
+        let prewarming = PublicPrewarming()
+        let selection: PublicPrewarmSelection = .value
+        prewarming.prewarm(selection)
+        precondition(prewarming.value == 42)
         print("real plugin cross-module owned API passed")
     }
 }

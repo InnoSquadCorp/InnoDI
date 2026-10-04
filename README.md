@@ -234,12 +234,12 @@ import Foundation
 import InnoDI
 
 protocol APIClientProtocol {
-    func fetch() async throws -> Data
+    nonisolated(nonsending) func fetch() async throws -> Data
 }
 
 struct APIClient: APIClientProtocol {
     let baseURL: String
-    func fetch() async throws -> Data { Data() }
+    nonisolated(nonsending) func fetch() async throws -> Data { Data() }
 }
 
 @DIContainer
@@ -255,13 +255,24 @@ let container = AppContainer(baseURL: "https://api.example.com")
 _ = container.apiClient
 
 struct MockAPIClient: APIClientProtocol {
-    func fetch() async throws -> Data { Data([0x01]) }
+    nonisolated(nonsending) func fetch() async throws -> Data { Data([0x01]) }
 }
 let test = AppContainer(baseURL: "https://api.example.com") {
     $0.apiClient = MockAPIClient()
 }
 _ = test.apiClient
+
+let result = try await AppContainer.withOverrides(baseURL: "https://test.example.com") { overrides in
+    overrides.apiClient = MockAPIClient()
+} operation: { container in
+    try await container.apiClient.fetch()
+}
+precondition(result == Data([0x01]))
 ```
+
+The async protocol method preserves its caller's isolation with
+`nonisolated(nonsending)`, so the operation also works with a non-Sendable
+service from MainActor.
 
 Use a factory closure when names or construction logic do not line up with
 `Type.self` plus `with:`:
@@ -838,7 +849,10 @@ Run the script from an InnoDI checkout and point `--package-path` at the
 consumer. It performs an isolated scratch build, writes the combined result to
 the consumer's `.build/innodi/macro-expansions.swift` by default, and refuses
 to place generated fragments under `Sources/` or `Tests/`. The consumer's
-normal build cache is left untouched. In Xcode, **Expand Macro** remains the
+normal build cache is left untouched. The inspection build selects SwiftPM's
+native backend so compiler dump output is visible, including on Swift 6.4.
+The selected target must actually invoke macros; building declarations alone
+does not produce expansions. In Xcode, **Expand Macro** remains the
 fastest way to inspect one declaration; this command is for a complete,
 reviewable target artifact.
 
