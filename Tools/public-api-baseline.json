@@ -559,7 +559,17 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:6InnoDI11FeatureRootV6hostedSbvp",
+          "target": "s:6InnoDI11FeatureRootV"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:6InnoDI11FeatureRootV8rootViewypXpvp",
+          "target": "s:6InnoDI11FeatureRootV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI11FeatureRootV_2as6hostedACypXp_SSSgSbtcfc",
           "target": "s:6InnoDI11FeatureRootV"
         },
         {
@@ -1667,6 +1677,27 @@
           },
           "identifier": {
             "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI11FeatureRootV6hostedSbvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "FeatureRoot",
+            "hosted"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
             "precise": "s:6InnoDI11FeatureRootV8rootViewypXpvp"
           },
           "kind": {
@@ -1675,6 +1706,29 @@
           "pathComponents": [
             "FeatureRoot",
             "rootView"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI11FeatureRootV_2as6hostedACypXp_SSSgSbtcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "parameterDefaults": [
+            false,
+            true,
+            false
+          ],
+          "pathComponents": [
+            "FeatureRoot",
+            "init(_:as:hosted:)"
           ]
         },
         {

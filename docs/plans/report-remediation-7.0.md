@@ -244,8 +244,8 @@ its source file imports SwiftUI and InnoDISwiftUI. `hosted:` requires a literal
 Bool. The old public initializer remains unchanged. Compiler-emitted API
 inspection on Linux 6.2/6.3/6.4 found exactly the same two intended additions,
 `FeatureRoot.hosted` and `init(_:as:hosted:)`, while preserving its four existing
-symbols. The narrow baseline proposal awaits independent review before replacing
-the checked-in contract. Full Apple product API verification remains required.
+symbols. Independent review confirmed the narrow two-symbol/two-relationship delta;
+the checked-in contract includes only those additions. Full Apple product API verification remains required.
 
 The broader consumer exposed an unpublished intermediate regression: the same
 explicit-MainActor parent/child-override fixture passed remote 064f1fc, failed
