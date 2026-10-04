@@ -26,19 +26,30 @@ struct ValidationSnapshotBindingTests {
         let warm = try collector.collectOutput(rootPath: fixture.rootURL.path)
         #expect(warm.parsedSources.isEmpty)
         #expect(warm.result.metrics.metadataCacheHitCount == 2)
+        let liveRunDirectory = fixture.stateURL.appendingPathComponent(
+            sharedRunCacheKey(for: warm.result.signature), isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: liveRunDirectory, withIntermediateDirectories: true)
+        let liveLockURL = liveRunDirectory.appendingPathComponent("lock")
+        let deadPID: Int32 = 1111
+        try persistJSON(
+            ValidationCoordinatorLockMetadata(pid: deadPID, createdAt: Date().timeIntervalSince1970),
+            to: liveLockURL
+        )
         let live = ValidationCoordinatorRuntime.live
         let runtime = ValidationCoordinatorRuntime(
             monotonicNow: live.monotonicNow,
-            currentDate: {
-                // This existing lock-metadata hook occurs after signature
-                // collection and before the live snapshot is assembled.
-                try? valid.write(to: file, atomically: true, encoding: .utf8)
-                return Date()
-            },
+            currentDate: live.currentDate,
             sleep: live.sleep,
             currentProcessID: live.currentProcessID,
-            processExists: live.processExists,
-            currentBootID: live.currentBootID
+            processExists: { $0 == deadPID ? false : live.processExists($0) },
+            currentBootID: live.currentBootID,
+            beforeStaleLockRemoval: { url in
+                // Live-run recovery occurs after signature capture, even now
+                // that signature.lock also records its own creation time.
+                #expect(url == liveLockURL)
+                try? valid.write(to: file, atomically: true, encoding: .utf8)
+            }
         )
         let runner = MockValidationRunner(results: [.init(exitCode: 0, stdout: "", stderr: "")])
         let first = try await ValidationCoordinator.coordinate(
@@ -49,6 +60,7 @@ struct ValidationSnapshotBindingTests {
         )
         #expect(try String(contentsOf: file, encoding: .utf8) == valid)
         #expect(first.result.exitCode != 0)
+        #expect(first.metricsArtifact.reasonCodes.contains(.staleLockRecovered))
         #expect(first.metricsArtifact.issues.contains { $0.code == "container.custom-init-unsupported" })
         #expect(runner.invocationCount == 0)
         try invalid.write(to: file, atomically: true, encoding: .utf8)

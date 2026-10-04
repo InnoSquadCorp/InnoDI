@@ -12,6 +12,12 @@ InnoDI의 빌드 시점 validation coordinator가 동시에 도는 빌드 사이
 `open(O_CREAT | O_EXCL | O_RDWR)`로 얻습니다. 이 디렉터리는 활성 SPM
 scratch/derived-data 위치 아래에 만들어집니다.
 
+live 검증 전에 별도의 `signature.lock`이 digest cache 수집을 직렬화합니다.
+두 lock 모두 holder의 PID, 생성 시각, boot ID를 기록합니다. metadata가
+종료된 PID나 이전 boot를 가리키면 즉시 복구할 수 있습니다. stale age는
+metadata가 없거나 읽을 수 없을 때만 쓰는 fallback이며, 살아 있는 것으로
+확인된 PID를 무시하지 않습니다.
+
 이 문서는 그 lock이 파일시스템에 요구하는 조건, 오류 메시지의 의미, 빌드가
 lock을 얻지 못했을 때의 복구 방법을 설명합니다.
 
@@ -95,7 +101,7 @@ Timed out waiting for the InnoDI validation coordinator lock.
 Suggested actions:
   1) Re-run the build. Concurrent SPM/Xcode invocations are the most common cause.
   2) Increase the wait window: INNODI_LOCK_TIMEOUT=<seconds> swift build  (default 30).
-  3) Lower the stale threshold if the holder pid is dead: INNODI_STALE_LOCK_AGE=<seconds>.
+  3) Lower the stale threshold only for locks with unreadable metadata: INNODI_STALE_LOCK_AGE=<seconds>.
   4) Move SPM's scratch path off a network filesystem if the path above lives on NFS/SMB:
      swift build --scratch-path /tmp/innodi-cache  (NFS and SMB are not safe by default — see lock-safety.md).
 ```
@@ -133,8 +139,10 @@ Suggested actions:
    coordinator는 다음 실행에서 파일이 없어진 것을 감지하고 정상적으로
    계속합니다. holder가 살아 있는 lock은 지우지 마세요. 진행 중인 검증이 부분
    결과를 쓰고, cache가 그 결과를 권위 있는 결과로 취급하게 됩니다.
-4. holder가 새 threshold보다 오래 멈춰 있고 PID 확인을 믿을 수 없을 때(드문
-   경우) `INNODI_STALE_LOCK_AGE=10`으로 **stale threshold를 낮추세요**.
+4. metadata가 없거나 읽을 수 없는, 소유자 없는 lock에 한해서만
+   `INNODI_STALE_LOCK_AGE=10`으로 **stale threshold를 낮추세요**. 종료된
+   holder는 이미 이 대기 없이 복구됩니다. 살아 있는 holder는 lock이 오래됐거나
+   프로세스가 느리다는 이유만으로 회수하지 않습니다.
 
 읽기 전용 진단을 하려면 다음을 실행하세요.
 
@@ -172,7 +180,7 @@ Set SPM `--scratch-path` (or DerivedData) to a writable, local filesystem.
 | 변수 | 기본값 | 용도 |
 |---|---|---|
 | `INNODI_LOCK_TIMEOUT` | `30` | coordinator가 포기하기 전에 lock을 polling하는 시간(초). |
-| `INNODI_STALE_LOCK_AGE` | `30` | 버려진 것으로 보이는 lock을 복구 대상으로 보는 기준 시간(초). |
+| `INNODI_STALE_LOCK_AGE` | `30` | metadata가 없거나 읽을 수 없는 lock의 복구 최소 나이(초). 종료된 holder는 즉시 복구하며 살아 있는 holder는 나이로 회수하지 않습니다. |
 | `INNODI_ALLOW_UNSAFE_LOCK` | 설정 안 함 | `1`, `true`, `yes`, `on` 중 하나로 설정하면 안전하지 않은 파일시스템(NFS, SMB/CIFS, WebDAV, FUSE)에서의 즉시 실패를 우회합니다. 우회 사실이 빌드 로그에 남도록 coordinator는 여전히 한 줄 경고를 냅니다. |
 
 `INNODI_LOCK_TIMEOUT`과 `INNODI_STALE_LOCK_AGE`는 양의 부동소수점 초를

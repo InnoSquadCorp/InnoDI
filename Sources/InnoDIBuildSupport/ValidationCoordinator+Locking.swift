@@ -443,7 +443,7 @@ internal func lockTimeoutDiagnosticMessage(
     lines.append("Suggested actions:")
     lines.append("  1) Re-run the build. Concurrent SPM/Xcode invocations are the most common cause.")
     lines.append("  2) Increase the wait window: INNODI_LOCK_TIMEOUT=<seconds> swift build  (default 30).")
-    lines.append("  3) Lower the stale threshold if the holder pid is dead: INNODI_STALE_LOCK_AGE=<seconds>.")
+    lines.append("  3) Lower the stale threshold only for locks with unreadable metadata: INNODI_STALE_LOCK_AGE=<seconds>.")
     lines.append("  4) Move SPM's scratch path off a network filesystem if the path above lives on NFS/SMB:")
     lines.append("     swift build --scratch-path /tmp/innodi-cache  (NFS and SMB are not safe by default — see lock-safety.md).")
     lines.append("")

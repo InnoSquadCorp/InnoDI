@@ -13,6 +13,12 @@ acquired with `open(O_CREAT | O_EXCL | O_RDWR)` against a file inside
 SwiftPM's plugin work directory, which is created under the active SPM
 scratch/derived-data location.
 
+Before live validation, a separate `signature.lock` serializes digest-cache
+collection. Both locks record the holder's PID, creation time and boot ID.
+A terminated holder is recoverable immediately when its metadata identifies a
+dead PID or an earlier boot. The stale-age threshold is only the fallback for
+missing or unreadable metadata; it never overrides a known live PID.
+
 This article explains the requirements that lock places on the
 filesystem, what the error messages mean, and how to recover when a
 build fails to acquire the lock.
@@ -100,7 +106,7 @@ Timed out waiting for the InnoDI validation coordinator lock.
 Suggested actions:
   1) Re-run the build. Concurrent SPM/Xcode invocations are the most common cause.
   2) Increase the wait window: INNODI_LOCK_TIMEOUT=<seconds> swift build  (default 30).
-  3) Lower the stale threshold if the holder pid is dead: INNODI_STALE_LOCK_AGE=<seconds>.
+  3) Lower the stale threshold only for locks with unreadable metadata: INNODI_STALE_LOCK_AGE=<seconds>.
   4) Move SPM's scratch path off a network filesystem if the path above lives on NFS/SMB:
      swift build --scratch-path /tmp/innodi-cache  (NFS and SMB are not safe by default — see lock-safety.md).
 ```
@@ -141,9 +147,10 @@ In order of decreasing safety:
    resume normally. Do not delete a lock whose holder is alive — the
    in-progress validation will then write a partial result that the
    cache treats as authoritative.
-4. **Reduce the stale threshold** with `INNODI_STALE_LOCK_AGE=10` if
-   the holder has been frozen for longer than the new threshold and
-   the PID check is unreliable (rare).
+4. **Reduce the stale threshold** with `INNODI_STALE_LOCK_AGE=10` only
+   for orphaned locks whose metadata is missing or unreadable. A known dead
+   holder is already recovered without this wait. A known live holder is not
+   reclaimed just because its lock is old or the process is slow.
 
 For a read-only diagnostic pass, run:
 
@@ -182,7 +189,7 @@ Common cases:
 | Variable | Default | Purpose |
 |---|---|---|
 | `INNODI_LOCK_TIMEOUT` | `30` | Seconds the coordinator polls the lock before giving up. |
-| `INNODI_STALE_LOCK_AGE` | `30` | Seconds after which an apparently-orphaned lock is eligible for recovery. |
+| `INNODI_STALE_LOCK_AGE` | `30` | Minimum age for recovery when lock metadata is missing or unreadable. Known dead holders recover immediately; known live holders are not reclaimed by age. |
 | `INNODI_ALLOW_UNSAFE_LOCK` | unset | Set to `1`, `true`, `yes`, or `on` to bypass the unsafe-filesystem fail-fast (NFS, SMB/CIFS, WebDAV, FUSE). The coordinator still emits a one-line warning so the bypass is auditable in build logs. |
 
 `INNODI_LOCK_TIMEOUT` and `INNODI_STALE_LOCK_AGE` accept positive

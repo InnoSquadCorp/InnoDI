@@ -656,29 +656,34 @@ package enum ValidationCoordinator {
     /// run was already serialized; this lock moves the expensive signature
     /// cache warm-up into the same shape so later target invocations usually
     /// reuse content-verified cached digests instead of doing duplicate AST work.
-    private static func collectValidationSignatureWithSharedCacheLock(
+    // Internal parser injection lets lock tests observe the real collection
+    // boundary deterministically. Production callers retain the live parser.
+    static func collectValidationSignatureWithSharedCacheLock<Parser: ValidationSyntaxParsing>(
         rootPath: String,
         analysisManifest: ValidatedWorkspaceAnalysisManifest?,
         stateDirectoryURL: URL,
         stateDirectoryPath: String,
         lockPolicy: ValidationCoordinatorLockPolicy,
-        runtime: ValidationCoordinatorRuntime
+        runtime: ValidationCoordinatorRuntime,
+        parser: Parser = LiveValidationSyntaxParser()
     ) async throws -> ValidationSignatureCollectionOutput {
         func collectSignature(
             persistManifestUpdates: Bool = true,
             useManifestCache: Bool = true
         ) throws -> ValidationSignatureCollectionOutput {
+            let collector = ValidationSignatureCollector(
+                stateDirectoryPath: stateDirectoryPath,
+                parser: parser
+            )
             if let analysisManifest {
-                return try collectValidationSignatureOutput(
+                return try collector.collectOutput(
                     validated: analysisManifest,
-                    stateDirectoryPath: stateDirectoryPath,
                     persistManifestUpdates: persistManifestUpdates,
                     useManifestCache: useManifestCache
                 )
             }
-            return try collectValidationSignatureOutput(
+            return try collector.collectOutput(
                 rootPath: rootPath,
-                stateDirectoryPath: stateDirectoryPath,
                 persistManifestUpdates: persistManifestUpdates,
                 useManifestCache: useManifestCache
             )
@@ -700,6 +705,18 @@ package enum ValidationCoordinator {
         while runtime.monotonicNow() < lockAcquisitionDeadline {
             if let descriptor = try acquireLock(at: lockURL) {
                 defer { releaseLock(descriptor: descriptor, at: lockURL) }
+                // The signature lock can outlive its process. Persist the
+                // same owner evidence as the live-run lock so the next build
+                // can recover a dead holder without waiting for stale age.
+                try persistLockMetadata(
+                    ValidationCoordinatorLockMetadata(
+                        pid: runtime.currentProcessID(),
+                        createdAt: runtime.currentDate().timeIntervalSince1970,
+                        bootID: runtime.currentBootID()
+                    ),
+                    descriptor: descriptor,
+                    path: lockURL.path(percentEncoded: false)
+                )
                 return try collectSignature()
             }
 
