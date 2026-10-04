@@ -172,6 +172,10 @@
         "conclusion": "success"
       },
       {
+        "name": "Upload current public API contract",
+        "conclusion": "success"
+      },
+      {
         "name": "Validate Global DAG",
         "conclusion": "success"
       },
