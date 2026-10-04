@@ -119,7 +119,7 @@ consumer에는 `asyncFactory:`를 사용하고, throwing 비동기 provider를 �
 `asyncFactory:`로 생성되는 target을 거부합니다. `with:`, `@Multibinding`
 contributor, `@SubContainer` child input도 동기 parent member만 받습니다.
 
-## 타입으로 검사하는 동기 prewarm (차기 major 프로토타입)
+## 타입으로 검사하는 동기 prewarm (7.0 후보)
 
 `initialization: .onDemand`를 사용하는 동기 `.shared` provider가 있으면
 컨테이너에 중첩 `_InnoDIPrewarmProvider: Sendable` enum이 생성됩니다. Case 이름은
@@ -144,7 +144,7 @@ container.prewarm()
 
 타입 기반 메서드는 동기이며 오류를 던지거나 값을 반환하지 않습니다. 빈 선택은
 아무 작업도 하지 않습니다. 각 선택은 인자 순서대로 해당 provider에 직접
-전달됩니다. 이 다음 major prototype은 기존 key path overload를 대체합니다.
+전달됩니다. 7.0 후보는 기존 key path overload를 대체합니다.
 반복 선택과 컨테이너 복사본은 기존 shared cache를 재사용합니다. 선택한 factory가
 필요로 하지 않는 한, 선택하지 않은 provider는 생성되지 않습니다.
 
@@ -166,9 +166,8 @@ Enum과 타입 기반 메서드는 생성되는 initializer 및 `Overrides`처�
 `PrewarmProvider` alias는 생성하지 않으므로, 같은 이름의 기존 전역 또는 중첩
 payload 타입의 의미를 유지합니다. 고정 접두사 이름은 명시적 표기의 편의성과
 교환한 선택이며 모든 이름 충돌을 방지한다는 뜻은 아닙니다. Compiler-owned
-namespace에 사용자 이름을 만들지 마세요. 이 기능은 로컬 차기 major 프로토타입이며
-릴리스/API 검토와 지원 Apple toolchain 검증이 남아 있습니다. 릴리스 버전은 아직
-정하지 않았습니다.
+namespace에 사용자 이름을 만들지 마세요. 이 API는 미출시 7.0 후보에 포함되며,
+공개 API baseline 검토와 지원 Apple toolchain 검증이 남아 있습니다.
 
 ## 비동기 shared 수명
 
@@ -237,8 +236,10 @@ eager 비동기 consumer는 여전히 초기화 중에 시작하므로, 그 cons
 on-demand provider도 그때 생성됩니다.
 
 읽을 때마다 새 값을 만들어야 한다면 `asyncFactory:`를 쓰는 `.transient`
-provider를 선택하세요. 명시적 준비나 재시도까지 필요하다면
-``DIAsyncScope``를 `@Input`으로 주입하세요.
+provider를 선택하세요. 그 transient 사용 사례에 custom 수명 adapter가 필요하면
+``DIAsyncScope``를 `@Input`으로 주입하세요. 지원되는 shared graph에는
+`generateOwned: true`로 typed preparation, retry와 명시적 close를 추가할 수
+있습니다. <doc:OwnedContainers>를 참고하세요.
 
 ## See Also
 
@@ -256,3 +257,5 @@ provider를 선택하세요. 명시적 준비나 재시도까지 필요하다면
 closure를 받도록 generic adapter를 바꿔야 합니다. 지원하지 않는 provider는
 런타임 `DIPrewarmError` 대신 컴파일 단계에서 거부됩니다. Reflection 기반 변환이나
 key path resolver fallback은 제공하지 않습니다.
+`InnoDI-Migrate`는 prewarm 호출을 재작성하지 않으므로 직접 옮기세요.
+`DIPrewarmError` 선언은 호환성을 위해 유지됩니다.

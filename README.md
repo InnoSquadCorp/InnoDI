@@ -372,7 +372,9 @@ change close, cancellation, retry, or container-copy lifetime contracts.
 
 Existing containers need no migration. Adoption adds one argument; do not
 mechanically reorder declarations or change the default across an app without
-reviewing side effects. This next-major prototype has no assigned release.
+reviewing side effects. This API is included in the unreleased 7.0 candidate;
+public API baseline review and supported Apple toolchain qualification remain
+pending.
 
 
 In 6.0, generic component-mounting helpers must distinguish the two marker

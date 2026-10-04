@@ -130,7 +130,7 @@ a closed provider, so it always has the `async throws` consumer effect.
 targets constructed by `asyncFactory:`. `with:`, `@Multibinding` contributors,
 and `@SubContainer` child inputs also require synchronous parent members.
 
-## Typed Synchronous Prewarming (Next-major Prototype)
+## Typed Synchronous Prewarming (7.0 Candidate)
 
 A container with synchronous `.shared` providers using
 `initialization: .onDemand` generates a nested `_InnoDIPrewarmProvider: Sendable` enum.
@@ -155,7 +155,7 @@ container.prewarm()
 
 The typed method is synchronous, nonthrowing, and returns no value. An empty
 selection does nothing. Each selection dispatches directly to its provider in
-argument order. The next-major prototype replaces the key-path overload.
+argument order. The 7.0 candidate replaces the key-path overload.
 Repeated selections and container copies reuse the existing shared cache.
 Unselected providers stay lazy unless a selected factory needs them.
 
@@ -178,9 +178,9 @@ container declarations using it receive `container.reserved-name-prefix`.
 No `PrewarmProvider` alias is generated, so ordinary global or nested payload
 types with that name keep their meaning. The fixed prefixed spelling is an
 explicit usability tradeoff, not a claim of universally collision-proof naming;
-do not author names in the compiler-owned namespace. This is a local next-major
-prototype with release/API review and supported-Apple-toolchain qualification
-pending; no release version is assigned.
+do not author names in the compiler-owned namespace. This API is included in
+the unreleased 7.0 candidate; public API baseline review and supported Apple
+toolchain qualification remain pending.
 
 ## Asynchronous Shared Lifetime
 
@@ -252,7 +252,9 @@ constructs every on-demand provider it depends on at that time.
 
 Choose a `.transient` provider with `asyncFactory:` when every read should
 construct a fresh value. Inject a ``DIAsyncScope`` as an `@Input` when
-construction also needs explicit preparation or retry.
+that transient use case needs a custom lifecycle adapter. For supported shared
+graphs, `generateOwned: true` adds typed preparation, retry and explicit close;
+see <doc:OwnedContainers>.
 
 ## See Also
 
@@ -270,3 +272,5 @@ not convert automatically. Store the concrete container's generated token type,
 or redesign the generic adapter around an explicit warming closure. Unsupported
 providers now fail at compilation instead of throwing `DIPrewarmError` at runtime.
 There is no reflection-based conversion or fallback key-path resolver.
+`InnoDI-Migrate` does not rewrite prewarm calls; apply this migration by hand.
+`DIPrewarmError` remains declared for compatibility.

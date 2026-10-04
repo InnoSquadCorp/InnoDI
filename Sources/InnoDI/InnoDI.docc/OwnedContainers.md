@@ -3,6 +3,9 @@
 Opt in to a generated owner when asynchronous shared providers need explicit
 preparation, cancellation, retry, and shutdown.
 
+These APIs are included in the unreleased 7.0 candidate. Public API baseline
+review and supported Apple toolchain qualification remain pending.
+
 ## Opt In at the Declaration
 
 `generateOwned: true` is available on both `@DIContainer` and `@DIContainerRole`.
@@ -219,7 +222,7 @@ do not gain an unconditional `Sendable` conformance. Async factory captures and
 payloads remain compiler-checked, including synchronous on-demand cells captured
 by asynchronous factories.
 
-This prototype requires `validateDAG: true`. It supports inputs, synchronous and
+Owned construction requires `validateDAG: true`. It supports inputs, synchronous and
 asynchronous shared providers with eager/on-demand initialization, synchronous
 transient providers, eligible synchronous Lazy/Provider edges, and plain shared
 children. It explicitly diagnoses async transient providers, assisted
@@ -228,7 +231,7 @@ feature-root helpers, custom global actors, and
 per-member actor isolation outside a MainActor container.
 Unknown custom-actor attribute spellings may fail in generated-code compiler
 diagnostics rather than an InnoDI-specific diagnostic; custom actors are not
-qualified by this prototype. Use the existing container API for unsupported shapes. See
+supported by this candidate. Use the existing container API for unsupported shapes. See
 <doc:DiagnosticsGuide> and <doc:AsyncPreparation>.
 
 Self inside an input type keeps its original container identity through a

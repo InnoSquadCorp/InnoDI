@@ -133,7 +133,8 @@ shared의 transient hard dependency, provider의 child-container 의존성을
 
 기존 container는 migration이 필요하지 않습니다. 도입에는 인자 하나를 추가하며,
 부수효과 검토 없이 선언을 자동 재배치하거나 앱 전체의 기본값을 바꾸지 마세요.
-차기 major prototype이며 출시 버전은 아직 정하지 않았습니다.
+이 API는 미출시 7.0 후보에 포함되며, 공개 API baseline 검토와 지원 Apple
+toolchain 검증이 남아 있습니다.
 
 ## See Also
 

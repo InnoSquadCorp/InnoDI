@@ -2,6 +2,12 @@
 
 Prepared 2026-10-02 UTC. This is an execution plan and a local review proposal, not an Apple validation result.
 
+The proposal below is a historical preparation record. Its workflow and consumer
+changes are now included in the 7.0 preparation branch, rebased onto the newer CI
+policy. Use the [current release-readiness checklist](../reviews/7.0.0-release-readiness.md)
+for included APIs and outstanding final-head evidence. The old source identities
+and statements about an unapplied proposal below do not identify the current PR.
+
 ## Decision and scope
 
 The adopted feature checkpoint still needs Apple qualification. The existing Apple lanes already discover the added external consumer directories, compile the real macro plugin, and enforce strict concurrency. Two targeted additions are warranted:

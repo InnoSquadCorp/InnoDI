@@ -3,6 +3,9 @@
 비동기 shared provider의 준비, 취소, 재시도, 종료를 명시적으로 관리할 때
 생성되는 owner를 opt-in으로 사용합니다.
 
+이 API는 미출시 7.0 후보에 포함되며, 공개 API baseline 검토와 지원 Apple
+toolchain 검증이 남아 있습니다.
+
 ## 선언에서 Opt In
 
 `@DIContainer`와 `@DIContainerRole` 모두 `generateOwned: true`를 지원합니다.
@@ -202,13 +205,13 @@ view에 무조건적인 `Sendable`을 추가하지 않습니다. Async factory�
 payload는 컴파일러가 검사하며, 비동기 factory가 잡는 동기 on-demand cell에도
 이 검사가 적용됩니다.
 
-현재 prototype은 `validateDAG: true`가 필요합니다. Input, eager/on-demand 동기 및
+Owned 생성에는 `validateDAG: true`가 필요합니다. Input, eager/on-demand 동기 및
 비동기 shared provider, 동기 transient provider, 조건에 맞는 동기 Lazy/Provider edge,
 일반 shared child를 지원합니다. Async transient provider, assisted input/factory,
 collection/multibinding provider, transient child, feature-root helper, custom global actor, MainActor
 컨테이너 밖의 member별 actor 격리는 지원하지 않습니다. 알 수 없는 custom-actor
 attribute 이름은 InnoDI 전용 진단 대신 생성 코드의 compiler 진단으로 실패할 수
-있으며, 이 prototype의 검증된 지원 범위가 아닙니다. 지원하지 않는 형태에는 기존
+있으며, 이 후보의 지원 범위가 아닙니다. 지원하지 않는 형태에는 기존
 컨테이너 API를 사용하세요.
 <doc:DiagnosticsGuide>와 <doc:AsyncPreparation>도 참고하세요.
 

@@ -17,7 +17,14 @@ Current development train: `7.0.0` (unreleased)
 needs a Swift 6.2 compiler canary result, which this train does not have, so
 that change moves to 8.0.
 
-### Next-major prototype (release unassigned)
+### Macro-first API scope for the 7.0 candidate
+
+The following APIs are included in the unreleased 7.0 candidate. Public API
+baseline review and supported Apple toolchain qualification remain release
+requirements; inclusion here does not mean those gates have passed.
+Owned construction, preparation, initialization ordering and override helpers
+are additive or opt-in. Typed synchronous prewarming replaces the existing
+key-path method and requires the source migration listed below.
 
 - Owned async graphs gain `withPrepared`: selected readiness gates the consumer
   operation, and close is awaited on success, preparation failure and operation
@@ -69,7 +76,7 @@ that change moves to 8.0.
 - Containers with synchronous on-demand shared providers gain a generated
   `_InnoDIPrewarmProvider: Sendable` selection enum and nonthrowing
   `prewarm(.provider, ...)` method. Direct switch dispatch preserves selected
-  order, caching, and isolation without a runtime registry. This prototype
+  order, caching, and isolation without a runtime registry. The 7.0 candidate
   replaces throwing key-path selections; empty calls are nonthrowing no-ops.
   Migrate simple `try prewarm(\Container.service)` calls to `prewarm(.service)`.
   Dynamic/generic `PartialKeyPath` adapters require explicit token or closure
@@ -194,6 +201,13 @@ that change moves to 8.0.
   Xcode 26.6, where the root package builds SwiftSyntax from source as before.
 
 ### Breaking or Behavior Changes
+
+- Generated synchronous `prewarm` accepts only the container's typed provider
+  selections and is nonthrowing. The `PartialKeyPath` overload is removed;
+  unsupported providers now fail at compilation. `DIPrewarmError` remains
+  declared for compatibility but is no longer thrown by generated prewarming.
+  This is a 6.x-to-7.0 source break, including for dynamic and generic key-path
+  adapters; `InnoDI-Migrate` does not rewrite these calls.
 
 - The macOS floor is 14. `DIContainerHostOwner` is an `@Observable` class
   instead of an `ObservableObject`, so its `objectWillChange` and `$phase`
@@ -347,6 +361,26 @@ that change moves to 8.0.
   7.0 rules. No action is required.
 
 ### Upgrade Actions
+
+- Replace literal key-path prewarming such as
+  `try container.prewarm(\FeatureContainer.metrics)` with
+  `container.prewarm(.metrics)`, and remove `try` from empty calls. Adapt
+  dynamic/generic key-path consumers by hand to concrete generated tokens or
+  explicit warming closures. See the [migration guide](Sources/InnoDI/InnoDI.docc/MigrationGuide.md).
+
+- Adopt `generateOwned: true` only where explicit async lifetime control is
+  needed. Use `makeOwned`/`makeOwnedWithOverrides` with explicit `close()`, or
+  `withPrepared` for one prepared operation. The dependency view has a distinct
+  nominal type; existing container methods, conformances and key paths do not
+  transfer. Rename authored `makeOwned`/`makeOwnedWithOverrides` declarations
+  when opting in, and `withPrepared` when the owned graph has async providers.
+  Existing initializer call sites and non-owned graphs need no such migration.
+
+- Existing override assignments remain valid. Prefer
+  `overrides.set(\.optional, to: nil)` for an explicit optional-nil replacement;
+  assigning `nil` to the slot or calling `useDefault` enables its live default.
+  Pass `preset.applyValidated` to a throwing override builder when strict
+  preflight of marked effects is required. Unmarked effects are not verified.
 
 - Rewrite named-root parent key paths to `\Self.member`. `\Self.member` also
   compiles with 6.0, so this can land before the upgrade. Run the read-only
