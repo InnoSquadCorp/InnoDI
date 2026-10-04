@@ -8,8 +8,8 @@ import Testing
 /// migration adds `import SwiftUI` wherever a file relied on the re-export.
 @Suite("SwiftUI import migration")
 struct SwiftUIImportMigrationTests {
-    private func migrated(_ source: String) -> String {
-        addingSwiftUIImportForInnoDISwiftUI(to: Parser.parse(source: source)).description
+    private func migrated(_ source: String, access: MigrationSwiftUIImportAccess? = nil) -> String {
+        addingSwiftUIImportForInnoDISwiftUI(to: Parser.parse(source: source), access: access).description
     }
 
     @Test("A file that imports only InnoDISwiftUI gains import SwiftUI once")
@@ -68,7 +68,7 @@ struct SwiftUIImportMigrationTests {
         for level in ["public", "package", "internal", "fileprivate", "private"] {
             let source = "\(level) import InnoDISwiftUI\n\nlet value = 1\n"
             let expected = "\(level) import InnoDISwiftUI\n\(level) import SwiftUI\n\nlet value = 1\n"
-            #expect(migrated(source) == expected, Comment(rawValue: level))
+            #expect(migrated(source, access: level == "public" ? .public : nil) == expected, Comment(rawValue: level))
             #expect(migrated(expected) == expected, Comment(rawValue: level))
         }
     }
@@ -82,7 +82,7 @@ struct SwiftUIImportMigrationTests {
             ),
             (
                 "@_exported import InnoDISwiftUI\n// SwiftUI for the views\nimport SwiftUI\n",
-                "@_exported import InnoDISwiftUI\n// SwiftUI for the views\n@_exported import SwiftUI\n"
+                "@_exported import InnoDISwiftUI\n// SwiftUI for the views\n@_exported public import SwiftUI\n"
             ),
             (
                 "package import InnoDISwiftUI\n@preconcurrency internal import SwiftUI\n",
@@ -90,7 +90,7 @@ struct SwiftUIImportMigrationTests {
             ),
         ]
         for (source, expected) in cases {
-            #expect(migrated(source) == expected, Comment(rawValue: source))
+            #expect(migrated(source, access: source.hasPrefix("public ") ? .public : nil) == expected, Comment(rawValue: source))
             #expect(migrated(expected) == expected, Comment(rawValue: source))
         }
     }
@@ -134,7 +134,7 @@ struct SwiftUIImportMigrationTests {
             import SwiftUI
             #if DEBUG
             @_exported import InnoDISwiftUI
-            @_exported import SwiftUI
+            @_exported public import SwiftUI
             #endif
             """
         #expect(migrated(source) == expected)
@@ -152,7 +152,7 @@ struct SwiftUIImportMigrationTests {
         let source = "@_exported import InnoDISwiftUI\n\npublic let value = 1\n"
         #expect(
             migrated(source)
-                == "@_exported import InnoDISwiftUI\n@_exported import SwiftUI\n\npublic let value = 1\n"
+                == "@_exported import InnoDISwiftUI\n@_exported public import SwiftUI\n\npublic let value = 1\n"
         )
     }
 

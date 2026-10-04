@@ -10,17 +10,20 @@ public struct MigrationOptions: Sendable, Equatable {
     public let outputPath: String?
     /// Imported modules the user asserts declare no InnoDI-named attributes.
     public let trustedModules: [String]
+    public let swiftUIImportAccess: MigrationSwiftUIImportAccess?
 
     public init(
         rootPath: String,
         mode: MigrationMode,
         outputPath: String? = nil,
-        trustedModules: [String] = []
+        trustedModules: [String] = [],
+        swiftUIImportAccess: MigrationSwiftUIImportAccess? = nil
     ) {
         self.rootPath = rootPath
         self.mode = mode
         self.outputPath = outputPath
         self.trustedModules = trustedModules
+        self.swiftUIImportAccess = swiftUIImportAccess
     }
 }
 
@@ -33,6 +36,7 @@ public enum MigrationArgumentError: Error, Sendable, Equatable, CustomStringConv
     case outputRequiresReport
     case unexpectedArgument(String)
     case unknownOption(String)
+    case invalidSwiftUIImportAccess(String)
 
     public var description: String {
         switch self {
@@ -52,6 +56,8 @@ public enum MigrationArgumentError: Error, Sendable, Equatable, CustomStringConv
             "Unexpected positional argument: \(value)"
         case .unknownOption(let option):
             "Unknown option: \(option)"
+        case .invalidSwiftUIImportAccess(let value):
+            "Invalid SwiftUI import access '\(value)'; use internal or public."
         }
     }
 }
@@ -73,6 +79,7 @@ public func parseMigrationArguments(_ arguments: [String]) -> MigrationArgumentP
     var writeCount = 0
     var outputPath: String?
     var trustedModules: [String] = []
+    var swiftUIImportAccess: MigrationSwiftUIImportAccess?
     var index = 0
 
     while index < arguments.count {
@@ -119,6 +126,21 @@ public func parseMigrationArguments(_ arguments: [String]) -> MigrationArgumentP
                 return .failure(.missingOptionValue("--output"))
             }
             outputPath = arguments[valueIndex]
+            index += 2
+        case "--swiftui-import-access":
+            guard swiftUIImportAccess == nil else {
+                return .failure(.duplicateOption(argument))
+            }
+            let valueIndex = index + 1
+            guard arguments.indices.contains(valueIndex),
+                  !arguments[valueIndex].isEmpty,
+                  !arguments[valueIndex].hasPrefix("--") else {
+                return .failure(.missingOptionValue(argument))
+            }
+            guard let access = MigrationSwiftUIImportAccess(rawValue: arguments[valueIndex]) else {
+                return .failure(.invalidSwiftUIImportAccess(arguments[valueIndex]))
+            }
+            swiftUIImportAccess = access
             index += 2
         case "--trust-module":
             let valueIndex = index + 1
@@ -167,7 +189,8 @@ public func parseMigrationArguments(_ arguments: [String]) -> MigrationArgumentP
             rootPath: rootPath,
             mode: mode,
             outputPath: outputPath,
-            trustedModules: trustedModules
+            trustedModules: trustedModules,
+            swiftUIImportAccess: swiftUIImportAccess
         )
     )
 }

@@ -1,5 +1,20 @@
 import SwiftSyntax
 
+/// An explicit choice for SwiftUI imports when source syntax cannot establish
+/// their required access after InnoDISwiftUI stops re-exporting SwiftUI.
+public enum MigrationSwiftUIImportAccess: String, Sendable, Equatable {
+    case `internal`
+    case `public`
+
+    fileprivate var rank: Int { self == .public ? 4 : 2 }
+}
+
+func containsExplicitSwiftUIImport(in source: SourceFileSyntax) -> Bool {
+    let collector = ImportScopeCollector(viewMode: .sourceAccurate)
+    collector.walk(source)
+    return collector.hasExplicitSwiftUIImport
+}
+
 /// InnoDI 7.0 stops re-exporting SwiftUI from `InnoDISwiftUI`.
 ///
 /// A file that imports `InnoDISwiftUI` saw every SwiftUI name through it, at
@@ -7,16 +22,19 @@ import SwiftSyntax
 /// clients too. Without SwiftUI's names the file fails to compile, including
 /// the `SwiftUI.` qualifiers in generated feature-root helpers and
 /// environment bridges. This rule gives such a file a full `import SwiftUI`
-/// with the same visibility: it raises an existing one to the access level
-/// and `@_exported` attribute the `InnoDISwiftUI` import had, or inserts one
-/// right after that import. A scoped import such as `import struct
+/// with compatible visibility, or asks for an explicit access choice where
+/// the removed re-export and compiler import defaults make that ambiguous.
+/// Exported imports always get explicit public access. A scoped import such as `import struct
 /// SwiftUI.Text`, or one inside an `#if` clause the `InnoDISwiftUI` import is
 /// not in, does not provide every SwiftUI name, so it never counts. An
 /// `InnoDISwiftUI` import inside an `#if` clause gets its SwiftUI import in the
 /// same clause unless an enclosing scope already provides one. The rule is
 /// idempotent.
 func addingSwiftUIImportForInnoDISwiftUI(
-    to source: SourceFileSyntax
+    to source: SourceFileSyntax,
+    access: MigrationSwiftUIImportAccess? = nil,
+    hasOtherExplicitSwiftUIImports: Bool = false,
+    onAmbiguousAccess: ((String) -> Void)? = nil
 ) -> SourceFileSyntax {
     let collector = ImportScopeCollector(viewMode: .sourceAccurate)
     collector.walk(source)
@@ -28,14 +46,29 @@ func addingSwiftUIImportForInnoDISwiftUI(
     // import planned for it, is settled before the clauses it contains.
     for scope in collector.scopes {
         guard let anchor = scope.innoDISwiftUIImports.first else { continue }
-        let required = scope.innoDISwiftUIImports.dropFirst().reduce(anchor.visibility) {
+        var required = scope.innoDISwiftUIImports.dropFirst().reduce(anchor.visibility) {
             $0.union($1.visibility)
+        }
+        if required.exported {
+            // @_exported requires public access even with InternalImportsByDefault.
+            required.accessRank = 4
+        } else if let access {
+            required.accessRank = access.rank
         }
         let provided = collector.chain(of: scope.id).flatMap { id -> [SwiftUIImportVisibility] in
             (collector.scopes.first { $0.id == id }?.fullSwiftUIImports.map(\.visibility) ?? [])
                 + (planned[id] ?? [])
         }
         if provided.contains(where: { $0.satisfies(required) }) { continue }
+        if access == nil, !required.exported {
+            let wouldPromoteToPublic = required.accessRank == 4
+            let unspecifiedWithExplicitImport = required.accessRank == nil
+                && (collector.hasExplicitSwiftUIImport || hasOtherExplicitSwiftUIImports)
+            if wouldPromoteToPublic || unspecifiedWithExplicitImport {
+                onAmbiguousAccess?("Cannot infer SwiftUI import access from source alone after removing the InnoDISwiftUI re-export. Keeping a lower access can break public API; promoting to public can introduce unused-import warnings, and an implicit import can conflict with explicit imports in another file. Review this migration root and rerun with --swiftui-import-access internal or --swiftui-import-access public. Exported imports always remain public. No files were written.")
+                return source
+            }
+        }
         if let existing = scope.fullSwiftUIImports.first {
             upgrades[existing.offset] = required
         } else {
@@ -65,7 +98,6 @@ struct SwiftUIImportVisibility: Equatable {
 
     fileprivate static let accessKeywords: [Keyword] = [.private, .fileprivate, .internal, .package, .public]
     private static let internalRank = 2
-    private static let publicRank = 4
 
     var accessKeyword: Keyword? {
         accessRank.map { Self.accessKeywords[$0] }
@@ -82,8 +114,9 @@ struct SwiftUIImportVisibility: Equatable {
 
     /// Whether this import alone grants what `required` asks for. An
     /// unmodified import is `internal` or `public` depending on the build's
-    /// default, so it only stands in for `internal` and below, and only a
-    /// `public` or exported import stands in for an unmodified one.
+    /// default. Only known-public access covers both interpretations. When
+    /// raising to public could introduce a strict-build warning, planning asks
+    /// the caller for an explicit choice rather than erasing a modifier.
     func satisfies(_ required: Self) -> Bool {
         if required.exported && !exported { return false }
         if exported { return true }
@@ -93,7 +126,7 @@ struct SwiftUIImportVisibility: Equatable {
         case let (nil, requiredRank?):
             return requiredRank <= Self.internalRank
         case let (rank?, nil):
-            return rank == Self.publicRank
+            return rank == 4
         case let (rank?, requiredRank?):
             return rank >= requiredRank
         }
@@ -130,6 +163,7 @@ private struct ImportScope {
 /// `#if` clause, nested or not.
 private final class ImportScopeCollector: SyntaxVisitor {
     private(set) var scopes: [ImportScope] = []
+    private(set) var hasExplicitSwiftUIImport = false
     private var stack: [Int] = []
 
     func chain(of id: Int) -> [Int] {
@@ -163,6 +197,9 @@ private final class ImportScopeCollector: SyntaxVisitor {
             offset: node.position.utf8Offset,
             visibility: SwiftUIImportVisibility(node)
         )
+        if path.first == "SwiftUI", record.visibility.accessRank != nil {
+            hasExplicitSwiftUIImport = true
+        }
         if path.first == "InnoDISwiftUI" {
             scopes[index].innoDISwiftUIImports.append(record)
         } else if path == ["SwiftUI"], node.importKindSpecifier == nil {
@@ -243,14 +280,29 @@ private final class SwiftUIImportRewriter: SyntaxRewriter {
             )
         }
         if !current.satisfies(SwiftUIImportVisibility(accessRank: required.accessRank, exported: false)) {
-            var modifiers: [DeclModifierSyntax] = required.accessKeyword.map {
-                [DeclModifierSyntax(name: .keyword($0, trailingTrivia: .space))]
-            } ?? []
-            for modifier in result.modifiers
-            where current.accessKeyword.map({ modifier.name.tokenKind != .keyword($0) }) ?? true {
-                modifiers.append(modifier)
+            let keyword = required.accessKeyword ?? .public
+            if let currentKeyword = current.accessKeyword,
+               let index = result.modifiers.firstIndex(where: {
+                   $0.name.tokenKind == .keyword(currentKeyword)
+               }) {
+                // Replace just the token kind. Newlines and comments can be
+                // attached to either side of this modifier and must survive.
+                let modifier = result.modifiers[index]
+                result.modifiers[index] = modifier.with(
+                    \.name, modifier.name.with(\.tokenKind, .keyword(keyword))
+                )
+            } else {
+                // The newline separating an attribute from `import` belongs
+                // to the import token. Move it in front of the new modifier,
+                // otherwise `@preconcurrency` and `public` can join into one
+                // syntactically valid but unknown attribute name.
+                let separator = result.importKeyword.leadingTrivia
+                result.importKeyword.leadingTrivia = []
+                let modifier = DeclModifierSyntax(
+                    name: .keyword(keyword, leadingTrivia: separator, trailingTrivia: .space)
+                )
+                result.modifiers = DeclModifierListSyntax([modifier] + Array(result.modifiers))
             }
-            result.modifiers = DeclModifierListSyntax(modifiers)
         }
         return result.with(\.leadingTrivia, leadingTrivia)
     }
@@ -282,8 +334,15 @@ private final class SwiftUIImportRewriter: SyntaxRewriter {
                 semicolon: .semicolonToken(trailingTrivia: nextOnSameLine ? .space : [])
             )
         }
-        let indentation = anchor.leadingTrivia.pieces.reversed().prefix { !$0.isNewline }
-        importDecl.leadingTrivia = Trivia(pieces: [newline] + indentation.reversed())
+        let linePrefix = anchor.leadingTrivia.pieces.reversed()
+            .prefix { !$0.isNewline }.reversed()
+        let indentation = linePrefix.prefix { piece in
+            switch piece {
+            case .spaces, .tabs: true
+            default: false
+            }
+        }
+        importDecl.leadingTrivia = Trivia(pieces: [newline] + indentation)
         return CodeBlockItemSyntax(item: .decl(DeclSyntax(importDecl)))
     }
 

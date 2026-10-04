@@ -106,15 +106,29 @@ itself. That includes a file whose only SwiftUI use is generated code: a
 SwiftUI. Without the import, such a file fails with errors such as
 `cannot find type 'Text' in scope`.
 
-`InnoDI-Migrate` gives each file that imports `InnoDISwiftUI` a full
-`import SwiftUI` with the same visibility. It inserts one after the
-`InnoDISwiftUI` import with that import's access level, and an
-`@_exported import InnoDISwiftUI` gets an `@_exported import SwiftUI`, so the
-file's own clients keep seeing SwiftUI. An existing `import SwiftUI` is raised
-to that visibility instead. A scoped import such as `import struct
-SwiftUI.Text`, or one inside an `#if` clause, does not provide every SwiftUI
-name, so such a file still gains a full import. The rule reruns cleanly, and
-the same commands shown above cover it.
+`InnoDI-Migrate` adds a full SwiftUI import in the matching conditional scope
+and preserves import attributes, comments and indentation. A scoped import
+such as `import struct SwiftUI.Text` does not provide every SwiftUI name.
+An exported InnoDISwiftUI import gains `@_exported public import SwiftUI`, so
+clients keep seeing SwiftUI under either import-default compiler setting.
+
+Source syntax alone cannot always choose the right access level: implicit
+access can conflict with an explicit import in another file, while an unused
+`public import` can fail a warnings-as-errors build. In those cases the
+`migrate.swiftui-import-access-ambiguous` diagnostic blocks every write.
+Review the target's SwiftUI uses and select access explicitly for that root:
+
+```bash
+swift run InnoDI-Migrate --root /path/to/target-sources --write --swiftui-import-access internal
+```
+
+Use `public` instead when SwiftUI types appear in public API. Existing adequate
+imports are not downgraded; exported imports always remain public. The choice
+applies to that migration root, which has no authoritative target map, so use
+a narrower root when different targets need different choices. Rebuild with
+the consumer's normal import-default and warning settings after migration.
+The rule remains idempotent; a successful source rewrite is not a substitute
+for the compiler's type and access checks.
 
 ### macOS 14 and an Observation-based host owner
 

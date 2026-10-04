@@ -11,6 +11,13 @@ Current development train: `7.0.0` (unreleased)
 
 ## Unreleased
 
+- SwiftUI import migration preserves modifier/attribute trivia and comments,
+  and keeps exported imports explicitly public. Ambiguous access now blocks
+  writes with `migrate.swiftui-import-access-ambiguous`; use
+  `--swiftui-import-access internal|public` after reviewing the target's public
+  API and warning settings. It no longer removes an explicit modifier based
+  on an unknown import default or silently guesses wider visibility.
+
 7.0.0 supersedes 6.0.0. The 6.0.0 release stays published and immutable;
 7.0.0 is the next major version and carries the breaking changes below.
 `ContainerRole` stays a string-backed token in 7.0: returning it to an enum

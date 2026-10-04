@@ -327,6 +327,8 @@ enum MigrationRule {
 final class InnoDISourceMigrationRewriter: SyntaxRewriter {
     private let path: String
     private let attributeContext: UnqualifiedInnoDIAttributeContext
+    private let swiftUIImportAccess: MigrationSwiftUIImportAccess?
+    private let hasOtherExplicitSwiftUIImports: Bool
     private var migratableProvideOffsets: Set<Int> = []
     private(set) var diagnostics: [MigrationDiagnostic] = []
     /// Rules whose rewrite changed this file, for the migration report.
@@ -334,10 +336,14 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
 
     init(
         path: String,
-        attributeContext: UnqualifiedInnoDIAttributeContext
+        attributeContext: UnqualifiedInnoDIAttributeContext,
+        swiftUIImportAccess: MigrationSwiftUIImportAccess? = nil,
+        hasOtherExplicitSwiftUIImports: Bool = false
     ) {
         self.path = path
         self.attributeContext = attributeContext
+        self.swiftUIImportAccess = swiftUIImportAccess
+        self.hasOtherExplicitSwiftUIImports = hasOtherExplicitSwiftUIImports
         super.init(viewMode: .sourceAccurate)
     }
 
@@ -406,7 +412,15 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
                 )
             )
         }
-        let imported = addingSwiftUIImportForInnoDISwiftUI(to: rewritten)
+        let imported = addingSwiftUIImportForInnoDISwiftUI(
+            to: rewritten,
+            access: swiftUIImportAccess,
+            hasOtherExplicitSwiftUIImports: hasOtherExplicitSwiftUIImports
+        ) { message in
+            diagnostics.append(MigrationDiagnostic(
+                code: "migrate.swiftui-import-access-ambiguous", path: path, message: message
+            ))
+        }
         if imported.description != rewritten.description {
             appliedRules.insert(MigrationRule.swiftUIImport)
         }

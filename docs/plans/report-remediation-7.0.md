@@ -148,3 +148,24 @@ baseline in a separate recovery checkout. Earlier results above are historical
 observations, not verification of this restored checkout. Relevant regressions
 will be rerun after restoring the toolchain and reviewed patch. The original
 workspace was not overwritten or cleaned.
+
+## Stage 1: import access and trivia
+
+P1-04/05/06 and P2-13c are addressed by the first migration correction. A
+source-only migrator cannot infer whether SwiftUI types occur in public API:
+keeping internal can narrow the removed re-export, while unconditional public
+promotion can produce `UnusedImportAccess` under warnings-as-errors. Ambiguous
+cases therefore retain the source and block writes with a targeted diagnostic;
+`--swiftui-import-access internal|public` records the operator's explicit choice
+for that root. Exported imports always use explicit public access. This is an
+intentional refinement of the original automatic-visibility plan, supported by
+old/new module and downstream-client compiler controls.
+
+The initial source reproduced 14 assertion/compiler issues. Its first proposed
+fix was rejected by independent review for public API narrowing and invalid
+`@_exported internal` output; those observations are preserved. The revised
+portable suite runs the exact transformation and existing trivia/conditional
+tests, plus before/after public API and strict internal-only consumer builds
+under both import-default modes. Native Darwin `--write`/rollback qualification
+remains covered by committed tests for the subsequent Apple CI run. Do not
+interpret the portable subset as a full migration package pass.

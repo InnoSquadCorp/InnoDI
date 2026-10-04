@@ -103,14 +103,28 @@ InnoDI는 계속 re-export하지만, SwiftUI를 쓰는 파일은 SwiftUI를 직�
 한정한 이름으로 확장되고, 이 이름은 파일이 SwiftUI를 import할 때만 해석됩니다.
 import가 없으면 `cannot find type 'Text' in scope` 같은 오류로 실패합니다.
 
-`InnoDI-Migrate`는 `InnoDISwiftUI`를 import하는 각 파일에 같은 가시성의 전체
-`import SwiftUI`를 둡니다. `InnoDISwiftUI` import 뒤에 그 import와 같은 접근
-수준으로 추가하고, `@_exported import InnoDISwiftUI`에는
-`@_exported import SwiftUI`를 추가하므로 그 파일의 client도 계속 SwiftUI를
-봅니다. 이미 `import SwiftUI`가 있으면 그 import를 같은 가시성으로 올립니다.
-`import struct SwiftUI.Text` 같은 범위 import나 `#if` 안의 import는 SwiftUI의
-모든 이름을 제공하지 않으므로, 이런 파일에도 전체 import를 추가합니다. 이
-규칙은 다시 실행해도 결과가 같고, 위의 명령으로 함께 처리됩니다.
+`InnoDI-Migrate`는 같은 조건부 범위에 전체 SwiftUI import를 추가하고 import의
+attribute, 주석, 들여쓰기를 보존합니다. `import struct SwiftUI.Text` 같은 범위
+import는 SwiftUI의 모든 이름을 제공하지 않습니다. Exported InnoDISwiftUI
+import에는 `@_exported public import SwiftUI`를 추가하여 import 기본값 설정과
+관계없이 client가 계속 SwiftUI를 볼 수 있게 합니다.
+
+소스 문법만으로 접근 수준을 정할 수 없는 경우가 있습니다. 암시적 접근 수준은
+다른 파일의 명시적 import와 충돌하고, 쓰지 않는 `public import`는
+warnings-as-errors 빌드에서 실패할 수 있습니다. 이때는
+`migrate.swiftui-import-access-ambiguous` 진단으로 모든 쓰기를 차단합니다.
+타깃의 SwiftUI 사용을 검토한 뒤 해당 root에 적용할 접근 수준을 선택하세요.
+
+```bash
+swift run InnoDI-Migrate --root /path/to/target-sources --write --swiftui-import-access internal
+```
+
+공개 API에 SwiftUI 타입이 나타나면 `public`을 선택하세요. 이미 충분한 접근
+수준의 import는 낮추지 않으며 exported import는 항상 public으로 유지합니다.
+선택은 해당 migration root에 적용되고 도구는 타깃 구성을 알 수 없으므로,
+타깃마다 선택이 다르면 더 좁은 root를 사용하세요. 변환 후에는 소비자의 원래
+import 기본값과 경고 설정으로 빌드하세요. 변환은 다시 실행해도 결과가 같지만,
+소스 변환 성공이 컴파일러의 타입·접근 검사를 대신하지는 않습니다.
 
 ### macOS 14와 Observation 기반 host owner
 
