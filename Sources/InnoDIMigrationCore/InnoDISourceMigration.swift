@@ -6,7 +6,8 @@ import SwiftSyntax
 extension InnoDIMigrator {
     func unqualifiedInnoDIAttributeContext(
         in source: SourceFileSyntax,
-        additionalAmbiguousNames: Set<String>
+        additionalAmbiguousNames: Set<String>,
+        reexportedUntrustedModules: [String: Set<String>] = [:]
     ) -> UnqualifiedInnoDIAttributeContext {
         let topLevelImportOffsets = Set(
             source.statements.compactMap { item in
@@ -23,20 +24,29 @@ extension InnoDIMigrator {
             ambiguousNames: collector.conditionalImportNames
                 .union(collector.untrustedImportNames)
                 .union(additionalAmbiguousNames),
-            untrustedModules: collector.untrustedModules.sorted()
+            untrustedModulesByName: collector.untrustedModulesByName,
+            reexportedUntrustedModules: reexportedUntrustedModules
         )
     }
 
     func innoDIAttributeShadowNames(
         in source: SourceFileSyntax
     ) -> Set<String> {
+        innoDIAttributeShadowContext(in: source).names
+    }
+
+    func innoDIAttributeShadowContext(
+        in source: SourceFileSyntax
+    ) -> (names: Set<String>, modules: [String: Set<String>]) {
         let collector = InnoDIAttributeOwnershipCollector(
             topLevelImportOffsets: [],
             trustedModules: trustedModules
         )
         collector.walk(source)
-        return collector.shadowedNames
-            .union(collector.exportedUntrustedImportNames)
+        return (
+            collector.shadowedNames.union(collector.exportedUntrustedImportNames),
+            collector.exportedUntrustedModules
+        )
     }
 }
 
@@ -44,7 +54,12 @@ struct UnqualifiedInnoDIAttributeContext {
     let availableNames: Set<String>
     let ambiguousNames: Set<String>
     /// Imported modules that made InnoDI attribute names ambiguous.
-    var untrustedModules: [String] = []
+    var untrustedModulesByName: [String: Set<String>] = [:]
+    var reexportedUntrustedModules: [String: Set<String>] = [:]
+
+    var untrustedModules: [String] {
+        Set(untrustedModulesByName.values.flatMap { $0 }).sorted()
+    }
 
     func allows(_ name: String) -> Bool {
         availableNames.contains(name) && !ambiguousNames.contains(name)
@@ -79,7 +94,8 @@ private final class InnoDIAttributeOwnershipCollector: SyntaxVisitor {
     private(set) var untrustedImportNames: Set<String> = []
     private(set) var exportedUntrustedImportNames: Set<String> = []
     private(set) var shadowedNames: Set<String> = []
-    private(set) var untrustedModules: Set<String> = []
+    private(set) var untrustedModulesByName: [String: Set<String>] = [:]
+    private(set) var exportedUntrustedModules: [String: Set<String>] = [:]
     private let topLevelImportOffsets: Set<Int>
     private let trustedModules: Set<String>
 
@@ -93,13 +109,20 @@ private final class InnoDIAttributeOwnershipCollector: SyntaxVisitor {
         let importedNames = innoDIAttributeNames(importedBy: node)
         if importsUntrustedMacroNamespace(node) {
             if let module = node.path.first.map({ canonicalIdentifier($0.name) }) {
-                untrustedModules.insert(module)
+                for name in Self.innoDINames.union(Self.innoDISwiftUINames) {
+                    untrustedModulesByName[name, default: []].insert(module)
+                }
             }
             untrustedImportNames.formUnion(Self.innoDINames)
             untrustedImportNames.formUnion(Self.innoDISwiftUINames)
             if isExportedImport(node) {
                 exportedUntrustedImportNames.formUnion(Self.innoDINames)
                 exportedUntrustedImportNames.formUnion(Self.innoDISwiftUINames)
+                if let module = node.path.first.map({ canonicalIdentifier($0.name) }) {
+                    for name in Self.innoDINames.union(Self.innoDISwiftUINames) {
+                        exportedUntrustedModules[name, default: []].insert(module)
+                    }
+                }
             }
         } else if node.importKindSpecifier?.text == "macro",
                   let importedNameToken = node.path.last?.name,
@@ -107,8 +130,14 @@ private final class InnoDIAttributeOwnershipCollector: SyntaxVisitor {
             let importedName = canonicalIdentifier(importedNameToken)
             if Self.innoDISwiftUINames.contains(importedName) {
                 untrustedImportNames.insert(importedName)
+                if let module = node.path.first.map({ canonicalIdentifier($0.name) }) {
+                    untrustedModulesByName[importedName, default: []].insert(module)
+                }
                 if isExportedImport(node) {
                     exportedUntrustedImportNames.insert(importedName)
+                    if let module = node.path.first.map({ canonicalIdentifier($0.name) }) {
+                        exportedUntrustedModules[importedName, default: []].insert(module)
+                    }
                 }
             }
         }
@@ -169,8 +198,6 @@ private final class InnoDIAttributeOwnershipCollector: SyntaxVisitor {
                 return false
             }
             return canonicalIdentifier(identifier.name) == "_exported"
-        } || node.modifiers.contains {
-            canonicalIdentifier($0.name) == "public"
         }
     }
 
@@ -359,7 +386,9 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
                     path: path,
                     message: ownershipAmbiguityMessage(
                         names: ambiguityCollector.names.sorted(),
-                        untrustedModules: attributeContext.untrustedModules
+                        attributeNames: ambiguityCollector.attributeNames,
+                        untrustedModulesByName: attributeContext.untrustedModulesByName,
+                        reexportedModules: attributeContext.reexportedUntrustedModules
                     )
                 )
             )
@@ -417,8 +446,8 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
             access: swiftUIImportAccess,
             hasOtherExplicitSwiftUIImports: hasOtherExplicitSwiftUIImports
         ) { message in
-            diagnostics.append(MigrationDiagnostic(
-                code: "migrate.swiftui-import-access-ambiguous", path: path, message: message
+            self.diagnostics.append(MigrationDiagnostic(
+                code: "migrate.swiftui-import-access-ambiguous", path: self.path, message: message
             ))
         }
         if imported.description != rewritten.description {
@@ -1269,6 +1298,12 @@ private final class LegacyResidueCollector: SyntaxVisitor {
 private final class UnqualifiedLegacyAmbiguityCollector: SyntaxVisitor {
     private let attributeContext: UnqualifiedInnoDIAttributeContext
     private(set) var names: Set<String> = []
+    private(set) var attributeNames: Set<String> = []
+
+    private func record(_ name: String, description: String) {
+        attributeNames.insert(name)
+        names.insert(description)
+    }
 
     init(attributeContext: UnqualifiedInnoDIAttributeContext) {
         self.attributeContext = attributeContext
@@ -1281,11 +1316,11 @@ private final class UnqualifiedLegacyAmbiguityCollector: SyntaxVisitor {
         }
         let name = canonicalIdentifier(identifier.name)
         if name == "DIFeatureRoot", !attributeContext.allows(name) {
-            names.insert("@DIFeatureRoot")
+            record(name, description: "@DIFeatureRoot")
         } else if name == "SubContainer" || name == "SubContainerFactory",
                   !attributeContext.allows(name),
                   hasNonCanonicalParentKeyPath(node) {
-            names.insert("@\(name) parent key path")
+            record(name, description: "@\(name) parent key path")
         } else if name == "Provide",
                   !attributeContext.allows(name),
                   let arguments = node.arguments?.as(LabeledExprListSyntax.self),
@@ -1297,12 +1332,12 @@ private final class UnqualifiedLegacyAmbiguityCollector: SyntaxVisitor {
             if arguments.contains(where: {
                 $0.label.map(canonicalIdentifier) == "concrete"
             }) {
-                names.insert("@Provide(concrete:)")
+                record(name, description: "@Provide(concrete:)")
             }
             if arguments.first(where: { $0.label == nil }).map({
                 isLegacyInputScopeExpression($0.expression)
             }) == true {
-                names.insert("@Provide(.input)")
+                record(name, description: "@Provide(.input)")
             }
         } else if name == "DIContainer",
                   !attributeContext.allows(name),
@@ -1311,10 +1346,10 @@ private final class UnqualifiedLegacyAmbiguityCollector: SyntaxVisitor {
                       let label = $0.label.map(canonicalIdentifier)
                       return label == "root" || label == "mainActor" || label == "isolation"
                   }) {
-            names.insert("@DIContainer(role/isolation:)")
+            record(name, description: "@DIContainer(role/isolation:)")
         } else if (name == "DIComponent" || name == "DIHierarchyRoot"),
                   !attributeContext.allows(name) {
-            names.insert("@\(name)")
+            record(name, description: "@\(name)")
         }
         return .visitChildren
     }
@@ -1474,9 +1509,17 @@ private func containsComment(_ syntax: some SyntaxProtocol) -> Bool {
 /// qualify the attributes or trust modules that declare no InnoDI names.
 private func ownershipAmbiguityMessage(
     names: [String],
-    untrustedModules: [String]
+    attributeNames: Set<String>,
+    untrustedModulesByName: [String: Set<String>],
+    reexportedModules: [String: Set<String>]
 ) -> String {
     let attributes = names.joined(separator: ", ")
+    let untrustedModules = Set(attributeNames.flatMap { untrustedModulesByName[$0, default: []] }).sorted()
+    let relevantReexports = Set(attributeNames.flatMap { reexportedModules[$0, default: []] })
+    if !relevantReexports.isEmpty {
+        let modules = Set(untrustedModules).union(relevantReexports).sorted().joined(separator: ", ")
+        return "Cannot prove that unqualified legacy attribute(s) \(attributes) belong to InnoDI, because imports or source-tree re-exports expose \(modules), which could declare attributes with the same names. Qualify the attributes with InnoDI., or rerun with --trust-module <name> for each listed module that declares no InnoDI-named attribute or macro; no files were written."
+    }
     guard !untrustedModules.isEmpty else {
         return "Cannot prove that unqualified legacy attribute(s) \(attributes) belong to InnoDI. Qualify them with their module before rerunning; no files were written."
     }

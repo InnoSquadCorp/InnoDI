@@ -76,7 +76,11 @@ extension InnoDIMigrator {
         // After the exchange this name owns the displaced directory entry.
         // Keep it even on success: a non-cooperating editor may still write
         // through an already-open descriptor after our last content check.
-        let temporaryName = ".innodi-migrate-recovery-\(file.name)-\(UUID().uuidString)"
+        // Keep a readable source hint without appending a UUID to an already
+        // NAME_MAX-sized basename. Decoding a split UTF-8 scalar can add at
+        // most two bytes; the complete recovery name remains below 150 bytes.
+        let sourceHint = String(decoding: file.name.utf8.prefix(80), as: UTF8.self)
+        let temporaryName = ".innodi-migrate-recovery-\(sourceHint)-\(UUID().uuidString)"
         let recoveryPath = (change.path as NSString).deletingLastPathComponent
         let relativeRecoveryPath = recoveryPath.isEmpty
             ? temporaryName : "\(recoveryPath)/\(temporaryName)"

@@ -923,8 +923,6 @@ private final class SourceImportCollector: SyntaxVisitor {
                 return false
             }
             return attribute.attributeName.trimmedDescription == "_exported"
-        } || node.modifiers.contains {
-            $0.name.text == "public"
         }
         entries.append(
             TargetAwareImportEntry(

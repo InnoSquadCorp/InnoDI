@@ -80,8 +80,14 @@ public struct InnoDIMigrator {
             )
         }
 
-        let rootShadowedNames = parsedSources.reduce(into: Set<String>()) { names, parsed in
-            names.formUnion(innoDIAttributeShadowNames(in: parsed.syntax))
+        var rootShadowedNames: Set<String> = []
+        var reexportedUntrustedModules: [String: Set<String>] = [:]
+        for parsed in parsedSources {
+            let context = innoDIAttributeShadowContext(in: parsed.syntax)
+            rootShadowedNames.formUnion(context.names)
+            for (name, modules) in context.modules {
+                reexportedUntrustedModules[name, default: []].formUnion(modules)
+            }
         }
         var changes: [MigrationFileChange] = []
         // This source-tree API has no authoritative target map. Treat an
@@ -93,7 +99,8 @@ public struct InnoDIMigrator {
         for parsed in parsedSources {
             let attributeContext = unqualifiedInnoDIAttributeContext(
                 in: parsed.syntax,
-                additionalAmbiguousNames: rootShadowedNames
+                additionalAmbiguousNames: rootShadowedNames,
+                reexportedUntrustedModules: reexportedUntrustedModules
             )
             let rewriter = InnoDISourceMigrationRewriter(
                 path: parsed.path,
