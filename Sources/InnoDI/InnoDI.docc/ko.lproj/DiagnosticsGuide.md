@@ -457,6 +457,9 @@ struct App {
   기존 멤버와 충돌합니다.
 - `swiftui.feature-root-invalid-alias` — feature-root alias 인자가
   유효한 Swift identifier로 파싱되지 않습니다.
+- `swiftui.feature-root-hosting-requires-bool` — `FeatureRoot(..., hosted:)`에는
+  literal `true` 또는 `false`가 필요합니다. `true`이면 컨테이너 파일에서 SwiftUI와
+  InnoDISwiftUI를 import하세요.
 - `swiftui.feature-root-invalid-root` — `featureRoot:` 또는 `featureRoots:`
   항목이 `RootView.self` 같은 root view 타입 표현식을 사용하지 않았습니다.
 - `swiftui.environment-bridge-unknown-member` — `@DIEnvironmentBridge`

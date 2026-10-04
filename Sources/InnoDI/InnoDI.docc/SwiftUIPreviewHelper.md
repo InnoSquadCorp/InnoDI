@@ -11,8 +11,23 @@ the preview should exercise the same generated accessor that production code
 uses. Keep the preview container local to the preview source file so override
 state does not leak across unrelated previews.
 
-Generated `@SubContainer(featureRoot:)` helpers expose the same ownership
-contract when the consumer imports `InnoDISwiftUI`:
+Request the generated host overload explicitly in the container source file:
+
+```swift
+import SwiftUI
+import InnoDISwiftUI
+import InnoDI
+
+// Inside the parent container:
+@SubContainer(scope: .shared, featureRoots: [FeatureRoot(DashboardRootView.self, hosted: true)])
+var dashboard: DashboardContainer
+```
+
+The opting-in file must import both modules; `canImport` only tests whether a
+module is discoverable and cannot establish file-level name visibility. Other
+feature roots emit only their zero-argument helper, regardless of which unrelated
+targets have already been built. Then use the generated host overload:
+
 
 ```swift
 parent.dashboardRootView(

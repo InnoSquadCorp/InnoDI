@@ -130,6 +130,16 @@ import 기본값과 경고 설정으로 빌드하세요. 변환은 다시 실행
 수준은 유지합니다. 소스 변환 성공이 컴파일러의 타입·접근 검사를 대신하지는
 않습니다.
 
+### Feature-root hosting 명시
+
+identity/close overload를 쓰려면
+`featureRoots: [FeatureRoot(RootView.self, hosted: true)]`로 요청하고 부모 컨테이너와
+같은 파일에서 `SwiftUI`, `InnoDISwiftUI`를 import하세요. 기존
+`featureRoot: RootView.self`와 host를 요청하지 않은 `FeatureRoot(...)`는 직접
+생성하는 0-argument helper를 유지합니다. 이전에는 모듈이 검색되기만 하면
+파일의 import 여부와 무관하게 host overload가 생겨 다른 타깃의 빌드 순서로
+소비자가 깨질 수 있었습니다. 마이그레이터는 앱이 host 소유권을 원하는지 추측하지 않습니다.
+
 ### macOS 14와 Observation 기반 host owner
 
 `InnoDISwiftUI`가 모든 플랫폼에서 Observation framework를 쓸 수 있도록 macOS

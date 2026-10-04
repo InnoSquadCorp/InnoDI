@@ -134,6 +134,17 @@ higher-access imports are retained.
 The rule remains idempotent; a successful source rewrite is not a substitute
 for the compiler's type and access checks.
 
+### Explicit feature-root hosting
+
+The identity/close overload now requires
+`featureRoots: [FeatureRoot(RootView.self, hosted: true)]`. Import `SwiftUI` and
+`InnoDISwiftUI` in the same file as the parent container. The old
+`featureRoot: RootView.self` and unhosted `FeatureRoot(...)` keep the direct
+zero-argument helper. Previously the host overload appeared whenever modules
+were discoverable, even in files that did not import them; unrelated build
+order could therefore break a non-hosted consumer. No source rewrite guesses
+whether the application wants host ownership.
+
 ### macOS 14 and an Observation-based host owner
 
 The macOS floor rises from 13 to 14 so `InnoDISwiftUI` can use the

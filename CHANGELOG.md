@@ -11,6 +11,14 @@ Current development train: `7.0.0` (unreleased)
 
 ## Unreleased
 
+- Feature-root host overloads now require `FeatureRoot(..., hosted: true)` and
+  explicit SwiftUI/InnoDISwiftUI imports in the container file. Plain roots no
+  longer gain code based on unrelated modules becoming discoverable. The old
+  `FeatureRoot(_:as:)` initializer remains available; see the migration guide.
+- Explicit MainActor and option-enabled containers now use one code-generation
+  isolation decision for override slots, callbacks, close, and component mount
+  witnesses, including child override forwarding.
+
 - Document and compile-test the existing caller-isolated async property syntax,
   `nonisolated(nonsending)`, including public consumers and owned views. No new
   resolver API is introduced. Targets with default MainActor isolation must

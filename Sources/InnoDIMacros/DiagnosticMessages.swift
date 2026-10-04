@@ -571,6 +571,13 @@ extension SimpleDiagnostic {
         )
     }
 
+    static func swiftUIFeatureRootHostingRequiresBool() -> Self {
+        Self(
+            "FeatureRoot hosted: requires a literal true or false. Use hosted: true only in a source file that imports SwiftUI and InnoDISwiftUI.",
+            code: .swiftUIFeatureRootHostingRequiresBool
+        )
+    }
+
     static func swiftUIEnvironmentBridgeUnknownMember(memberName: String) -> Self {
         Self(
             "@DIEnvironmentBridge references unknown container member '\(memberName)'.",

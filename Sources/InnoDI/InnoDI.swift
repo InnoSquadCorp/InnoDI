@@ -646,10 +646,22 @@ public enum SubContainerScope {
 public struct FeatureRoot {
     public let rootView: Any.Type
     public let alias: String?
+    /// Explicitly requests the identity/close host overload. Import both
+    /// SwiftUI and InnoDISwiftUI in the container's source file when true.
+    public let hosted: Bool
 
     public init(_ rootView: Any.Type, as alias: String? = nil) {
         self.rootView = rootView
         self.alias = alias
+        hosted = false
+    }
+
+    /// Hosting is opt-in, rather than inferred from modules discoverable in
+    /// the build directory. The existing zero-argument helper is also emitted.
+    public init(_ rootView: Any.Type, as alias: String? = nil, hosted: Bool) {
+        self.rootView = rootView
+        self.alias = alias
+        self.hosted = hosted
     }
 }
 

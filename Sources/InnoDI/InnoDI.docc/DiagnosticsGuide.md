@@ -460,6 +460,9 @@ Most frequently-hit codes:
   collides with an existing member.
 - `swiftui.feature-root-invalid-alias` — the feature-root alias argument
   cannot be parsed as a valid Swift identifier.
+- `swiftui.feature-root-hosting-requires-bool` — `FeatureRoot(..., hosted:)`
+  requires a literal `true` or `false`. For `true`, import SwiftUI and InnoDISwiftUI
+  in the container source file.
 - `swiftui.feature-root-invalid-root` — a `featureRoot:` or `featureRoots:`
   entry does not use a root view type expression such as `RootView.self`.
 - `swiftui.environment-bridge-unknown-member` — `@DIEnvironmentBridge`

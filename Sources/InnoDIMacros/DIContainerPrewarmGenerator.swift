@@ -49,7 +49,7 @@ func makeTypedPrewarmDecls(model: DIContainerExpansionModel) -> [DeclSyntax] {
         ))
     }
     let prewarm = FunctionDeclSyntax(
-        attributes: model.options.mainActor ? mainActorAttributeList() : AttributeListSyntax([]),
+        attributes: model.isMainActor ? mainActorAttributeList() : AttributeListSyntax([]),
         modifiers: accessModifiers(model.accessLevel),
         name: .identifier("prewarm"),
         signature: FunctionSignatureSyntax(

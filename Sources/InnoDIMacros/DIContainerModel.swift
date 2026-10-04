@@ -109,6 +109,7 @@ struct InvalidSubContainerBindingReference {
 struct FeatureRootMemberModel {
     let rootViewTypeName: String
     let alias: String?
+    let hosted: Bool
     let propertyName: String
     let anchorSyntax: Syntax
 
@@ -235,7 +236,9 @@ struct DIContainerExpansionModel {
     /// The original lexical Self, used only for types moved into owned support declarations.
     let explicitlyMainActor: Bool
 
-    var ownedMainActor: Bool { options.mainActor || explicitlyMainActor }
+    var isMainActor: Bool { options.mainActor || explicitlyMainActor }
+
+    var ownedMainActor: Bool { isMainActor }
 
     let options: DIContainerAttributeInfo
     let accessLevel: String?

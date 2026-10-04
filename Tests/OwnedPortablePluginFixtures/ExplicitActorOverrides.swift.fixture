@@ -128,9 +128,37 @@ final class LocalResult { let leaf: Payload; init(_ leaf: Payload) { self.leaf =
   print("selection identity/async/override/close passed")
  }
 
+
+@DIContainer struct OverrideChild {
+ @Input var seed: Int
+ @Provide(.shared, factory: { (seed: Int) in seed + 1 }) var number: Int
+}
+@MainActor @DIContainer struct ExplicitOverrideParent {
+ @Input var seed: Int
+ @SubContainer(scope: .shared, with: [\Self.seed]) var child: OverrideChild
+}
+@MainActor @DIContainerRole(role: ContainerRole.component) struct ExplicitComponent {
+ @Input var seed: Int
+ @Provide(.shared, factory: { (seed: Int) in seed + 1 }) var number: Int
+}
+@MainActor @DIContainerRole(role: ContainerRole.root) struct ExplicitRoot {
+ @Input var seed: Int
+ @SubContainer(scope: .shared, with: [\Self.seed]) var child: ExplicitComponent
+}
+@MainActor func checkChildOverrideIsolation() async {
+ let parent = ExplicitOverrideParent(seed: 1) { $0.childOverrides = { $0.number = 9 } }
+ precondition(parent.child.number == 9)
+ let value = await ExplicitOverrideParent.withOverrides(seed: 1, { $0.childOverrides = { $0.number = 10 } }) { graph async in graph.child.number }
+ precondition(value == 10)
+ let root = ExplicitRoot(seed: 1) { $0.childOverrides = { $0.number = 11 } }
+ precondition(root.child.number == 11)
+ print("explicit actor child overrides and component mounting passed")
+}
+
 @main struct Check {
  @MainActor static func main() async throws {
   try await checkNeither(); try await checkOption(); try await checkExplicit(); try await checkBoth()
+  await checkChildOverrideIsolation()
   print("explicit actor overrides four-form regression passed")
  }
 }

@@ -34,7 +34,7 @@ private func makeWithOverridesMethod(
     var modifiers = modifiersFromAccessLevel
     // An explicitly annotated enclosing type already isolates its generated
     // initializer. Do not override that inherited isolation on async helpers.
-    if isAsync && !model.options.mainActor && !model.explicitlyMainActor {
+    if isAsync && !model.isMainActor {
         modifiers.append(
             DeclModifierSyntax(
                 name: .keyword(.nonisolated),
@@ -82,7 +82,7 @@ private func makeWithOverridesMethod(
         firstName: .wildcardToken(),
         secondName: .identifier("_innoDIApplyOverrides"),
         colon: .colonToken(),
-        type: overrideApplyClosureType(isMainActor: model.options.mainActor),
+        type: overrideApplyClosureType(isMainActor: model.isMainActor),
         ellipsis: nil,
         defaultValue: nil,
         trailingComma: .commaToken()
@@ -91,7 +91,7 @@ private func makeWithOverridesMethod(
 
     // operation: (Self) [async] [throws] -> OperationResult
     var operationTypeDescription: String
-    if model.options.mainActor {
+    if model.isMainActor {
         operationTypeDescription = "@_Concurrency.MainActor (Self) "
     } else if isAsync {
         operationTypeDescription = "nonisolated(nonsending) (Self) "
@@ -212,7 +212,7 @@ private func makeWithOverridesMethod(
     statements.append(CodeBlockItemSyntax(item: .stmt(StmtSyntax(returnStmt))))
 
     let funcDecl = FunctionDeclSyntax(
-        attributes: model.options.mainActor ? mainActorAttributeList() : AttributeListSyntax([]),
+        attributes: model.isMainActor ? mainActorAttributeList() : AttributeListSyntax([]),
         modifiers: modifiers,
         name: .identifier("withOverrides"),
         genericParameterClause: genericParameterClause,

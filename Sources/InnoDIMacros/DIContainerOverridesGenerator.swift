@@ -64,7 +64,7 @@ internal func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclS
 
         let applyType = overrideApplyClosureType(
             overridesTypeDescription: "\(member.type.trimmedDescription).\(innoDIMountOverridesTypeName)",
-            isMainActor: model.options.mainActor,
+            isMainActor: model.isMainActor,
             isOptional: true
         )
         let applySlot = VariableDeclSyntax(
@@ -135,7 +135,7 @@ internal func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclS
             inheritedTypes: InheritedTypeListSyntax([
                 InheritedTypeSyntax(
                     type: TypeSyntax(
-                        stringLiteral: model.options.mainActor
+                        stringLiteral: model.isMainActor
                             ? "InnoDI.DIMainActorOverrideEffectValidating"
                             : "InnoDI.DIOverrideEffectValidating"
                     )
@@ -144,7 +144,7 @@ internal func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclS
         )
 
     let structDecl = StructDeclSyntax(
-        attributes: model.options.mainActor ? mainActorAttributeList() : AttributeListSyntax([]),
+        attributes: model.isMainActor ? mainActorAttributeList() : AttributeListSyntax([]),
         modifiers: modifiers,
         name: .identifier("Overrides"),
         inheritanceClause: inheritanceClause,
@@ -225,7 +225,7 @@ internal func makeOverridesConflictMountTypeDecl(
 ) -> DeclSyntax {
     DeclSyntax(
         StructDeclSyntax(
-            attributes: model.options.mainActor
+            attributes: model.isMainActor
                 ? mainActorAttributeList()
                 : AttributeListSyntax([]),
             modifiers: accessModifiers(model.accessLevel),
@@ -277,7 +277,7 @@ internal func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclS
     // isolation on the closure type as well as on the initializer:
     //   _ _innoDIApplyOverrides: [@MainActor] (inout Overrides) -> Void
     let overridesClosureType = overrideApplyClosureType(
-        isMainActor: model.options.mainActor
+        isMainActor: model.isMainActor
     )
     let closureParam = FunctionParameterSyntax(
         firstName: .wildcardToken(),
@@ -414,7 +414,7 @@ internal func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclS
     statements.append(CodeBlockItemSyntax(item: .expr(ExprSyntax(selfInitCall))))
 
     let initDecl = InitializerDeclSyntax(
-        attributes: model.options.mainActor ? mainActorAttributeList() : AttributeListSyntax([]),
+        attributes: model.isMainActor ? mainActorAttributeList() : AttributeListSyntax([]),
         modifiers: modifiers,
         signature: signature,
         body: CodeBlockSyntax(statements: CodeBlockItemListSyntax(statements))
@@ -450,7 +450,7 @@ internal func makeOverridesConflictRecoveryInitDecl(
             colon: .colonToken(),
             type: overrideApplyClosureType(
                 overridesTypeDescription: innoDIMountOverridesTypeName,
-                isMainActor: model.options.mainActor
+                isMainActor: model.isMainActor
             ),
             ellipsis: nil,
             defaultValue: nil,
@@ -461,7 +461,7 @@ internal func makeOverridesConflictRecoveryInitDecl(
     let loop: CodeBlockItemSyntax = "while true {}"
     return DeclSyntax(
         InitializerDeclSyntax(
-            attributes: model.options.mainActor
+            attributes: model.isMainActor
                 ? mainActorAttributeList()
                 : AttributeListSyntax([]),
             modifiers: modifiers,

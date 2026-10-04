@@ -10,8 +10,23 @@ SwiftUI feature root가 이미 InnoDI 컨테이너에서 나오고, preview가 p
 코드와 같은 생성 accessor를 실행해야 할 때 쓰세요. override 상태가 관계없는
 preview로 새지 않도록 preview 컨테이너는 preview 소스 파일 안에 두세요.
 
-생성된 `@SubContainer(featureRoot:)` helper는 consumer가 `InnoDISwiftUI`를
-import할 때 같은 소유권 계약을 노출합니다.
+컨테이너 소스 파일에서 host overload 생성을 명시적으로 요청하세요.
+
+```swift
+import SwiftUI
+import InnoDISwiftUI
+import InnoDI
+
+// 부모 컨테이너 안에서:
+@SubContainer(scope: .shared, featureRoots: [FeatureRoot(DashboardRootView.self, hosted: true)])
+var dashboard: DashboardContainer
+```
+
+요청한 파일은 두 모듈을 모두 import해야 합니다. `canImport`는 모듈의 탐색 가능성만
+확인하며 파일의 이름 가시성을 보장하지 않습니다. 다른 feature root는 관계없는
+타깃의 빌드 여부와 무관하게 0-argument helper만 생성합니다. 이제 host overload를
+호출할 수 있습니다.
+
 
 ```swift
 parent.dashboardRootView(

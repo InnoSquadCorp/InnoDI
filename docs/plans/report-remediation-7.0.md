@@ -228,3 +228,37 @@ P2-14c's obsolete Korean `root` argument is corrected to the existing role API.
 The declaration-based approach received an independent read-only source review.
 The complete portable plugin suite is rerun with these committed consumer sources;
 Apple async-on-demand and matched-toolchain package qualification remain CI gates.
+
+
+## Stage 4: explicit feature hosting and complete actor forwarding
+
+P1-09 was reproduced with the same actual macro consumer: it compiled when
+SwiftUI modules were absent, then failed merely when those modules became
+searchable, although its source imports had not changed. The import-only
+qualification uses explicitly synthetic SwiftUI interfaces and does not claim
+SwiftUI rendering or host lifecycle proof.
+
+Plain feature roots now emit only their existing zero-argument helper.
+`FeatureRoot(..., hosted: true)` explicitly requests the identity/close overload;
+its source file imports SwiftUI and InnoDISwiftUI. `hosted:` requires a literal
+Bool. The old public initializer remains unchanged. Compiler-emitted API
+inspection on Linux 6.2/6.3/6.4 found exactly the same two intended additions,
+`FeatureRoot.hosted` and `init(_:as:hosted:)`, while preserving its four existing
+symbols. The narrow baseline proposal awaits independent review before replacing
+the checked-in contract. Full Apple product API verification remains required.
+
+The broader consumer exposed an unpublished intermediate regression: the same
+explicit-MainActor parent/child-override fixture passed remote 064f1fc, failed
+local 5b2c04e, and passes the corrected generator. The initializer's effective
+actor policy is now also used by override storage/callbacks, lifecycle close,
+and component protocols/mount witnesses. This is separate from the unsupported
+implicit target-default inference described in stage 3.
+
+Validation: 537 executed macro tests pass, with four opt-in skips (541 reported
+registrations); the same Darwin integration exclusion remains. The complete
+portable actual-plugin suite passes. Fifteen additional compiler/build/run
+operations verify explicit actor overrides, child overrides, component mounting,
+and mixed owned preparation on Swift 6.2/6.3/6.4 consumers with the shared
+6.4-built plugin. Actual SwiftUI lifecycle tests are updated to opt in, and a new
+hosted external-consumer fixture proves file-level imports in supported Apple CI
+when published. No rendering/Apple result is claimed from the VM.

@@ -24,7 +24,7 @@ struct DIContainerCodeGenerator {
             transientMembers: model.transientMembers,
             subContainerMembers: model.subContainerMembers,
             accessLevel: model.accessLevel,
-            mainActorEnabled: model.options.mainActor || model.explicitlyMainActor,
+            mainActorEnabled: model.isMainActor,
             validateDAGEnabled: model.options.validateDAG,
             emittingStatements: false
         )
@@ -44,7 +44,7 @@ struct DIContainerCodeGenerator {
             transientMembers: model.transientMembers,
             subContainerMembers: model.subContainerMembers,
             accessLevel: model.accessLevel,
-            mainActorEnabled: model.options.mainActor || model.explicitlyMainActor,
+            mainActorEnabled: model.isMainActor,
             validateDAGEnabled: model.options.validateDAG
         )
         if prependingInitializationMARK {
@@ -101,7 +101,7 @@ struct DIContainerCodeGenerator {
         let featureRootHelpers = makeFeatureRootHelperDecls(
             subContainerMembers: model.subContainerMembers,
             accessLevel: model.accessLevel,
-            isMainActor: model.options.mainActor
+            isMainActor: model.isMainActor
         )
         for (index, helper) in featureRootHelpers.enumerated() {
             if index == 0 {
@@ -148,8 +148,8 @@ private func makeCloseAsyncProvidersDecl(
     guard !members.isEmpty else { return nil }
 
     let accessPrefix = model.accessLevel.map { "\($0) " } ?? ""
-    let actorPrefix = model.options.mainActor ? "@_Concurrency.MainActor\n" : ""
-    let isolationModifier = model.options.mainActor ? "" : "nonisolated(nonsending) "
+    let actorPrefix = model.isMainActor ? "@_Concurrency.MainActor\n" : ""
+    let isolationModifier = model.isMainActor ? "" : "nonisolated(nonsending) "
     let closes = members.map { member in
         "await self._storage_\(member.name)!.close()"
     }.joined(separator: "\n")

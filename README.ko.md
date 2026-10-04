@@ -667,9 +667,10 @@ cross-module ownership에는 다음을 사용합니다.
 - `.innodi(container)`는 생성된 environment bridge를 view tree에 적용합니다.
 - `@DIEnvironmentBridge`는 container member를 SwiftUI environment key에 매핑합니다.
 - `@SubContainer(..., featureRoot:)`와 `featureRoots:`는 child container의
-  default 또는 named feature-root helper를 생성합니다. `InnoDISwiftUI`를
-  import한 경우 생성 helper에 `identity:`를 전달하면 수동 State wrapper 없이
-  지연 host ownership을 사용하며, 기존 0-argument helper도 유지됩니다.
+  default 또는 named feature-root helper를 생성합니다. identity/close host
+  overload를 추가하려면 `FeatureRoot(RootView.self, hosted: true)`를 쓰고 해당
+  파일에서 `SwiftUI`와 `InnoDISwiftUI`를 import하세요. 모듈이 설치됐다는 이유만으로
+  helper가 달라지지 않으며, 기존 0-argument helper도 유지됩니다.
 - `DIContainerHost`는 fixed/assisted child를 route, document, window identity별로
   지연 생성해 소유합니다. 앱이 loading/failure/retry UI를 구성하고,
   `onDisappear` 대신 실제 close 경로에서 lifecycle handle을 호출합니다.
