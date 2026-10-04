@@ -345,7 +345,7 @@ preflight가 없으면 extension custom initializer가 정책을 우회할 수 �
 |---|---|---|
 | `role` | `@DIContainerRole`에서 필수 | `ContainerRole.local`, `.component`, `.root` 중 하나입니다. Root role은 그래프 도달성 시작점을, component role은 모듈 간 마운트 계약을 정의합니다. |
 | `validateDAG` | `true` | global DAG와 local graph-derived 검증을 켭니다. `false`여도 로컬 소유권 순환, 선언, 명시적 sibling edge의 효과 호환성 검사는 유지됩니다. |
-| `mainActor` | `false` | 의존성 accessor, 모든 생성 initializer, `Overrides`, convenience initializer·`withOverrides`·child override·component mount에 쓰이는 `applyOverrides` 함수 타입, 네 가지 `withOverrides` operation closure, feature-root helper에 `@MainActor` 격리를 적용합니다. `@DIContainerRole(role: ContainerRole.component)`와 함께 사용하면 생성된 `<Container>Dependencies` protocol과 `init(dependencies:_:)`도 격리되고, 전용 `_InnoDIMainActorComponentMountable` protocol에 conform합니다. 옵션을 사용하지 않는 일반 component는 `_InnoDIComponentMountable`을 계속 사용합니다. Actor 밖에서 사용하려면 명시적인 hop이 필요하며, UI 루트 컨테이너에 권장됩니다. |
+| `mainActor` | `false` | 의존성 accessor, 모든 생성 initializer, `Overrides`, override callback, child/component/assisted-factory 전달, operation closure, feature-root helper에 `@MainActor` 격리를 적용합니다. 컨테이너에 직접 쓴 `@MainActor`도 같은 격리를 선택합니다. Component에서는 생성된 dependency protocol과 `init(dependencies:_:)`도 격리하고 `_InnoDIMainActorComponentMountable`을 사용합니다. Annotation과 옵션이 모두 없는 component는 `_InnoDIComponentMountable`을 사용합니다. UI 루트 컨테이너에 권장됩니다. |
 | `initializationOrder` | `ContainerInitializationOrder.declaration` | full named token의 `.dependency`로 shared provider를 의존성 순서로 생성합니다. 도입 전에 factory 부수효과를 검토하세요. |
 | `generateOwned` | `false` | `makeOwned(...)`와 준비·재시도·종료를 위한 별도 owned view를 생성합니다. 원래 컨테이너의 custom method와 conformance는 view에 옮겨지지 않습니다. |
 

@@ -98,12 +98,13 @@ factory와 property initializer는 opaque한 zero-edge source이며 sibling memb
   `false`면 global DAG와 local availability 진단은 건너뛰지만 local ownership-cycle 검사, 선언 검증과 명시적
   sibling edge의 효과 호환성 검증은 계속 동작합니다.
 - `mainActor`: 의존성 accessor, 모든 생성 initializer, `Overrides`, convenience
-  initializer·`withOverrides`·child override·component mount에 쓰이는
+  initializer·`withOverrides`·child override·component mount·assisted factory에 쓰이는
   `applyOverrides` 함수 타입, 네 가지 `withOverrides` operation closure,
-  feature-root helper에 `@MainActor` 격리를 적용합니다. component 역할과 함께
+  feature-root helper에 `@MainActor` 격리를 적용합니다. 컨테이너에 직접 쓴
+  `@MainActor`도 같은 정책을 선택합니다. component 역할과 함께
   사용하면 생성된 `<Container>Dependencies` protocol과
   `init(dependencies:_:)`도 같은 격리를 받고, component는 전용
-  `_InnoDIMainActorComponentMountable` protocol에 conform합니다. 옵션을 쓰지
+  `_InnoDIMainActorComponentMountable` protocol에 conform합니다. Annotation과 옵션을 모두 쓰지
   않는 일반 component는 `_InnoDIComponentMountable`을 계속 사용합니다.
   non-`Sendable` 생성 값은 `@MainActor` caller를 사용하거나 `MainActor.run` 안에서
   생성하고 소비해 main actor에 유지하세요. direct `await`는 격리된 작업이

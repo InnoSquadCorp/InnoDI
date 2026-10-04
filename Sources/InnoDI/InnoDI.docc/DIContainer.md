@@ -102,11 +102,12 @@ workaround, not automatic detection of the build setting.
 - `mainActor`: Available on `@DIContainerRole`; applies `@MainActor` isolation to dependency accessors, every
   generated initializer, `Overrides`, the `applyOverrides` function types used
   by convenience initializers, `withOverrides`, child overrides, and component
-  mounting, all four `withOverrides` operation closures, and feature-root
-  helpers. With `ContainerRole.component`, the generated `<Container>Dependencies`
+  mounting, assisted factories, all four `withOverrides` operation closures, and feature-root
+  helpers. A source-written `@MainActor` on the container selects the same policy.
+  With `ContainerRole.component`, the generated `<Container>Dependencies`
   protocol and `init(dependencies:_:)` receive the same isolation, and the
   component conforms to the dedicated
-  `_InnoDIMainActorComponentMountable` protocol. Components without the option
+  `_InnoDIMainActorComponentMountable` protocol. Components with neither the annotation nor the option
   continue to use `_InnoDIComponentMountable`. Keep non-`Sendable` generated
   values on the main actor by using an `@MainActor` caller or constructing and
   consuming them inside `MainActor.run`. A direct `await` is appropriate for an

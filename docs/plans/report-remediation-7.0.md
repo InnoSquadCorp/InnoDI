@@ -338,5 +338,6 @@ source fails six assertions; the correction passes all five tests and the full
 portable async-runtime set (65 tests, 10 suites). Independent semantic review
 confirmed compatibility with `withPrepared`'s awaited cleanup and requested the
 documented custom-provider cooperation limit. Public signatures are unchanged;
-this corrects the unreleased 7.0 preparation outcome contract. Full actual-plugin
+this changes the 6.0 preparation outcome contract in 7.0, as the migration guide
+explicitly records. Full actual-plugin
 lifecycle and Apple regression checks remain part of final integration.

@@ -230,6 +230,16 @@ throwing. It exists only for owned containers with async shared providers.
 The preparation failure carries a report, not the original factory error.
 See <doc:OwnedContainers> for cancellation and error precedence.
 
+The existing 6.0 preparation APIs also have a cancellation behavior correction
+in 7.0. Cancelling a caller no longer invents a `cancelled` provider state:
+`DIAsyncScope.prepare()` returns the real state, while
+`DIAsyncPreparationPlan.prepare(_:)` throws `CancellationError` for the caller.
+Handle that error separately from a report containing failed/cancelled providers.
+A different, uncancelled caller can join still-running work without retry;
+`retry` remains valid only after the provider itself fails or is cancelled.
+This applies while the owner stays open. `withPrepared` still closes its fresh
+owner before propagating cancellation.
+
 `owner.container` is a different nominal view type. Its async getters require
 `try await`; original-container annotations, key paths, custom methods and
 protocol conformances do not transfer. Adapt consumers to concrete services or

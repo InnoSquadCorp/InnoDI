@@ -223,6 +223,15 @@ async shared provider가 있는 owned container에만 생성됩니다. 준비 �
 factory 오류가 아니라 report를 담습니다. 취소와 오류 우선순위는
 <doc:OwnedContainers>를 참고하세요.
 
+6.0에 있던 preparation API의 취소 동작도 7.0에서 바로잡습니다. 호출자를
+취소했다고 provider까지 `cancelled`로 보고하지 않습니다.
+`DIAsyncScope.prepare()`는 실제 상태를 반환하며,
+`DIAsyncPreparationPlan.prepare(_:)`는 호출자 취소에 `CancellationError`를 던집니다.
+Provider 실패/취소가 담긴 report와 이 오류를 구분해 처리하세요. Owner가 열려
+있다면 다른 취소되지 않은 호출자가 retry 없이 실행 중인 작업을 기다릴 수
+있습니다. Retry는 provider 자체가 실패하거나 취소된 뒤에만 가능합니다.
+`withPrepared`는 여전히 새 owner를 닫은 뒤 취소를 전달합니다.
+
 `owner.container`는 별도의 nominal view 타입입니다. async getter에는 `try await`가
 필요하며 원래 container 타입 annotation, key path, custom method와 protocol
 conformance는 옮겨지지 않습니다. Consumer를 구체적인 service나 생성 view 타입으로
