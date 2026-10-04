@@ -11,6 +11,28 @@ Current development train: `7.0.0` (unreleased)
 
 ## Unreleased
 
+- Legacy async on-demand close follows reverse dependency order, and reentry
+  diagnostics include provider names. Joining readers forward their current
+  task priority on runtimes with explicit priority escalation (Apple OS 26+);
+  older runtimes and later priority changes retain the documented limits.
+- Validation caches bind diagnostics to exact bytes, displayed source paths,
+  and matching result records. Moving a checkout or inserting trivia refreshes
+  error positions without disabling location-free semantic success reuse.
+- Conditional duplicate containers fail before graph normalization with source
+  locations and an explicit compiler-condition limitation. Declared in-package
+  source-directory symlinks preserve logical paths while physical containment
+  and duplicate ownership checks remain enforced.
+- Build-plugin reports no longer become declared target resources; the Swift
+  ordering barrier remains. Documented validation environment controls are
+  forwarded, and signature locks record their owner for stale recovery.
+- Migration distinguishes public imports from namespace re-exports, identifies
+  ambiguous modules, and bounds retained recovery filenames. Async collection
+  metadata now emits its intended diagnostic without a secondary key-path error.
+- The README's async override journey and complete owned-container examples
+  join executable documentation coverage. Macro inspection uses the native
+  SwiftPM backend to preserve dump output. Plain/owned diagnostic workloads are
+  explicitly unbaselined; no timing budget or performance claim is added.
+
 - Experimental generated mocks now record variadics as arrays, bind protocol
   `Self` to the final mock class, preserve explicit `nonisolated` protocols,
   and copy retained Copyable ownership parameters correctly. Nonescaping

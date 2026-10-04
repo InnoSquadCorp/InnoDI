@@ -1,6 +1,8 @@
 # 7.0 report remediation plan
 
 Baseline: `064f1fc7fb8820d56181c17065be9b356845bdb5` (PR #52).
+The completion ledger is [report remediation results](../reviews/report-remediation-results-2026-10-04.md).
+The initial states below remain the original intake record, not current status.
 The baseline's selected CI passed; the cases below are additional boundaries.
 The supplied report is an input, not a verified test record. Its original
 worktrees, TSan logs and timing samples are unavailable here. The first three
