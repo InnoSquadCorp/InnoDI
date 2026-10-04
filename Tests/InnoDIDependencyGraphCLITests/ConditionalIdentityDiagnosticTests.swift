@@ -62,6 +62,24 @@ struct ConditionalIdentityDiagnosticTests {
         #expect(result.stderr.contains("Sources/App.swift:5:1"))
     }
 
+    @Test("Conditional declarations do not hide an already-proven unconditional duplicate")
+    func definiteDuplicatesTakePrecedence() {
+        let snapshot = snapshot(sources: ["Sources/App.swift": """
+        @DIContainer struct App {}
+        @DIContainer struct App {}
+        #if FEATURE
+        @DIContainer struct App {}
+        #endif
+        """])
+        let result = validateDependencyGraph(snapshot: snapshot)
+        #expect(result.exitCode == 3)
+        #expect(result.stderr.contains("[graph.duplicate-semantic-identity]"))
+        #expect(!result.stderr.contains("[graph.conditional-identity-unresolved]"))
+        for line in [1, 2, 4] {
+            #expect(result.stderr.contains("Sources/App.swift:\(line):1"))
+        }
+    }
+
     @Test("Unconditional duplicate identities retain every declaration location")
     func ordinaryDuplicatesRemainErrorsWithPreciseLocations() {
         let snapshot = snapshot(sources: [

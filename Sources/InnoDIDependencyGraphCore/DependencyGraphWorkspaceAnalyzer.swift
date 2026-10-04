@@ -132,7 +132,11 @@ private struct DependencyGraphIdentityCollision: Hashable, Sendable {
     let declarations: [ContainerDeclarationOccurrence]
 
     var isConditional: Bool {
-        declarations.contains(where: \.isConditional)
+        // Two unconditional declarations prove a duplicate even when another
+        // declaration is conditional. Unknown conditions matter only when
+        // choosing a branch could still eliminate the collision.
+        declarations.filter { !$0.isConditional }.count < 2
+            && declarations.contains(where: \.isConditional)
     }
 }
 
