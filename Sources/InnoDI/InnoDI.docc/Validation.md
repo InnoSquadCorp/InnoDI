@@ -45,6 +45,12 @@ The coordinated build pipeline adds:
 4. DAG validation
 5. metrics and summary artifact emission
 
+The build plugin's source manifest preserves each declared source's
+package-relative path, including an in-package directory symlink. The symlink
+must resolve inside its owning package, and two declared paths cannot claim
+the same physical file. An external symlink destination remains unsupported
+for a declared source.
+
 ## Global DAG Validation
 
 Use the CLI for global graph validation:

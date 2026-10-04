@@ -367,6 +367,50 @@ struct StrictConcurrencyBuildTests {
         #expect(warm.exitCode == 0, "Unchanged valid package must still build: \(warm.stdout)\n\(warm.stderr)")
     }
 
+    @Test("DAG validation plugin accepts a declared in-package source-directory symlink")
+    func dagValidationPluginAcceptsInPackageSourceDirectorySymlink() throws {
+        let fixture = try makeStrictConcurrencyFixture(
+            name: "PluginSourceDirectorySymlink",
+            dependencies: ["InnoDI"],
+            plugins: ["InnoDIDAGValidationPlugin"],
+            source: """
+            import InnoDI
+
+            @DIContainer
+            struct AppContainer {
+                @Provide(.shared, factory: 42)
+                var value: Int
+            }
+
+            @main
+            struct FixtureApp {
+                static func main() {
+                    precondition(AppContainer().value == 42)
+                }
+            }
+            """
+        )
+        let scratch = FileManager.default.temporaryDirectory
+            .appendingPathComponent("InnoDI-PluginSymlink-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: fixture)
+            try? FileManager.default.removeItem(at: scratch)
+        }
+        let declaredDirectory = fixture.appendingPathComponent("Sources/FixtureApp", isDirectory: true)
+        let physicalDirectory = fixture.appendingPathComponent("PhysicalSources", isDirectory: true)
+        try FileManager.default.moveItem(at: declaredDirectory, to: physicalDirectory)
+        try FileManager.default.createSymbolicLink(at: declaredDirectory, withDestinationURL: physicalDirectory)
+
+        let result = try runStrictConcurrencyBuild(packageURL: fixture, scratchPath: scratch)
+        #expect(!result.timedOut)
+        #expect(result.exitCode == 0, Comment(rawValue: result.stdout + result.stderr))
+        guard !result.timedOut, result.exitCode == 0 else { return }
+        #expect(try !findFiles(named: "_InnoDIDAGValidation.generated.swift", under: scratch).isEmpty)
+        let execution = try runExternalConsumerExecutable(packageURL: fixture, scratchPath: scratch)
+        #expect(!execution.timedOut)
+        #expect(execution.exitCode == 0, Comment(rawValue: execution.stdout + execution.stderr))
+    }
+
     @Test("DAG validation plugin isolates state across plugin-attached targets", .tags(.slow))
     func dagValidationPluginIsolatesStateAcrossTargets() throws {
         let fixture = try makeMultiTargetPluginFixture()

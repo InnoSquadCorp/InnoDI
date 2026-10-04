@@ -32,7 +32,7 @@ struct ContainerCollectorDeclarationTests {
         #expect(first.entries.first?.providerLifetime == .shared)
         #expect(second.entries.first?.providerLifetime == .transient)
         // This collector does not select a build configuration or suppress
-        // duplicate-identity validation. It must preserve both declarations.
+        // identity preflight. It must preserve both declarations.
         #expect(collector.providers.count == 4)
     }
 

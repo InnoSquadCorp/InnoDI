@@ -48,8 +48,15 @@ private struct PendingCollectionContract {
     let entries: [CollectionMetadataEntryArgument]
 }
 
+struct ContainerDeclarationOccurrence: Hashable, Sendable {
+    let containerID: String
+    let source: DependencyGraphProvider.SourceLocation
+    let isConditional: Bool
+}
+
 final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
     var nodes: [DependencyGraphNode] = []
+    var declarationOccurrences: [ContainerDeclarationOccurrence] = []
     var typeAliases: [SemanticTypeAliasRecord] = []
     /// `@SubContainer` references collected while walking each container
     /// body. Resolved into graph edges by `resolveSubContainerReferences`
@@ -61,6 +68,8 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
     private let moduleIdentity: String?
     private var currentRelativeFilePath: String = ""
     private var sourceLocationConverter: SourceLocationConverter?
+    private var currentDiagnosticFilePath: String = ""
+    private var conditionalCompilationDepth = 0
     var declarationPath: [String] = []
 
     override init(viewMode: SyntaxTreeViewMode = .sourceAccurate) {
@@ -74,6 +83,15 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
     ) {
         self.moduleIdentity = moduleIdentity
         super.init(viewMode: viewMode)
+    }
+
+    override func visit(_ node: IfConfigDeclSyntax) -> SyntaxVisitorContinueKind {
+        conditionalCompilationDepth += 1
+        return .visitChildren
+    }
+
+    override func visitPost(_ node: IfConfigDeclSyntax) {
+        conditionalCompilationDepth -= 1
     }
 
     override func visit(_ node: StructDeclSyntax) -> SyntaxVisitorContinueKind {
@@ -126,8 +144,14 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
         return .skipChildren
     }
 
-    func walkFile(relativePath: String, tree: SourceFileSyntax) {
+    func walkFile(
+        relativePath: String,
+        tree: SourceFileSyntax,
+        sourceFilePath: String? = nil
+    ) {
         currentRelativeFilePath = relativePath
+        currentDiagnosticFilePath = sourceFilePath ?? relativePath
+        conditionalCompilationDepth = 0
         sourceLocationConverter = SourceLocationConverter(
             fileName: relativePath,
             tree: tree
@@ -427,6 +451,20 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
         }
 
         self.providers.append(contentsOf: providers)
+        let location = sourceLocationConverter?.location(
+            for: node.positionAfterSkippingLeadingTrivia
+        )
+        declarationOccurrences.append(
+            ContainerDeclarationOccurrence(
+                containerID: parentID,
+                source: DependencyGraphProvider.SourceLocation(
+                    path: currentDiagnosticFilePath,
+                    line: location?.line ?? 1,
+                    column: location?.column ?? 1
+                ),
+                isConditional: conditionalCompilationDepth > 0
+            )
+        )
         nodes.append(
             DependencyGraphNode(
                 id: parentID,

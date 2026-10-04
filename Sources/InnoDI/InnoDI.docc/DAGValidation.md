@@ -68,38 +68,47 @@ the change and treat the diagnostic as the source of truth.
 
 ## Configuration-Aware Enforcement
 
-A common pattern is to keep validation enabled in production while letting
-internal builds skip it during a known-bad migration window. Macro Boolean
-options must be literal `true` or `false`, so use conditional compilation to
-choose the attribute spelling:
+Macro Boolean options must be literal `true` or `false`. Keep the production
+container's validation enabled:
 
+<!-- innodi:compile -->
 ```swift
-#if FAST_BUILD
-@DIContainer(validateDAG: false)
-#else
+import InnoDI
+
 @DIContainer
-#endif
 struct AppContainer {
-    // ...
+    @Provide(.shared, factory: 42)
+    var value: Int
 }
 ```
 
-The corresponding `swiftSettings` line looks like this in `Package.swift`:
+Put a temporary opt-out in a separately selected scratch or test target, using
+its own container declaration. That target must not ship as part of the
+production application:
 
+<!-- innodi:compile -->
 ```swift
-.target(
-    name: "AppLib",
-    swiftSettings: [
-        // FAST_BUILD only flips on for the local-iteration scheme; release
-        // and CI builds keep validateDAG on.
-        .define("FAST_BUILD", .when(configuration: .debug))
-    ]
-)
+import InnoDI
+
+@DIContainer(validateDAG: false)
+struct MigrationFixtureContainer {
+    @Provide(.shared, factory: 42)
+    var value: Int
+}
 ```
 
-For Xcode-based projects, set `FAST_BUILD` only on the iteration scheme's
-debug `OTHER_SWIFT_FLAGS` (`-D FAST_BUILD`). The release scheme leaves it
-unset and so keeps `validateDAG: true`.
+Do not split an attached macro attribute from its declaration with
+`#if FAST_BUILD` / `#else` / `#endif`. Repeating the complete declaration in
+each branch is also insufficient for the source-based graph validator: it
+does not receive the compiler's active conditions and cannot select or merge
+the branches. A repeated conditional identity produces
+`graph.conditional-identity-unresolved`, with every declaration's location.
+Select one source definition through the build target's source membership,
+or keep one unconditional container and place conditional implementation
+details inside its factories.
+
+Defining `FAST_BUILD` for every debug configuration also affects debug CI
+builds. A build flag alone does not establish a local-only validation policy.
 
 ## Reviewer Checklist
 
@@ -109,8 +118,8 @@ change rather than a flag flip. Reviewer questions:
 1. Which container is opting out, and what is the temporary condition that
    justifies it?
 2. Is there a tracking issue and an expected removal date?
-3. Does the diff also wire the configuration-aware fallback above so the
-   release configuration keeps validation on?
+3. Does the production target keep validation enabled, and exclude any
+   scratch or test target that opts out?
 4. Does the affected container have local tests that would catch the cycle
    the validator would have caught?
 

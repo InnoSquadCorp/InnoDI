@@ -185,12 +185,8 @@ struct WorkspaceTargetIdentityGraphTests {
 
         #expect(result.exitCode == 3)
         #expect(result.stderr.contains("declarations: 2"))
-        #expect(
-            occurrenceCount(
-                "swiftpm:root-package:App::Sources/App/Duplicates.swift",
-                in: result.stderr
-            ) == 1
-        )
+        #expect(result.stderr.contains("Sources/App/Duplicates.swift:3:1"))
+        #expect(result.stderr.contains("Sources/App/Duplicates.swift:6:1"))
     }
 
     @Test("Current target declarations win over imported namesakes")

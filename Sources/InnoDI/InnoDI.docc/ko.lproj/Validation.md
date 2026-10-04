@@ -45,6 +45,12 @@ coordinated build pipeline은 다음을 추가합니다.
 4. DAG validation
 5. metrics / summary artifact emission
 
+빌드 plugin의 소스 manifest는 package 내부 디렉터리의 symlink를 포함해
+선언된 소스의 package-relative 경로를 유지합니다. symlink는 해당 package
+내부로 해석되어야 하며, 서로 다른 선언 경로가 같은 실제 파일을 소유할 수는
+없습니다. package 외부로 향하는 symlink는 declared source로 지원하지
+않습니다.
+
 ## Global DAG Validation
 
 Global graph 검증에는 CLI를 사용하세요.
