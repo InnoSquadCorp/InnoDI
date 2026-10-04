@@ -67,6 +67,20 @@ Build validation emits:
 - `dag-validation-summary.md`
 
 These artifacts are part of the documented release contract in `RELEASING.md`.
+They remain in the plugin work directory and its validation-state directories;
+the plugin does not declare reports as target resources. Swift targets declare
+only a comment-only generated Swift file to order validation before compilation.
+Clang targets use output-free commands so no Swift source is introduced. Xcode
+project targets retain output-free gates to avoid collisions between build
+destinations. SwiftPM consumers require tools version 6.0 or later for
+output-free commands.
+
+The plugin forwards only the documented coordinator environment controls:
+`INNODI_LOCK_TIMEOUT`, `INNODI_STALE_LOCK_AGE`, `INNODI_ALLOW_UNSAFE_LOCK`,
+`INNODI_VALIDATION_VERBOSE` and `INNODI_VALIDATION_DEBUG`. Set them in the
+environment that launches the build. The coordinator still validates their
+values and retains its existing defaults, including refusing unsafe
+filesystems unless the operator explicitly opts in. See <doc:lock-safety>.
 
 ## See Also
 

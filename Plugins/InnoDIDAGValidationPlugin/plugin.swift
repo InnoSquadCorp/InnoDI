@@ -74,6 +74,23 @@ private var buildValidationIsDisabled: Bool {
     )
 }
 
+private var coordinatorEnvironment: [String: String] {
+    let environment = ProcessInfo.processInfo.environment
+    // Build commands do not inherit the plugin process's environment. Forward
+    // only the documented coordinator controls, preserving their raw values
+    // so the coordinator retains validation, defaults and explicit opt-in.
+    let keys = [
+        "INNODI_LOCK_TIMEOUT",
+        "INNODI_STALE_LOCK_AGE",
+        "INNODI_ALLOW_UNSAFE_LOCK",
+        "INNODI_VALIDATION_VERBOSE",
+        "INNODI_VALIDATION_DEBUG",
+    ]
+    return Dictionary(uniqueKeysWithValues: keys.compactMap { key in
+        environment[key].map { (key, $0) }
+    })
+}
+
 private func makeBuildCommands(
     coordinator: PluginContext.Tool,
     outputDirectory: URL,
@@ -98,6 +115,7 @@ private func makeBuildCommands(
                 "--state-dir", stateDirectory.path(percentEncoded: false),
                 "--output-dir", outputDirectory.path(percentEncoded: false),
             ],
+            environment: coordinatorEnvironment,
             inputFiles: [manifestURL] + manifest.sourceFileURLs,
             // Xcode can build one multi-destination target for iOS and watchOS
             // in the same graph while assigning both variants the same plugin
@@ -105,17 +123,16 @@ private func makeBuildCommands(
             // variant commands collide. The coordinator still writes its
             // diagnostics into the sandboxed work directory; Xcode variants
             // intentionally run as always-out-of-date validation gates.
-            outputFiles: declaresOutputs ? (ordersSwiftCompilation ? [
+            // Reports stay in the work directory. Declaring them here makes
+            // SwiftPM copy them into target resource bundles. Clang targets
+            // use an output-free gate (SwiftPM tools >= 6.0).
+            outputFiles: declaresOutputs && ordersSwiftCompilation ? [
                 // A Swift input creates an explicit compile dependency. With
                 // only report/resource outputs, SwiftPM's Xcode build engine
                 // may fail compilation and cancel this gate before it emits
                 // its structured diagnostic on a warm build.
                 // Do not introduce Swift sources into a Clang-only target.
                 outputDirectory.appending(path: "_InnoDIDAGValidation.generated.swift"),
-            ] : []) + [
-                outputDirectory.appending(path: "dag-validation-stamp.txt"),
-                outputDirectory.appending(path: "dag-validation-metrics.json"),
-                outputDirectory.appending(path: "dag-validation-summary.md"),
             ] : []
         )
     ]

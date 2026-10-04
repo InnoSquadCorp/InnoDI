@@ -67,6 +67,20 @@ build validation은 다음 산출물을 생성합니다.
 - `dag-validation-summary.md`
 
 이 산출물은 `RELEASING.md`에 문서화된 릴리즈 계약의 일부입니다.
+산출물은 plugin work directory와 그 안의 validation-state 디렉터리에 남으며,
+plugin이 target resource로 선언하지 않습니다. Swift target은 컴파일 전에
+검증이 실행되도록 주석만 있는 generated Swift 파일만 output으로 선언합니다. Clang
+target에는 Swift 소스가 추가되지 않도록 output 없는 command를 사용합니다.
+Xcode project target도 build destination 사이의 충돌을 피하도록 output 없는
+gate를 유지합니다. SwiftPM에서 output 없는 command를 실행하려면 tools version
+6.0 이상이 필요합니다.
+
+plugin은 문서화된 coordinator 환경 변수만 전달합니다.
+`INNODI_LOCK_TIMEOUT`, `INNODI_STALE_LOCK_AGE`, `INNODI_ALLOW_UNSAFE_LOCK`,
+`INNODI_VALIDATION_VERBOSE`, `INNODI_VALIDATION_DEBUG`를 빌드를 시작하는
+환경에 설정하세요. 값 검증과 기본값은 coordinator가 그대로 처리하며, 운영자의
+명시적 opt-in이 없으면 안전하지 않은 파일시스템을 거부합니다.
+자세한 내용은 <doc:lock-safety>를 참고하세요.
 
 ## See Also
 
