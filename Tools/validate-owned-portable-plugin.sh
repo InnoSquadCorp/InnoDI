@@ -6,6 +6,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PLUGIN="${1:?Pass the already built InnoDIMacros-tool executable}"
 OUT="${2:?Pass an isolated output directory}"
+if [[ ! -x "$PLUGIN" ]]; then
+  echo "Macro plugin is missing or not executable: $PLUGIN" >&2
+  exit 1
+fi
 mkdir -p "$OUT"
 OUT="$(cd "$OUT" && pwd)"
 FLAGS=(-swift-version 6 -strict-concurrency=complete -warnings-as-errors)
@@ -112,6 +116,12 @@ negative() {
   echo "Expected diagnostic passed: $name"
 }
 FIXTURES="$ROOT/Tests/OwnedPortablePluginFixtures"
+negative AsyncCollectionContributor "$FIXTURES/AsyncCollectionContributor.swift.fixture" "collection metadata cannot synchronously expose async contributor 'remote'" compile
+if grep -F 'cannot form key path' "$OUT/AsyncCollectionContributor.log" >/dev/null; then
+  cat "$OUT/AsyncCollectionContributor.log" >&2
+  echo 'Invalid async collection metadata produced a secondary key-path compiler error' >&2
+  exit 1
+fi
 negative CallerIsolatedHidden "$FIXTURES/CallerIsolatedHidden.swift.fixture" "inaccessible due to 'fileprivate' protection level" compile
 negative CallerIsolatedActorEscape "$FIXTURES/CallerIsolatedActorEscape.swift.fixture" "non-Sendable type 'CallerIsolatedBox' of property 'session' cannot exit main actor-isolated context" compile
 

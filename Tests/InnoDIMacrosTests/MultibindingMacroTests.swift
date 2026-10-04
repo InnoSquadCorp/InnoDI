@@ -1,3 +1,4 @@
+import Foundation
 import InnoDITestSupport
 import SwiftDiagnostics
 import SwiftSyntaxMacros
@@ -11,6 +12,22 @@ struct MultibindingMacroTests {
         DIContainerMacroTests.macros.merging([
             "Multibinding": ProvideMacro.self,
         ]) { _, new in new }
+
+    @Test("An async collection contributor receives synchronous diagnostic recovery")
+    func asyncMetadataRecoversTargetAccessor() {
+        let result = expandMacroSource("""
+            @DIContainer struct Invalid {
+                @Provide(.shared, asyncFactory: { () async in 42 }) var remote: Int
+                @Provide(.transient, collection: .ordered([\\Self.remote]), factory: DICollectionGroup([42]))
+                var values: DICollectionGroup<Int>
+            }
+            """, macros: Self.macros)
+        #expect(result.diagnostics.map(\.diagnosticID) == [
+            MessageID(domain: "InnoDI.validation", id: "provide.async-collection-contributor")
+        ])
+        let remote = result.expansion.components(separatedBy: "var remote: Int").first ?? ""
+        #expect(remote.contains("_InnoDIProvideAccessor(recovery: true)"))
+    }
 
     @Test("ordered collection is injectable and overrideable")
     func expandsOrderedCollection() {
