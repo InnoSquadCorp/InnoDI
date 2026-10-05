@@ -4,9 +4,9 @@
 
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
-> [!IMPORTANT]
-> 이 체크아웃은 **미출시 7.0.0** 문서입니다. 예제와 규칙은 공개된 6.0.0 패키지가 아니라 7.0 개발 체크아웃이 필요합니다.
-> [안정 버전 6.0.0 문서](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.ko.md).
+> 이 페이지는 **InnoDI 7.0.0** 문서입니다. 6.x에서 필요한 소스 변경은
+> [마이그레이션 가이드](Sources/InnoDI/InnoDI.docc/ko.lproj/MigrationGuide.md#6x--70)를 따르세요.
+> [버전 고정 7.0.0 문서](https://github.com/InnoSquadCorp/InnoDI/blob/7.0.0/README.ko.md).
 
 컴파일 타임과 빌드 타임 검증, dependency graph 도구, hierarchy 검증,
 SwiftUI helper를 함께 제공하는 Swift용 매크로 기반 DI 프레임워크입니다.
@@ -145,22 +145,11 @@ tvOS, visionOS 앱에 InnoDI를 임베드하면 SwiftPM이 매니페스트를 �
 
 ```swift
 dependencies: [
-    .package(name: "InnoDI", path: "../InnoDI")
+    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "7.0.0")
 ]
 ```
 
-이 페이지의 예제에는 위의 **7.0 개발 체크아웃**을 사용합니다. `../InnoDI`를 해당 경로로 바꾸세요. 아직 7.0.0 릴리스 태그는 없습니다.
-
-공개된 **6.0.0** 패키지를 사용하려면 아래 의존성을 추가하고 이 페이지의 7.0 예제 대신 연결된 안정 버전 문서를 따르세요.
-[안정 버전 6.0.0 문서](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.ko.md).
-
-```swift
-dependencies: [
-    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "6.0.0")
-]
-```
-
-이하 product·plugin·API 예제는 모두 **7.0 개발 체크아웃**을 기준으로 합니다.
+이하 product·plugin·API 예제는 모두 **InnoDI 7.0.0**을 기준으로 합니다.
 6.x에서 필요한 소스 변경은
 [마이그레이션 가이드](Sources/InnoDI/InnoDI.docc/ko.lproj/MigrationGuide.md#6x--70)를 따르세요.
 
@@ -397,8 +386,8 @@ shared의 transient hard dependency, provider의 child-container 의존성을
 
 기존 container는 migration이 필요하지 않습니다. 도입에는 인자 하나를 추가하며,
 부수효과 검토 없이 선언을 자동 재배치하거나 앱 전체의 기본값을 바꾸지 마세요.
-이 API는 미출시 7.0 후보에 포함되며, 공개 API baseline 검토와 지원 Apple
-toolchain 검증이 남아 있습니다.
+이 API는 InnoDI 7.0에 포함되며, 릴리스에서 공개 API baseline과 지원 Apple
+toolchain 검사를 계속 수행합니다.
 
 
 6.0의 generic component mounting helper는 두 marker protocol을 구분해야

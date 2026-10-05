@@ -5,11 +5,9 @@ section becomes the body of that version's GitHub Release. The release
 process, including how a development train becomes a stable version, lives in
 [RELEASING.md](RELEASING.md).
 
-Latest stable public release: `6.0.0`
+Latest stable public release: `7.0.0`
 
-Current development train: `7.0.0` (unreleased)
-
-## Unreleased
+## 7.0.0
 
 - Ordinary transient child builders retain a synchronous non-Sendable function
   type, preserving valid child composition after deferred-cell transfer checks
@@ -96,11 +94,11 @@ Current development train: `7.0.0` (unreleased)
 needs a Swift 6.2 compiler canary result, which this train does not have, so
 that change moves to 8.0.
 
-### Macro-first API scope for the 7.0 candidate
+### Macro-first API scope for 7.0
 
-The following APIs are included in the unreleased 7.0 candidate. Public API
-baseline review and supported Apple toolchain qualification remain release
-requirements; inclusion here does not mean those gates have passed.
+The following APIs are included in 7.0. Public API baseline comparison and
+supported Apple toolchain qualification remain enforced by the Release Gate;
+these notes do not replace its exact-candidate validation.
 Owned construction, preparation, initialization ordering and override helpers
 are additive or opt-in. Typed synchronous prewarming replaces the existing
 key-path method and requires the source migration listed below.
@@ -159,7 +157,7 @@ key-path method and requires the source migration listed below.
 - Containers with synchronous on-demand shared providers gain a generated
   `_InnoDIPrewarmProvider: Sendable` selection enum and nonthrowing
   `prewarm(.provider, ...)` method. Direct switch dispatch preserves selected
-  order, caching, and isolation without a runtime registry. The 7.0 candidate
+  order, caching, and isolation without a runtime registry. InnoDI 7.0
   replaces throwing key-path selections; empty calls are nonthrowing no-ops.
   Migrate simple `try prewarm(\Container.service)` calls to `prewarm(.service)`.
   Dynamic/generic `PartialKeyPath` adapters require explicit token or closure
@@ -167,7 +165,7 @@ key-path method and requires the source migration listed below.
   capturing ordinary payload types named `PrewarmProvider`; no natural-name
   alias is emitted. Explicit token annotations use the longer nested spelling,
   and visible cases expose construction names even for less-visible getters.
-  API review and supported-Apple-toolchain qualification remain pending. See the
+  The release retains public API and supported-toolchain checks. See the
   [Provide guide](Sources/InnoDI/InnoDI.docc/Provide.md).
 - Indexed macro dependency availability removes repeated full-member set
   construction while preserving declaration-order diagnostics and ownership
@@ -213,7 +211,8 @@ key-path method and requires the source migration listed below.
   [RFC 0008](docs/rfcs/0008-async-on-demand-providers.md).
 
 - The README states that InnoDI supports Apple platforms only, and
-  `SECURITY.md` names `6.x` as the supported line.
+  `SECURITY.md` names `7.x` as the supported line under the existing policy
+  that security fixes apply only to the latest stable major.
 
 - The README installation is three steps: add the package, attach the
   validation plugin, and write a first container. Validator contract details,
@@ -445,6 +444,13 @@ key-path method and requires the source migration listed below.
   action is required.
 
 ### Upgrade Actions
+
+- Check the consumer's environment and dependency configuration before
+  modifying its sources. This diagnostic command is read-only:
+
+  ```bash
+  swift run InnoDI-Doctor --root /path/to/consumer
+  ```
 
 - Replace literal key-path prewarming such as
   `try container.prewarm(\FeatureContainer.metrics)` with
