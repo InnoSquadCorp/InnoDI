@@ -131,6 +131,32 @@ public struct DIAsyncPreparationReport: Equatable, Sendable {
     public var isReady: Bool {
         entries.allSatisfy { $0.disposition == .ready }
     }
+
+    /// Requires every selected preparation entry to be ready.
+    ///
+    /// Preparation records provider failures in this report rather than
+    /// throwing them. Use this check for proceed-or-fail callers. The error
+    /// preserves structured status and blocking dependencies, not arbitrary
+    /// factory error payloads. This synchronous check does not inspect the
+    /// calling task's cancellation state.
+    public func requireReady() throws {
+        guard isReady else { throw DIAsyncPreparationFailure(report: self) }
+    }
+}
+
+/// Selected asynchronous providers did not all reach readiness.
+///
+/// Inspect the report to distinguish failed, blocked, cancelled and closed
+/// providers. While a scope remains open, its provider read can still throw
+/// the original factory error. A prepared operation closes before throwing
+/// this failure, so its escaped view instead reports closed. This error keeps
+/// only the preparation snapshot, not arbitrary factory error payloads.
+public struct DIAsyncPreparationFailure: Error, Equatable, Sendable {
+    public let report: DIAsyncPreparationReport
+
+    public init(report: DIAsyncPreparationReport) {
+        self.report = report
+    }
 }
 
 /// Validated, explicit dependency graph for selected asynchronous preparation.
@@ -174,20 +200,31 @@ public struct DIAsyncPreparationPlan: Sendable {
         self.dependencies = dependencies
     }
 
+    /// Prepares the selected subgraph, reporting provider outcomes.
+    ///
+    /// Cancelling this caller throws `CancellationError` and stops its wait;
+    /// it does not cancel provider work. Use a later preparation/read to join
+    /// that work. Retry is needed only after an actual provider failure or
+    /// cancellation, never merely because a preparation caller was cancelled.
+    /// A custom `DIAsyncPreparing` implementation must return from its awaited
+    /// method before the plan can observe cancellation; it is not forcibly stopped.
     public func prepare(
         _ selectedProviderIDs: [String]
     ) async throws -> DIAsyncPreparationReport {
+        try Task.checkCancellation()
         let selected = try transitiveSelection(selectedProviderIDs)
         var entries: [DIAsyncPreparationEntry] = []
         var dispositionByID: [String: DIAsyncPreparationEntry.Disposition] = [:]
 
         for id in topologicalOrder where selected.contains(id) {
+            try Task.checkCancellation()
             guard let provider = providers[id] else { continue }
             let blockers = dependencies[id, default: []].filter {
                 dispositionByID[$0] != .ready
             }
             if !blockers.isEmpty {
                 let status = await provider.status()
+                try Task.checkCancellation()
                 entries.append(
                     DIAsyncPreparationEntry(
                         providerID: id,
@@ -201,6 +238,7 @@ public struct DIAsyncPreparationPlan: Sendable {
             }
 
             let status = await provider.prepare()
+            try Task.checkCancellation()
             let disposition: DIAsyncPreparationEntry.Disposition
             switch status.state {
             case .ready: disposition = .ready
@@ -219,6 +257,7 @@ public struct DIAsyncPreparationPlan: Sendable {
             dispositionByID[id] = disposition
         }
 
+        try Task.checkCancellation()
         return DIAsyncPreparationReport(
             selectedProviderIDs: selectedProviderIDs,
             entries: entries
@@ -323,6 +362,14 @@ public struct DIAsyncPreparationPlan: Sendable {
         }
     }
 
+    // Owner cleanup already owns the validated complete graph. It must not
+    // perform another throwing selection step after closing admission.
+    func closeAll() async {
+        for id in topologicalOrder.reversed() {
+            await providers[id]?.close()
+        }
+    }
+
     private func transitiveSelection(
         _ requested: [String]
     ) throws -> Set<String> {
@@ -391,8 +438,22 @@ public struct DIAsyncPreparationPlan: Sendable {
 /// It also releases the scope's factory captures. Already-running work retains
 /// its own captures until it returns, even if it ignores cancellation.
 /// ``retry()`` is available after failure and advances to a clean generation.
+/// ``start()`` admits work without waiting for its value or adding a waiter.
 public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryParticipant {
     public typealias Operation = @Sendable () async throws -> Value
+
+    // Allocate only for explicit ready overrides. Keeping the reusable seed
+    // behind a typed immutable box avoids adding another inline Value-sized
+    // field to every ordinary factory-backed scope.
+    private final class Seed: Sendable {
+        let value: Value
+        init(_ value: Value) { self.value = value }
+    }
+
+    private enum Source {
+        case operation(Operation)
+        case value(Seed)
+    }
 
     private enum Phase {
         case idle
@@ -404,7 +465,8 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
     }
 
     public nonisolated let providerID: String
-    private var operation: Operation?
+    private let admission: _InnoDIAsyncAdmission?
+    private var source: Source?
     private var generation = 0
     private var phase: Phase = .idle
     private var ownedTask: Task<Value, any Error>?
@@ -414,7 +476,43 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
 
     public init(providerID: String, operation: @escaping Operation) {
         self.providerID = providerID
-        self.operation = operation
+        self.admission = nil
+        self.source = .operation(operation)
+    }
+
+    /// Creates a factory-backed scope bound to a shared owner admission gate.
+    public init(
+        providerID: String,
+        admission: _InnoDIAsyncAdmission,
+        operation: @escaping Operation
+    ) {
+        self.providerID = providerID
+        self.admission = admission
+        self.source = .operation(operation)
+    }
+
+    /// Creates an already-ready scope backed by a concrete override value.
+    ///
+    /// A subgraph reset advances to an idle generation. Its next ``start()``
+    /// or ``value()`` restores the same value without invoking a factory or
+    /// creating a task. ``close()`` releases both the cached and reusable value.
+    public init(value: Value, providerID: String) {
+        self.providerID = providerID
+        self.admission = nil
+        self.source = .value(Seed(value))
+        self.phase = .ready(value)
+    }
+
+    /// Creates an already-ready override bound to a shared owner admission gate.
+    public init(
+        value: Value,
+        providerID: String,
+        admission: _InnoDIAsyncAdmission
+    ) {
+        self.providerID = providerID
+        self.admission = admission
+        self.source = .value(Seed(value))
+        self.phase = .ready(value)
     }
 
     public func status() async -> DIAsyncProviderStatus {
@@ -441,6 +539,11 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
 
     public func value() async throws -> Value {
         try Task.checkCancellation()
+        try await admission?.admit(providerID: providerID)
+        return try await valueAfterAdmission()
+    }
+
+    private func valueAfterAdmission() async throws -> Value {
         await waitForRetryReservation()
         try Task.checkCancellation()
         let waiterID = UUID()
@@ -453,12 +556,50 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
         }
     }
 
+    /// Admits this generation's work without waiting for readiness.
+    ///
+    /// Waits only for owner admission and an in-progress retry reservation.
+    /// An idle factory starts one owned task; concurrent starts and value
+    /// requests share that task.
+    /// Ready, failed, and cancelled generations return their cached status
+    /// without an implicit retry. A closed scope throws
+    /// ``DIAsyncScopeError/closed(providerID:)``.
+    ///
+    /// Cancellation before admission prevents work from starting. Once work
+    /// is admitted, cancelling this caller does not cancel the owned task.
+    public func start() async throws -> DIAsyncProviderStatus {
+        try Task.checkCancellation()
+        try await admission?.admit(providerID: providerID)
+        await waitForRetryReservation()
+        try Task.checkCancellation()
+        try startAdmittedWork()
+        return currentStatus()
+    }
+
+    /// Waits for readiness and returns the provider's actual lifecycle state.
+    ///
+    /// Cancelling this caller ends only its wait. Its snapshot can therefore
+    /// remain idle, running, or ready; `.cancelled` means the provider itself
+    /// was cancelled. This nonthrowing primitive does not report caller
+    /// cancellation as provider cancellation. Preparation plans throw for a
+    /// cancelled caller instead.
     public func prepare() async -> DIAsyncProviderStatus {
         do {
-            _ = try await value()
+            try Task.checkCancellation()
+            do {
+                try await admission?.admit(providerID: providerID)
+            } catch let error as DIAsyncScopeError
+                where error == .closed(providerID: providerID) {
+                // Admission can close before this scope's cleanup runs. Keep
+                // that outcome separate from a factory throwing the same
+                // public error, which remains a cached provider failure.
+                try Task.checkCancellation()
+                await waitForRetryReservation()
+                return makeStatus(.closed)
+            }
+            _ = try await valueAfterAdmission()
         } catch is CancellationError {
-            await waitForRetryReservation()
-            return makeStatus(.cancelled)
+            return await status()
         } catch {
             // The status carries bounded provenance without retaining or
             // serializing arbitrary user error payloads.
@@ -467,6 +608,7 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
     }
 
     public func retry() async throws {
+        try await admission?.admit(providerID: providerID)
         await waitForRetryReservation()
         try Task.checkCancellation()
         switch phase {
@@ -482,6 +624,7 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
     }
 
     public func resetForSubgraphRetry() async throws {
+        try await admission?.admit(providerID: providerID)
         await waitForRetryReservation()
         try Task.checkCancellation()
         switch phase {
@@ -498,11 +641,34 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
         }
     }
 
+    /// Cancels running work while retaining its source for retry.
+    ///
+    /// Running value waiters resume with `CancellationError`. Idle scopes,
+    /// ready values, cached failures, and closed scopes remain unchanged.
+    /// Cancellation does not advance the generation; ``retry()`` starts a
+    /// clean generation after running work was cancelled.
+    public func cancel() async {
+        await waitForRetryReservation()
+        switch phase {
+        case .running:
+            phase = .cancelled
+            ownedTask?.cancel()
+            ownedTask = nil
+            let currentWaiters = waiters.values
+            waiters.removeAll(keepingCapacity: false)
+            for waiter in currentWaiters {
+                waiter.resume(throwing: CancellationError())
+            }
+        case .idle, .ready, .failed, .cancelled, .closed:
+            break
+        }
+    }
+
     public func close() async {
         await waitForRetryReservation()
         guard case .closed = phase else {
             phase = .closed
-            operation = nil
+            source = nil
             ownedTask?.cancel()
             ownedTask = nil
             let currentWaiters = waiters.values
@@ -526,6 +692,7 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
 
     fileprivate func reserveForRetry(_ token: UUID) async throws -> DIAsyncProviderStatus {
         try Task.checkCancellation()
+        try await admission?.admit(providerID: providerID)
         await waitForRetryReservation()
         try Task.checkCancellation()
         retryReservation = token
@@ -561,6 +728,12 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
             continuation.resume(throwing: CancellationError())
             return
         }
+        do {
+            try startAdmittedWork()
+        } catch {
+            continuation.resume(throwing: error)
+            return
+        }
         switch phase {
         case .ready(let value):
             continuation.resume(returning: value)
@@ -573,14 +746,32 @@ public actor DIAsyncScope<Value: Sendable>: DIAsyncPreparing, DIAsyncRetryPartic
                 throwing: DIAsyncScopeError.closed(providerID: providerID)
             )
         case .idle, .running:
-            guard let operation else {
-                continuation.resume(throwing: DIAsyncScopeError.closed(providerID: providerID))
-                return
+            // Continuation-based waits preserve per-reader cancellation but
+            // do not create Task.value's automatic priority dependency. On
+            // runtimes with explicit escalation, carry a joining reader's
+            // current priority to the existing construction task.
+            if #available(macOS 26, iOS 26, watchOS 26, tvOS 26, visionOS 26, *) {
+                ownedTask?.escalatePriority(to: Task.currentPriority)
             }
             waiters[waiterID] = continuation
-            if case .idle = phase {
+        }
+    }
+
+    private func startAdmittedWork() throws {
+        switch phase {
+        case .idle:
+            switch source {
+            case .operation(let operation):
                 startOwnedTask(operation: operation)
+            case .value(let seed):
+                phase = .ready(seed.value)
+            case nil:
+                throw DIAsyncScopeError.closed(providerID: providerID)
             }
+        case .closed:
+            throw DIAsyncScopeError.closed(providerID: providerID)
+        case .running, .ready, .failed, .cancelled:
+            break
         }
     }
 

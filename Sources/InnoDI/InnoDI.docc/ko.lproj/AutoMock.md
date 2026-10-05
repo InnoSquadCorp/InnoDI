@@ -74,6 +74,10 @@ let completed = mock.innoDIReset(.calls)
   맞춥니다. 테스트는 호출 경계에서 generic 반환 타입으로 cast합니다. generic
   typed-throws requirement는 handler를 지우면 선언된 실패 타입이 사라지므로
   여전히 지원하지 않습니다.
+  handler에는 호출자가 전달한 인자가 선언 순서대로 들어갑니다. variadic
+  파라미터는 값 배열 하나로 전달됩니다. 각 호출이 요구한 타입의 값을 반환해야
+  하며, 다른 타입을 반환하면 cast precondition이 실패합니다. 반환 타입이
+  `Any`라고 해서 임의의 generic 반환 타입을 보장할 수 있는 것은 아닙니다.
 * **`mutating` requirement** — 생성된 `final class` mock으로 지원하며, 합성된
   메서드에 `mutating`을 붙일 필요가 없습니다.
 * **접근 수준** — `private`와 `fileprivate` protocol의 mock은 그 좁은 접근
@@ -82,7 +86,21 @@ let completed = mock.innoDIReset(.calls)
   매크로를 붙여도 패키지의 public API가 넓어지지 않습니다.
 * **escaping 클로저 인자** — property에 담을 수 있는 함수 타입으로 기록합니다
   (호출 기록 필드에서는 `@escaping` / `@autoclosure`를 빼고, conforming
-  메서드는 원래 파라미터 표기를 유지합니다).
+  메서드는 원래 파라미터 표기를 유지합니다). `@autoclosure @escaping` 인자는
+  테스트가 기록된 클로저를 실행할 때까지 평가하지 않습니다. 일반 `@autoclosure`를
+  포함한 nonescaping 클로저는 보관할 수 없으므로 지원하지 않는 형태라는 진단을
+  냅니다. optional 클로저, variadic 클로저 배열, C 함수 포인터
+  (`@convention(c)`)는 계속 보관할 수 있습니다.
+* **variadic 인자** — 메서드는 원래의 variadic 호출 문법을 유지하고 호출 기록에는
+  배열을 저장합니다. 인자가 없으면 빈 배열을 저장합니다.
+* **소유권 파라미터** — witness에는 `consuming`, `borrowing`, `sending`을
+  보존하고 기록 필드에서는 제거합니다. borrowing과 consuming 인자는 호출 기록과
+  generic handler 인자에 명시적으로 복사합니다. 기록할 값은 `Copyable`과
+  `Escapable`이어야 합니다. 전달 전용 반환값과 noncopyable generic 입력에는
+  직접 작성한 mock을 사용하세요.
+* **protocol의 `Self`** — witness와 저장 타입에서 구체적인 final mock class를
+  가리킵니다. 중첩 호출 기록의 인자도 같은 class를 가리키며, `Self` 반환값이나
+  property에 다른 mock 인스턴스를 설정할 수 있습니다.
 * **동시성** — `Sendable`을 상속하는 protocol은 `InnoDITesting` product의 lock
   기반 호출·stub storage를 받습니다. snapshot과 reset-safe 지원 타입은
   unchecked conformance를 쓰지 않습니다. 컴파일러는 여전히 `Sendable`이 아닌
@@ -90,6 +108,9 @@ let completed = mock.innoDIReset(.calls)
   mock으로 남습니다.
 * **Actor 격리** — protocol 수준의 `@MainActor`를 생성된 mock class에 복사해,
   변경 가능한 테스트 상태를 모두 main actor에 둡니다.
+  명시적인 `nonisolated` protocol은 기본 MainActor 격리를 사용하는 target에서도
+  `nonisolated` mock을 생성합니다. 이런 target에서 격리를 따로 쓰지 않은
+  protocol과 mock은 MainActor에 남습니다.
 * **상호작용 검증** — 함수가 있는 생성 mock은 모두 `recordedCallCounts`를
   노출합니다. 모든 property, 값을 반환하는 함수, throwing 함수, generic
   handler는 생성된 slot에 값을 대입할 때까지 `missingStubSelectors`에
@@ -103,6 +124,9 @@ let completed = mock.innoDIReset(.calls)
   설정한 stub을 유지하면서 호출 기록만 지우려면 `.calls`를, 호출을 지우고 모든
   stub을 missing 상태로 되돌리려면 `.all`을 쓰세요. 호출 기록마다 generation이
   들어갑니다.
+  `generation`은 이 metadata를 위한 이름입니다. 같은 이름의 입력 인자는
+  `generation2`에 기록하며, 그 필드가 이미 있으면 다음 사용 가능한 숫자 suffix를
+  씁니다. 메서드의 외부 인자 label은 바뀌지 않습니다.
 
 ## Reset과 generation 의미
 
@@ -121,8 +145,13 @@ MainActor 직렬화가 같은 순서를 보장합니다. 일반 mock은 문서�
 그 뒤에 하는 작업은 이미 시작된 호출의 일부로 남으며, reset은 임의의 사용자
 작업을 취소하지 않습니다. `.calls`는 모든 stub과 설정 flag를 보존합니다.
 `.all`은 backing 값과 설정 flag를 함께 초기화하므로, reset 뒤에
-`missingStubSelectors`가 그 멤버를 다시 보고합니다. 생성된 helper 이름이
-충돌하면 protocol requirement를 조용히 가리지 않고 fail closed합니다.
+`missingStubSelectors`가 그 멤버를 다시 보고합니다. 메서드 helper와 private
+storage는 protocol requirement와 이름이 겹치지 않도록 조정합니다. 고정된 집계
+API(`recordedCallCounts`, `missingStubSelectors`, public reset/history 멤버)와
+충돌하면 fail closed합니다. `handler`나 `generation`이라는 파라미터 이름은
+계속 사용할 수 있으며, 생성된 지역 변수가 그 값을 가리지 않습니다. 조정된
+helper를 참조할 때는 expansion을 확인하세요. experimental 생성 이름은 아직
+고정된 API가 아닙니다.
 
 ## 아직 지원하지 않는 것
 
@@ -137,6 +166,12 @@ mock을 합성하지 않습니다.
   `consuming`도 포함합니다.
 * `subscript` requirement(아직 안정적인 lowering이 없습니다).
 * `inout` 파라미터(호출 기록 storage에 복사 정책이 필요합니다).
+* nonescaping `@autoclosure`를 포함한 nonescaping 클로저 파라미터. 클로저를
+  보관하는 것이 실제 protocol 계약에 포함될 때만 `@escaping`으로 바꾸세요.
+  그렇지 않으면 직접 작성한 mock을 사용하세요.
+* `sending` 반환값. 보관한 stub은 호출할 때마다 다른 곳과 분리된 값을 전달한다고
+  보장할 수 없습니다. 명시적인 noncopyable 또는 nonescapable generic
+  파라미터도 생성된 호출 기록에 저장할 수 없습니다.
 * `rethrows` requirement. typed `throws(ErrorType)`는 non-generic
   requirement에서 지원하며, generic typed-throws requirement는 부분
   conformance를 생성하지 않고 소스 attribute에서 실패합니다.

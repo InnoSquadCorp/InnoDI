@@ -8,6 +8,20 @@ struct MigrationWriteSafetyTests {
     private let source = "import InnoDI\n@DIContainer struct C { @Provide(.input) var value: Int }\n"
     private let editorSource = "// saved by editor\nstruct UserChange {}\n"
 
+    @Test("A re-export ambiguity leaves every source unchanged in write mode")
+    func reexportAmbiguityPreventsAllWrites() throws {
+        let root = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let imports = "@_exported public import OtherDI\n"
+        try imports.write(to: root.appendingPathComponent("Imports.swift"), atomically: true, encoding: .utf8)
+        let plan = try InnoDIMigrator().run(root: root, mode: .write)
+        #expect(!plan.canWrite)
+        #expect(plan.diagnostics.contains { $0.message.contains("OtherDI") })
+        #expect(try String(contentsOf: root.appendingPathComponent("C.swift"), encoding: .utf8) == source)
+        #expect(try String(contentsOf: root.appendingPathComponent("Imports.swift"), encoding: .utf8) == imports)
+        #expect(try recoveries(in: root).isEmpty)
+    }
+
     private func fixture() throws -> URL {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("InnoDI-WriteSafety-\(UUID())")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -18,6 +32,26 @@ struct MigrationWriteSafetyTests {
     private func recoveries(in root: URL) throws -> [URL] {
         try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)
             .filter { $0.lastPathComponent.hasPrefix(".innodi-migrate-recovery-") }
+    }
+
+    @Test("Long UTF-8 source basenames retain recoveries without exceeding NAME_MAX",
+          arguments: [String(repeating: "a", count: 188) + ".swift",
+                      String(repeating: "b", count: 243) + ".swift",
+                      String(repeating: "한", count: 80) + ".swift"])
+    func longSourceBasenamesKeepRecoveries(_ name: String) throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("InnoDI-LongName-\(UUID())")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent(name)
+        try source.write(to: file, atomically: true, encoding: .utf8)
+        let plan = try InnoDIMigrator().run(root: root, mode: .write)
+        #expect(plan.changes.map(\.path) == [name])
+        #expect(plan.recoveryPaths.count == 1)
+        let recoveryPath = try #require(plan.recoveryPaths.first)
+        #expect(recoveryPath.utf8.count < 150)
+        #expect(try String(contentsOf: root.appendingPathComponent(recoveryPath), encoding: .utf8) == source)
+        #expect(try String(contentsOf: file, encoding: .utf8).contains("@Input"))
+        #expect(try InnoDIMigrator().plan(root: root).changes.isEmpty)
     }
 
     @Test("An atomic editor save in the final publish window is retained and reported")

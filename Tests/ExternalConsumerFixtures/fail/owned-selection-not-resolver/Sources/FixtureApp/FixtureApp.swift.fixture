@@ -1,0 +1,7 @@
+import InnoDI
+@DIContainer(generateOwned: true) struct Container {
+    @Provide(.shared, asyncFactory: { () async in 1 }) var service: Int
+}
+func invalid(_ token: Container._InnoDIOwnedProvider) async throws -> Int {
+    try await token.value()
+}

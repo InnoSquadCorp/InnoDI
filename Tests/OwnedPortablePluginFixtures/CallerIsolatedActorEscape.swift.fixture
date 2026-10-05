@@ -1,0 +1,4 @@
+import CallerIsolatedLibrary
+nonisolated func escape(_ services: ExplicitCallerIsolatedServices) async {
+    _ = await services.session
+}

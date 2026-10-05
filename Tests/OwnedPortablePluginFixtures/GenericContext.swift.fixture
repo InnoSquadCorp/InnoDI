@@ -1,0 +1,6 @@
+import InnoDI
+struct GenericNamespace<T> {
+    @DIContainer(generateOwned: true) struct Container {
+        @Input var factory: () -> Self
+    }
+}

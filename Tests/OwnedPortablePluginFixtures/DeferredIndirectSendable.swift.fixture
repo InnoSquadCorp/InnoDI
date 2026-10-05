@@ -1,0 +1,7 @@
+import InnoDI
+@DIContainer(generateOwned: true) struct Container {
+    static func read(_ source: InnoDI.Lazy<Int>) -> Int { source() }
+    @Input var source: Int
+    @Provide(.shared, initialization: .onDemand, factory: { (source: InnoDI.Lazy<Int>) in Self.read(source) }) var value: Int
+    @Provide(.shared, asyncFactory: { (value: Int) async in value }) var result: Int
+}

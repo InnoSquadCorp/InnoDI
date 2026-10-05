@@ -172,6 +172,10 @@
         "conclusion": "success"
       },
       {
+        "name": "Upload current public API contract",
+        "conclusion": "success"
+      },
+      {
         "name": "Validate Global DAG",
         "conclusion": "success"
       },
@@ -302,11 +306,19 @@
         "conclusion": "success"
       },
       {
+        "name": "Run minimum-toolchain package contracts",
+        "conclusion": "success"
+      },
+      {
         "name": "Run strict external compatibility contracts",
         "conclusion": "success"
       },
       {
         "name": "Validate minimum-toolchain public API semantics",
+        "conclusion": "success"
+      },
+      {
+        "name": "Upload minimum-toolchain package evidence",
         "conclusion": "success"
       },
       {

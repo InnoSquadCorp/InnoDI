@@ -1,0 +1,1 @@
+generateOwned: true synthesizes makeOwned(...), but a direct declaration already uses 'makeOwned'. Rename that declaration.

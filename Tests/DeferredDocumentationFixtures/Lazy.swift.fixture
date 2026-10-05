@@ -1,0 +1,29 @@
+import InnoDI
+
+final class CoordinatorA {
+    let b: Lazy<CoordinatorB>
+    init(b: Lazy<CoordinatorB>) { self.b = b }
+}
+final class CoordinatorB {}
+
+// INNODI_DOCUMENTED_EXAMPLE
+
+@main struct Check {
+    static func main() {
+        let container = AppContainer()
+        precondition(container.a.b() === container.b)
+        precondition(container.a.b() === container.a.b())
+        let copy = container
+        precondition(copy.a.b() === container.b)
+        let other = AppContainer()
+        precondition(other.a.b() !== container.b)
+
+        // Both public wrappers invoke their resolver on every call. The
+        // shared identity above belongs to the container's scope, not Lazy.
+        let lazy = Lazy { CoordinatorB() }
+        precondition(lazy() !== lazy())
+        let provider = Provider { CoordinatorB() }
+        precondition(provider() !== provider())
+        print("Public Lazy documentation: shared identity and non-caching wrappers passed")
+    }
+}

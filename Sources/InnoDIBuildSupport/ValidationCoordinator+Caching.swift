@@ -13,6 +13,17 @@
 //
 
 import Foundation
+import InnoDIWorkspaceAnalysis
+
+internal func validationResultSignature(_ result: ValidationCommandResult) -> String {
+    var hasher = StableHasher()
+    hasher.combine("exit:\(result.exitCode)")
+    hasher.combine("stdout[\(result.stdout.utf8.count)]:")
+    hasher.combine(result.stdout)
+    hasher.combine("stderr[\(result.stderr.utf8.count)]:")
+    hasher.combine(result.stderr)
+    return hasher.finalize()
+}
 
 internal func loadCachedSharedRun(
     resultURL: URL,
@@ -20,11 +31,15 @@ internal func loadCachedSharedRun(
 ) -> (result: ValidationCommandResult, record: SharedValidationRunRecord)? {
     guard
         let result = loadCachedResult(at: resultURL),
-        let record = loadSharedRunRecord(at: sharedRunRecordURL)
+        let record = loadSharedRunRecord(at: sharedRunRecordURL),
+        record.resultSignature == validationResultSignature(result)
     else {
         return nil
     }
 
+    // Writers replace the two files independently. A digest mismatch means
+    // this reader observed a mixed publication and must perform validation
+    // rather than pairing old text with new issues/content coordinates.
     return (result, record)
 }
 

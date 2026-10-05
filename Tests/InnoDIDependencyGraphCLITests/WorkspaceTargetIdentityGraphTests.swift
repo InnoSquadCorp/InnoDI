@@ -185,12 +185,8 @@ struct WorkspaceTargetIdentityGraphTests {
 
         #expect(result.exitCode == 3)
         #expect(result.stderr.contains("declarations: 2"))
-        #expect(
-            occurrenceCount(
-                "swiftpm:root-package:App::Sources/App/Duplicates.swift",
-                in: result.stderr
-            ) == 1
-        )
+        #expect(result.stderr.contains("Sources/App/Duplicates.swift:3:1"))
+        #expect(result.stderr.contains("Sources/App/Duplicates.swift:6:1"))
     }
 
     @Test("Current target declarations win over imported namesakes")
@@ -605,7 +601,7 @@ struct WorkspaceTargetIdentityGraphTests {
 
     @Test("Exported imports propagate transitive container visibility")
     func exportedImportsExposeTransitiveDependencies() throws {
-        for directive in ["@_exported import", "public import"] {
+        for directive in ["@_exported import", "@_exported public import"] {
             let fixture = try TargetGraphFixture(
                 primarySource: factorySource(
                     imports: ["MiddleKit"],
@@ -639,6 +635,25 @@ struct WorkspaceTargetIdentityGraphTests {
             )
             #expect(try fixture.validateGraph().exitCode == 0)
         }
+    }
+
+    @Test("Public import permits API references without re-exporting container lookup")
+    func publicImportsDoNotExposeTransitiveDependencies() throws {
+        let fixture = try TargetGraphFixture(
+            primarySource: factorySource(imports: ["MiddleKit"], factoryType: "LeafContainer"),
+            primaryDependencyModuleNames: ["MiddleKit"],
+            dependencies: [
+                .init(packageIdentity: "middle-package", moduleName: "MiddleKit",
+                      source: "public import LeafKit\n", dependencyModuleNames: ["LeafKit"]),
+                .init(packageIdentity: "middle-package", moduleName: "LeafKit",
+                      source: containerSource(named: "LeafContainer"))
+            ]
+        )
+        defer { fixture.remove() }
+        #expect(try fixture.collectGraph().edges.isEmpty)
+        let validation = try fixture.validateGraph()
+        #expect(validation.exitCode == 3)
+        #expect(validation.stderr.contains("[graph.unresolved-container-reference]"))
     }
 
     @Test("Module-qualified SubContainer declarations create ownership edges")

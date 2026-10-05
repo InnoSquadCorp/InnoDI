@@ -1,0 +1,5 @@
+import InnoDI
+@DIContainer(generateOwned: true) struct Container {
+    typealias _InnoDIOwnedSelf = Int
+    @Input var factory: () -> Self
+}

@@ -1,0 +1,143 @@
+import InnoDI
+
+final class Counter {
+    var made = 0
+    var released = 0
+}
+final class Node {
+    let counter: Counter
+    init(_ counter: Counter) { self.counter = counter; counter.made += 1 }
+    deinit { counter.released += 1 }
+}
+struct LazyBox { let value: InnoDI.Lazy<Node> }
+struct ProviderBox { let value: InnoDI.Provider<Node> }
+struct Pair {
+    let lazy: InnoDI.Lazy<Node>
+    let provider: InnoDI.Provider<Node>
+}
+@DIContainer(generateOwned: true) struct DeferredGraph {
+    struct Lazy<T> {}
+    struct Provider<T> {}
+    @Input var counter: Counter
+    @Input var borrowed: Node
+    @Provide(.shared, factory: { (eager: InnoDI.Lazy<Node>) in LazyBox(value: eager) }) var forward: LazyBox
+    @Provide(.shared, factory: { (demand: InnoDI.Lazy<Node>) in LazyBox(value: demand) }) var lazy: LazyBox
+    @Provide(.shared, factory: { (borrowed: InnoDI.Lazy<Node>) in LazyBox(value: borrowed) }) var inputHandle: LazyBox
+    @Provide(.shared, factory: { (fresh: InnoDI.Provider<Node>) in ProviderBox(value: fresh) }) var provider: ProviderBox
+    @Provide(.shared, factory: { (fresh: InnoDI.Lazy<Node>) in LazyBox(value: fresh) }) var lazyTransient: LazyBox
+    @Provide(.shared, factory: { (counter: Counter) in Node(counter) }) var eager: Node
+    @Provide(.shared, initialization: .onDemand, factory: { (counter: Counter) in Node(counter) }) var demand: Node
+    @Provide(.transient, factory: { (counter: Counter) in Node(counter) }) var fresh: Node
+    @Provide(.shared, asyncFactory: { () async in 42 }) var asyncValue: Int
+}
+@DIContainer(initializationOrder: ContainerInitializationOrder.dependency, generateOwned: true)
+struct TransientOnly {
+    @Input var counter: Counter
+    @Provide(.transient, factory: { (pair: Pair) in pair }) var outer: Pair
+    @Provide(.transient, factory: { (demand: InnoDI.Lazy<Node>, fresh: InnoDI.Provider<Node>) in Pair(lazy: demand, provider: fresh) }) var pair: Pair
+    @Provide(.transient, factory: { (counter: Counter) in Node(counter) }) var fresh: Node
+    @Provide(.shared, initialization: .onDemand, factory: { (counter: Counter) in Node(counter) }) var demand: Node
+}
+struct OptionalHandle { let value: InnoDI.Lazy<Node?> }
+@DIContainer(generateOwned: true) struct OptionalGraph {
+    @Input var counter: Counter
+    @Provide(.shared, factory: { (target: InnoDI.Lazy<Node?>) in OptionalHandle(value: target) }) var handle: OptionalHandle
+    @Provide(.shared, initialization: .onDemand, factory: { (counter: Counter) in Optional.some(Node(counter)) }) var target: Node?
+}
+@MainActor final class ActorHandle {
+    let value: InnoDI.Lazy<Int>
+    init(_ value: InnoDI.Lazy<Int>) { self.value = value }
+}
+@DIContainerRole(role: ContainerRole.local, mainActor: true, generateOwned: true)
+struct ActorGraph {
+    @Provide(.shared, asyncFactory: { (value: InnoDI.Lazy<Int>) async in ActorHandle(value) }) var handle: ActorHandle
+    @Provide(.shared, initialization: .onDemand, factory: 7) var value: Int
+}
+
+@MainActor func verifyGraph() async throws {
+    let counter = Counter()
+    do {
+        let borrowed = Node(counter)
+        let owner = try await DeferredGraph.makeOwned(counter: counter, borrowed: borrowed)
+        let copied = owner
+        let view = copied.container
+        precondition(counter.made == 2) // borrowed + eager; wrappers do not resolve
+        precondition(view.forward.value() === view.eager)
+        precondition(view.inputHandle.value() === borrowed)
+        precondition(view.lazy.value() === view.demand && counter.made == 3)
+        let first = view.provider.value()
+        let second = view.provider.value()
+        precondition(first !== second && counter.made == 5)
+        let lazyFirst = view.lazyTransient.value()
+        let lazySecond = view.lazyTransient.value()
+        precondition(lazyFirst !== lazySecond && counter.made == 7)
+        await copied.close()
+        precondition(view.lazy.value() === view.demand)
+        precondition(view.provider.value() !== second)
+        do { _ = try await view.asyncValue; preconditionFailure("closed async") }
+        catch DIAsyncScopeError.closed(providerID: "asyncValue") {}
+    }
+    precondition(counter.made == counter.released)
+    let overridden = Counter()
+    do {
+        let replacement = Node(overridden)
+        let owner = try await DeferredGraph.makeOwnedWithOverrides(counter: overridden, borrowed: replacement) {
+            $0.eager = replacement; $0.demand = replacement; $0.fresh = replacement
+        }
+        precondition(owner.container.forward.value() === replacement)
+        precondition(owner.container.lazy.value() === replacement)
+        precondition(owner.container.provider.value() === replacement)
+        precondition(owner.container.lazyTransient.value() === replacement)
+        precondition(overridden.made == 1)
+        await owner.close()
+    }
+    precondition(overridden.made == overridden.released)
+}
+
+@MainActor func escapedHandles(resolve: Bool) async throws -> Pair {
+    let counter = Counter()
+    let owner = try await TransientOnly.makeOwned(counter: counter)
+    let pair = owner.container.outer
+    precondition(counter.made == 0)
+    if resolve { _ = pair.lazy(); _ = pair.provider() }
+    await owner.close()
+    return pair // resolver captures concrete dependencies, never the view/owner
+}
+@MainActor func verifyEscapedAndIndependent() async throws {
+    for resolve in [false, true] {
+        var escaped: Pair? = try await escapedHandles(resolve: resolve)
+        weak var retained: Counter?
+        do {
+            let first = escaped!.lazy()
+            let second = escaped!.provider()
+            retained = first.counter
+            precondition(first !== second)
+            precondition(escaped!.lazy() === first)
+        }
+        precondition(retained != nil)
+        escaped = nil
+        precondition(retained == nil) // no cycle before or after first resolution
+    }
+    let a = try await TransientOnly.makeOwned(counter: Counter())
+    let b = try await TransientOnly.makeOwned(counter: Counter())
+    precondition(a.container.pair.lazy() !== b.container.pair.lazy())
+    await a.close(); await b.close()
+    let optionalCounter = Counter()
+    let optional = try await OptionalGraph.makeOwnedWithOverrides(counter: optionalCounter) { $0.target = .some(nil) }
+    precondition(optional.container.handle.value() == nil && optionalCounter.made == 0)
+    await optional.close()
+    precondition(optional.container.handle.value() == nil && optionalCounter.made == 0)
+    let actor = try await ActorGraph.makeOwned()
+    let handle = try await actor.container.handle
+    precondition(handle.value() == 7)
+    await actor.close()
+    precondition(handle.value() == 7)
+}
+
+@main struct DeferredCheck {
+    @MainActor static func main() async throws {
+        try await verifyGraph()
+        try await verifyEscapedAndIndependent()
+        print("real plugin owned synchronous deferred dependencies passed")
+    }
+}

@@ -17,7 +17,7 @@ breaking change 표는
 | 4.1 → 4.2 | `@SubContainer` wiring 단순화 | 모든 `withNames:` 사이트를 `with:` key path로 교체하거나, 스택드 peer-macro 헬퍼를 manual/root 헬퍼 코드로 분리하세요. `withNames:`는 더 이상 공개 매크로 시그니처에서 받지 않습니다. |
 | 4.2 → 4.3 | Feature-root 헬퍼 통합 | 새 SwiftUI feature-root 헬퍼는 스택드 `@DIFeatureRoot` 대신 `@SubContainer(featureRoot:)` 또는 `featureRoots:`로 옮기세요. `@DIFeatureRoot`는 호환성 용도로 deprecated 상태로 남습니다. |
 | 4.x → 4.x+1 (experimental) | `@GenerateMock` opt-in | RFC 0001의 1-3단계는 **experimental**로 제공됩니다. Attribute는 안정적이지만 생성되는 mock 형태는 바뀔 수 있습니다. 도입은 opt-in입니다. <doc:AutoMock>을 참고하세요. |
-| 6.x → 7.0 (미출시) | Parent key path 정규화, 명시적 SwiftUI import, 지연 비동기 provider | 서브컨테이너 parent key path를 `\Self.member`로 쓰고, `InnoDISwiftUI`를 import하는 파일에서 SwiftUI도 import하세요. `InnoDI-Migrate`가 둘 다 처리합니다. macOS target을 14로 올리고 host owner 관찰을 Observation으로 옮기세요. eager 비동기 `.shared` provider는 필요하면 `initialization: .onDemand`로 옮길 수 있습니다. [6.x → 7.0](#6x--70)을 참고하세요. |
+| 6.x → 7.0 (미출시) | Parent key path 정규화, 명시적 SwiftUI import, typed prewarm, 선택적 owned 비동기 수명 관리 | 서브컨테이너 parent key path를 `\Self.member`로 쓰고, `InnoDISwiftUI`를 import하는 파일에서 SwiftUI도 import하세요. `InnoDI-Migrate`가 둘 다 처리합니다. macOS target을 14로 올리고 host owner 관찰을 Observation으로 옮기세요. key path prewarm 호출은 직접 옮기세요. Owned preparation과 override helper는 선택적인 추가 API입니다. [6.x → 7.0](#6x--70)을 참고하세요. |
 | 4.x → 5.0 | 공개 계약 강화 | `concrete:`와 `@DIFeatureRoot`를 제거하고, 지원 선언 경계·MainActor 격리·검증·Graph JSON v2 변경에 맞춰 마이그레이션하세요. `@GenerateMock`는 experimental 상태를 유지합니다. |
 
 이후 본문은 사용자가 보통 필요로 하는 순서대로 — 먼저 4.1 → 4.2 wiring
@@ -28,8 +28,11 @@ breaking change 표는
 
 ## 6.x → 7.0
 
-InnoDI 7.0은 미출시 상태이며 `main`에서 개발 중입니다. 아래 각 항목은 필요한
+InnoDI 7.0은 미출시 상태입니다. 후보에는 아래 macro-first API가 포함되며 공개
+API baseline 검토와 지원 Apple toolchain 검증이 남아 있습니다. 각 항목은 필요한
 소스 또는 의존성 변경과 적용 방법을 적습니다. 먼저 읽기 전용 검사를 실행하세요.
+Migrator는 아래에 명시한 규칙만 처리하며 typed prewarm이나 owned 수명 관리로
+자동 전환하지 않습니다.
 
 ### Parent key path는 `\Self.member`로 씁니다
 
@@ -70,6 +73,27 @@ InnoDI 6.0에서도 컴파일되므로 업그레이드 전에 재작성해 둘 �
 `ContainerRole` 같은 이름을 만들게 되면 `migrate.rewrite-target-ambiguous`를
 보고하므로, 속성을 `InnoDI.`로 한정하거나 해당 선언의 이름을 바꾸세요.
 
+### Override builder는 가려지지 않은 Swift 타입 한정자가 필요합니다
+
+Provider 또는 sub-container override slot이 있는 생성된 `Overrides` builder에는
+이제 `set(_:to:)`와 `useDefault(_:)`가 포함되며, 두 메서드의 시그니처는
+`Swift.WritableKeyPath`를 사용합니다. 앱에서 이 helper를 호출하지 않아도 소스
+호환성에 영향을 줍니다. Slot이 있는 일반 동기 컨테이너와 `validateDAG: false`
+컨테이너에서도 타입 위치의 `Swift`가 표준 라이브러리 모듈로 해석되어야 합니다.
+비어 있거나 input만 있는 builder에는 slot이 없으므로 두 helper를 생성하지 않으며,
+이 helper로 인한 한정자 요구사항도 추가되지 않습니다.
+
+보이는 타입 또는 typealias `Swift`의 이름을 바꾸거나, 그 선언이 보이지 않는
+scope로 컨테이너를 옮기세요. Full-source plugin은 같은 target, enclosing scope,
+상속 및 보이는 imported 타입이 한정자를 가리면 `container.reserved-module-name`을
+보고합니다. 값 이름 `Swift`는 이 타입 전용 helper에서 계속 안전하며, 사용하지
+않는 `InnoDI`와 `_Concurrency` 한정자는 기존 규칙을 유지합니다. 상속된 타입도
+`Swift`를 가릴 수 있으므로, SDK나 바이너리만 있는 superclass를 검증할 수 없는
+class 안의 slot이 있는 컨테이너는 이제 `generated-qualifier.inheritance-unverifiable`을
+보고할 수 있습니다. 컨테이너를 파일 scope 또는 class가 아닌 namespace로
+옮기거나, superclass chain을 인덱싱할 수 있는 소스로 제공하세요.
+`InnoDI-Migrate`는 이 변경을 자동 적용하지 않습니다.
+
 ### InnoDISwiftUI가 더 이상 SwiftUI를 re-export하지 않습니다
 
 예전에는 `import InnoDISwiftUI`만으로 모든 SwiftUI 이름이 보였습니다. 7.0에서도
@@ -79,14 +103,42 @@ InnoDI는 계속 re-export하지만, SwiftUI를 쓰는 파일은 SwiftUI를 직�
 한정한 이름으로 확장되고, 이 이름은 파일이 SwiftUI를 import할 때만 해석됩니다.
 import가 없으면 `cannot find type 'Text' in scope` 같은 오류로 실패합니다.
 
-`InnoDI-Migrate`는 `InnoDISwiftUI`를 import하는 각 파일에 같은 가시성의 전체
-`import SwiftUI`를 둡니다. `InnoDISwiftUI` import 뒤에 그 import와 같은 접근
-수준으로 추가하고, `@_exported import InnoDISwiftUI`에는
-`@_exported import SwiftUI`를 추가하므로 그 파일의 client도 계속 SwiftUI를
-봅니다. 이미 `import SwiftUI`가 있으면 그 import를 같은 가시성으로 올립니다.
-`import struct SwiftUI.Text` 같은 범위 import나 `#if` 안의 import는 SwiftUI의
-모든 이름을 제공하지 않으므로, 이런 파일에도 전체 import를 추가합니다. 이
-규칙은 다시 실행해도 결과가 같고, 위의 명령으로 함께 처리됩니다.
+`InnoDI-Migrate`는 같은 조건부 범위에 전체 SwiftUI import를 추가하고 import의
+attribute, 주석, 들여쓰기를 보존합니다. `import struct SwiftUI.Text` 같은 범위
+import는 SwiftUI의 모든 이름을 제공하지 않습니다. Exported InnoDISwiftUI
+import에는 `@_exported public import SwiftUI`를 추가하여 import 기본값 설정과
+관계없이 client가 계속 SwiftUI를 볼 수 있게 합니다.
+
+소스 문법만으로 접근 수준을 정할 수 없는 경우가 있습니다. 암시적 접근 수준은
+다른 파일의 명시적 import와 충돌하고, 쓰지 않는 `public import`는
+warnings-as-errors 빌드에서 실패할 수 있습니다. 이때는
+`migrate.swiftui-import-access-ambiguous` 진단으로 모든 쓰기를 차단합니다.
+타깃의 SwiftUI 사용을 검토한 뒤 해당 root에 적용할 접근 수준을 선택하세요.
+
+```bash
+swift run InnoDI-Migrate --root /path/to/target-sources --write --swiftui-import-access internal
+```
+
+package 또는 공개 API에 SwiftUI 타입이 나타나면 `package` 또는 `public`을 선택하세요. 이미 충분한 접근
+수준의 import는 낮추지 않으며 exported import는 항상 public으로 유지합니다.
+선택은 해당 migration root에 적용되고 도구는 타깃 구성을 알 수 없으므로,
+타깃마다 선택이 다르면 더 좁은 root를 사용하세요. 변환 후에는 소비자의 원래
+import 기본값과 경고 설정으로 빌드하세요. 변환은 다시 실행해도 결과가 같지만,
+같은 타깃 안에서 접근 수준이 다르면 API에 필요한 파일에 먼저 전체
+`package`/`public` SwiftUI import를 직접 추가하고, 나머지 파일에는
+`--swiftui-import-access internal`로 다시 실행하세요. 기존의 더 높은 접근
+수준은 유지합니다. 소스 변환 성공이 컴파일러의 타입·접근 검사를 대신하지는
+않습니다.
+
+### Feature-root hosting 명시
+
+identity/close overload를 쓰려면
+`featureRoots: [FeatureRoot(RootView.self, hosted: true)]`로 요청하고 부모 컨테이너와
+같은 파일에서 `SwiftUI`, `InnoDISwiftUI`를 import하세요. 기존
+`featureRoot: RootView.self`와 host를 요청하지 않은 `FeatureRoot(...)`는 직접
+생성하는 0-argument helper를 유지합니다. 이전에는 모듈이 검색되기만 하면
+파일의 import 여부와 무관하게 host overload가 생겨 다른 타깃의 빌드 순서로
+소비자가 깨질 수 있었습니다. 마이그레이터는 앱이 host 소유권을 원하는지 추측하지 않습니다.
 
 ### macOS 14와 Observation 기반 host owner
 
@@ -130,13 +182,90 @@ provider는 바뀌지 않습니다. 비동기 생성 형태는 아래 표로 고
 | 초기화 중에 시작하고 취소하지 않음 | `@Provide(.shared, asyncFactory:)` |
 | 첫 읽기에서 시작하고 소유자가 닫을 수 있음 | `@Provide(.shared, initialization: .onDemand, asyncFactory:)` |
 | 읽을 때마다 새 값 생성 | `@Provide(.transient, asyncFactory:)` |
-| 상태 관찰, 선택한 그래프 준비, 실패 후 재시도 | ``DIAsyncScope``를 `@Input`으로 주입 |
+| 상태 관찰, 선택한 shared 그래프 준비, 실패 후 재시도 | `generateOwned: true`로 생성 owner를 사용하고, 명시적인 custom 수명 adapter에는 ``DIAsyncScope`` 유지 |
 
 eager provider를 `.onDemand`로 옮기면 accessor가 `get async throws`로 바뀝니다.
 `try` 없이 읽던 consumer는 `try`를 추가해야 하고, throw하지 않는 `async`
 factory를 쓰는 sibling consumer는 `async throws`를 선언해야 합니다. 컨테이너를
 소유한 기능이 끝나는 지점에서 `closeAsyncProviders()`를 호출하세요. 수명 계약은
 <doc:Provide>를 참고하세요.
+
+### Key path prewarm 호출을 typed selection으로 전환
+
+기존 동기 prewarm 사용자에게 필요한 소스 변경입니다.
+`try container.prewarm(\FeatureContainer.metrics)`를
+`container.prewarm(.metrics)`로 바꾸고 빈 호출의 `try`도 제거하세요. 생성 메서드는
+throw하지 않으며 선택 순서, shared cache의 identity, 선택하지 않은 provider의
+지연 생성을 유지합니다. 지원하지 않는 provider는 컴파일 단계에서 거부됩니다.
+`DIPrewarmError` 선언은 남지만 이 메서드는 더 이상 해당 오류를 throw하지 않습니다.
+
+`InnoDI-Migrate`는 이 호출을 재작성하지 않습니다. 동적 `PartialKeyPath` 값과
+generic adapter는 해당 container의 생성된 `_InnoDIPrewarmProvider` token이나
+명시적인 warming closure로 직접 옮기세요. key path fallback은 없습니다.
+동기 on-demand shared provider에만 case가 있고 container마다 token 타입이
+다릅니다. Getter의 가시성이 더 좁아도 case는 container의 가시성을 따릅니다.
+`PrewarmProvider`라는 일반 이름 alias는 생성하지 않습니다. <doc:Provide>를 참고하세요.
+
+### Owned preparation과 단일 작업 cleanup의 선택적 도입
+
+두 container macro의 `generateOwned: true`는 별도 생성 경로를 추가하며 기존
+initializer 호출의 동작은 유지합니다. 직접 override에는 `makeOwned`, 필수 throwing
+`Overrides` builder에는 `makeOwnedWithOverrides`를 사용하세요. 둘 다 준비 완료가
+아니라 setup과 eager 작업 admission 후 반환합니다. 반환된 owner에서
+`prepare(.service)`는 report를 반환하고 `requireReady(.service)`는 준비되지 않은
+entry가 있으면 ``DIAsyncPreparationFailure``를 throw합니다.
+`retryAndRequireReady(.service)`는 retry transaction을 한 번 수행합니다.
+
+오래 유지하는 owner는 명시적으로 `await owner.close()` 해야 합니다. 한 작업에는
+생성된 `withPrepared`를 사용하면 선택한 async graph를 준비하고, 준비 완료 후에만
+operation을 실행하며, 반환하거나 throw하기 전에 close를 기다립니다. 이 helper는
+async shared provider가 있는 owned container에만 생성됩니다. 준비 실패는 원래
+factory 오류가 아니라 report를 담습니다. 취소와 오류 우선순위는
+<doc:OwnedContainers>를 참고하세요.
+
+6.0에 있던 preparation API의 취소 동작도 7.0에서 바로잡습니다. 호출자를
+취소했다고 provider까지 `cancelled`로 보고하지 않습니다.
+`DIAsyncScope.prepare()`는 실제 상태를 반환하며,
+`DIAsyncPreparationPlan.prepare(_:)`는 호출자 취소에 `CancellationError`를 던집니다.
+Provider 실패/취소가 담긴 report와 이 오류를 구분해 처리하세요. Owner가 열려
+있다면 다른 취소되지 않은 호출자가 retry 없이 실행 중인 작업을 기다릴 수
+있습니다. Retry는 provider 자체가 실패하거나 취소된 뒤에만 가능합니다.
+`withPrepared`는 여전히 새 owner를 닫은 뒤 취소를 전달합니다.
+
+`owner.container`는 별도의 nominal view 타입입니다. async getter에는 `try await`가
+필요하며 원래 container 타입 annotation, key path, custom method와 protocol
+conformance는 옮겨지지 않습니다. Consumer를 구체적인 service나 생성 view 타입으로
+바꾸세요. 복사본은 같은 async scope와 close 경계를 공유합니다. Close는 이후 async
+읽기를 막지만 이미 반환한 service나 동기 getter를 무효화하거나, 빌린 child를
+소유하거나, 취소를 무시하는 factory의 종료를 기다리지 않습니다. 동기 transient
+값과 지원되는 `Lazy`/`Provider` handle은 문서에 명시된 읽기별 동작을 유지합니다.
+
+Opt-in에는 `validateDAG: true`가 필요합니다. Async transient, assisted, collection,
+transient child, feature root와 custom global actor 형태는 지원하지 않습니다.
+직접 선언한 `makeOwned`나 `makeOwnedWithOverrides`는 opt-in 전에 이름을 바꾸세요.
+`withPrepared`는 owned async graph가 helper를 생성할 때만 바꾸면 됩니다.
+`_InnoDI` namespace는 계속 예약됩니다. Non-owned container에는 이 owner helper
+이름 제한이 추가되지 않습니다.
+
+별도 옵션인 `initializationOrder: ContainerInitializationOrder.dependency`도
+추가 API입니다. 기본값은 선언 순서이며 dependency 순서를 선택하기 전에 factory의
+관찰 가능한 부수효과를 검토하세요. <doc:DIContainer>를 참고하세요.
+
+### 테스트 override와 strict preflight의 선택적 명시
+
+기존 override 대입은 계속 동작합니다. `overrides.set(\.optional, to: nil)`은
+명시적인 optional nil 값을 기록합니다. Field에 `nil`을 대입하거나
+`overrides.useDefault(\.optional)`을 호출하면 live factory를 사용합니다. Transient
+값 override는 읽을 때마다 저장한 같은 값을 반환하며 새 값을 만드는 factory로
+바뀌지 않습니다.
+
+`InnoDITesting`에서 `preset.applyValidated`를 `withPrepared`의 `overrides:` 등을
+포함한 throwing override builder에 전달하면 preset을 적용하고 live 생성 전에
+표시된 effect의 strict override 요건을 확인합니다. 표시하지 않은 effect는
+검증하지 않습니다. 기존 `validated(base:profile:)`로 custom policy를 선택할 수
+있으며 `applyValidated`가 throw해도 적용한 mutation은 남습니다. MainActor 격리와
+preset의 `@Sendable` capture 계약도 유지됩니다. Actor에 묶인 값에는 격리된
+override closure를 사용하세요.
 
 ### SwiftSyntax 604.0.0
 

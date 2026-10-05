@@ -75,6 +75,11 @@ For each supported protocol member the macro emits the following:
   effects when needed. Tests cast through the generic return type at the call
   boundary. Generic typed-throws requirements remain unsupported because
   erasing their handler would lose the declared failure type.
+  The handler receives the caller's arguments in declaration order; a variadic
+  parameter occupies one array element containing its array of values. It must
+  return a value of the type requested by that particular invocation. Returning
+  a different type still triggers the documented cast precondition; a handler
+  cannot promise arbitrary generic results merely by returning `Any`.
 * **`mutating` requirements** — supported through the generated `final class`
   mock; the synthesized method does not need to be marked `mutating`.
 * **Access level** — mocks for `private` and `fileprivate` protocols inherit
@@ -83,7 +88,23 @@ For each supported protocol member the macro emits the following:
   experimental; attaching the macro never expands a package's public API.
 * **Escaping closure arguments** — recorded with property-safe function types
   (`@escaping` / `@autoclosure` are removed from the call-record field while
-  the conforming method keeps the original parameter spelling).
+  the conforming method keeps the original parameter spelling). An
+  `@autoclosure @escaping` argument stays unevaluated until the test calls the
+  recorded closure. Nonescaping closures, including plain `@autoclosure`
+  arguments, cannot be retained and receive an unsupported-shape diagnostic.
+  Optional closures, variadic closure arrays, and C function pointers
+  (`@convention(c)`) remain storable.
+* **Variadic arguments** — the requirement keeps its variadic call syntax and
+  the call record stores an array, including an empty array for no arguments.
+* **Ownership parameters** — `consuming`, `borrowing`, and `sending` parameter
+  spellings are preserved on the witness and removed from its record field.
+  Borrowing and consuming parameters are explicitly copied into call history
+  and generic handler arguments. Recorded values must be `Copyable` and
+  `Escapable`; transfer-only results and noncopyable generic inputs require a
+  hand-written mock.
+* **Protocol `Self`** — witness and stored types bind to the concrete final
+  mock class, including arguments stored in nested call records. This also
+  permits configuring a `Self` return or property with another mock instance.
 * **Concurrency** — a protocol inheriting `Sendable` receives lock-backed call
   and stub storage from the `InnoDITesting` product. Snapshots and reset-safe
   support types do not use unchecked conformance. The compiler still rejects
@@ -91,6 +112,9 @@ For each supported protocol member the macro emits the following:
   remain single-executor mocks.
 * **Actor isolation** — a protocol-level `@MainActor` annotation is copied to
   the generated mock class, keeping all mutable test state on the main actor.
+  Explicit `nonisolated` protocols likewise produce `nonisolated` mocks,
+  including in targets using default MainActor isolation. An unannotated
+  protocol and mock in such a target remain on MainActor.
 * **Interaction validation** — every generated mock with functions exposes
   `recordedCallCounts`. Every property, value-returning function, throwing
   function, and generic handler contributes to `missingStubSelectors` until
@@ -104,6 +128,9 @@ For each supported protocol member the macro emits the following:
   `innoDICallHistorySnapshot`. Use `.calls` to clear call history while
   retaining configured stubs, or `.all` to clear calls and return every stub
   to the missing state. Each call record includes its generation.
+  `generation` is reserved for this metadata: a same-named input uses
+  `generation2`, or the next available numeric suffix if that field already
+  exists. The method's external argument labels stay unchanged.
 
 ## Reset and generation semantics
 
@@ -124,8 +151,12 @@ value are captured. Work performed after that point remains part of the
 invocation that already started; reset does not cancel arbitrary user work.
 `.calls` preserves every stub and setup flag. `.all` resets the backing value
 and setup flag together, so `missingStubSelectors` reports the member again
-after reset. Generated helper-name collisions fail closed rather than silently
-shadowing a protocol requirement.
+after reset. Method helpers and private storage are disambiguated from protocol
+requirements. Collisions with the fixed aggregate API (`recordedCallCounts`,
+`missingStubSelectors`, and the public reset/history members) fail closed.
+Parameter names such as `handler` and `generation` remain valid; generated
+locals cannot replace their values. Inspect the expansion when referring to a
+disambiguated helper, since the experimental generated names are not frozen.
 
 ## Currently unsupported
 
@@ -140,6 +171,12 @@ when any of these appear, because that would generate a broken conformance:
   `nonisolated`, `borrowing`, and `consuming`.
 * `subscript` requirements (no stable lowering yet).
 * `inout` parameters (call-record storage would need a copy policy).
+* Nonescaping closure parameters, including nonescaping `@autoclosure`.
+  Do not change a protocol to `@escaping` unless retaining that closure is
+  actually part of its intended contract; use a hand-written mock otherwise.
+* `sending` results: retained stubs cannot promise a fresh disconnected value
+  on every call. Explicitly noncopyable or nonescapable generic parameters
+  cannot be stored in the generated call history either.
 * `rethrows` requirements. Typed `throws(ErrorType)` is supported for
   non-generic requirements; generic typed-throws requirements fail at the
   source attribute instead of emitting a partial conformance.

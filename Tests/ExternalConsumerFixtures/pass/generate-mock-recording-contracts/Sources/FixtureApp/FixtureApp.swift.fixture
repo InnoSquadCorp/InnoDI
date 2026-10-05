@@ -1,0 +1,121 @@
+import InnoDI
+
+final class Box { var value = 42 }
+
+@GenerateMock
+protocol RecordingAPI {
+    func record(generation: Int, generation2: Int)
+    func sum(_ values: Int...) -> Int
+    func lazy(_ condition: @autoclosure @escaping () -> Bool)
+    func optional(_ callback: (() -> Int)?)
+    func pointer(_ callback: @convention(c) () -> Int32)
+    func own(_ value: consuming String)
+    func borrow(_ value: borrowing String)
+    func send(_ value: sending Box)
+    func echo<T>(_ handler: T) -> T
+    func genericConsume<T>(_ value: consuming T) -> T
+    func genericBorrow<T>(_ value: borrowing T) -> T
+    func genericVariadic<T>(_ values: T...) -> T
+    func copy() -> Self
+    func compare(_ other: Self)
+    func copyGeneric<T>(_ value: T) -> Self
+    var next: Self { get }
+    var __innodiMockGeneration: Int { get }
+    var InnoDIResetScope: Int { get }
+    var LoadCall: Int { get }
+    func load()
+    func loadCalls()
+}
+
+@GenerateMock
+protocol ShadowAPI {
+    func shadow(shadowCalls: Int, __innodiMockGeneration: Int)
+}
+
+@GenerateMock
+protocol ShadowedSelfAPI {
+    func copy<ShadowedSelfAPIMock>(_ value: ShadowedSelfAPIMock) -> Self
+}
+
+@main
+struct FixtureApp {
+    static func main() async {
+        let mock = RecordingAPIMock()
+        mock.record(generation: 12, generation2: 23)
+        precondition(mock.recordCalls[0].generation == 0)
+        precondition(mock.recordCalls[0].generation3 == 12)
+        precondition(mock.recordCalls[0].generation2 == 23)
+        mock.sumReturnValue = 6
+        precondition(mock.sum(1, 2, 3) == 6)
+        _ = mock.sum()
+        precondition(mock.sumCalls.map(\.values) == [[1, 2, 3], []])
+
+        var evaluations = 0
+        func condition() -> Bool { evaluations += 1; return true }
+        mock.lazy(condition())
+        precondition(evaluations == 0)
+        precondition(mock.lazyCalls[0].condition())
+        precondition(evaluations == 1)
+        mock.optional({ 42 })
+        mock.optional(nil)
+        precondition(mock.optionalCalls[0].callback?() == 42)
+        precondition(mock.optionalCalls[1].callback == nil)
+        mock.pointer({ 42 })
+        precondition(mock.pointerCalls[0].callback() == 42)
+
+        mock.own("owned")
+        mock.borrow("borrowed")
+        mock.send(Box())
+        precondition(mock.ownCalls[0].value == "owned")
+        precondition(mock.borrowCalls[0].value == "borrowed")
+        precondition(mock.sendCalls[0].value.value == 42)
+        mock.echoUnlabeledTHandler = { $0[0] }
+        precondition(mock.echo(42) == 42)
+        precondition(mock.echo("same handler") == "same handler")
+        precondition(mock.echoUnlabeledTCalls[0].handler as? Int == 42)
+        mock.genericConsumeUnlabeledConsumingTHandler = { $0[0] }
+        mock.genericBorrowUnlabeledBorrowingTHandler = { $0[0] }
+        precondition(mock.genericConsume(17) == 17)
+        precondition(mock.genericBorrow("borrowed generic") == "borrowed generic")
+        mock.genericVariadicUnlabeledTHandler = { ($0[0] as! [Int]).reduce(0, +) }
+        precondition(mock.genericVariadic(1, 2, 3) == 6)
+        precondition(mock.genericVariadicUnlabeledTCalls[0].values as? [Int] == [1, 2, 3])
+
+        mock.copyReturnValue = mock
+        mock.next = mock
+        mock.copyGenericUnlabeledTHandler = { _ in mock }
+        precondition(mock.copy() === mock)
+        precondition(mock.next === mock)
+        precondition(mock.copyGeneric(1) === mock)
+        mock.compare(mock)
+        precondition(mock.compareCalls[0].other === mock)
+        mock.__innodiMockGeneration = 99
+        mock.InnoDIResetScope = 77
+        mock.LoadCall = 55
+        mock.load()
+        mock.loadCalls()
+        precondition(mock.__innodiMockGeneration == 99)
+        precondition(mock.InnoDIResetScope == 77)
+        precondition(mock.LoadCall == 55)
+
+        let shadow = ShadowAPIMock()
+        shadow.shadow(shadowCalls: 11, __innodiMockGeneration: 22)
+        precondition(shadow.shadowCalls[0].shadowCalls == 11)
+        precondition(shadow.shadowCalls[0].innodiMockGeneration == 22)
+        precondition(shadow.shadowCalls[0].generation == 0)
+        let shadowedSelf = ShadowedSelfAPIMock()
+        shadowedSelf.copyUnlabeledShadowedSelfAPIMockHandler = { _ in shadowedSelf }
+        precondition(shadowedSelf.copy(42) === shadowedSelf)
+        _ = shadowedSelf.innoDIReset(.all)
+        let completed = mock.innoDIReset(.calls)
+        precondition(completed.generation == 0)
+        precondition(completed.recordedCallCounts["record"] == 1)
+        mock.record(generation: 34, generation2: 45)
+        precondition(mock.recordCalls[0].generation == 1)
+        precondition(mock.recordCalls[0].generation3 == 34)
+        // Clear retained Self arguments and stubs before finishing the fixture.
+        _ = mock.innoDIReset(.all)
+        await runConcurrentContracts()
+        print("generated mock recording contracts passed")
+    }
+}

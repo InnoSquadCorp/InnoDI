@@ -1,0 +1,15 @@
+import InnoDI
+
+// The modules are built dependencies, but neither is imported in this file.
+func featureModulesAreAvailable() -> Bool {
+    #if canImport(InnoDISwiftUI) && canImport(SwiftUI)
+    true
+    #else
+    false
+    #endif
+}
+@DIContainer struct Child {}
+struct PlainRoot { let container: Child }
+@DIContainer struct PlainParent {
+    @SubContainer(scope: .shared, featureRoot: PlainRoot.self) var child: Child
+}

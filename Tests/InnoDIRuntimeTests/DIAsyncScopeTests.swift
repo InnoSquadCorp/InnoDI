@@ -170,7 +170,7 @@ struct DIAsyncScopeTests {
         } catch is CancellationError {
             // Expected.
         }
-        #expect(await cancelledPreparation.value.state == .cancelled)
+        #expect(await cancelledPreparation.value.state == .running)
 
         await operation.succeed(with: 42)
         #expect(try await survivingWaiter.value == 42)
@@ -201,10 +201,9 @@ struct DIAsyncScopeTests {
             return try await plan.prepare(["App.service"])
         }
         preparation.cancel()
-        let report = try await preparation.value
-
-        #expect(report.entries.map(\.disposition) == [.cancelled])
-        #expect(report.entries.first?.status.state == .cancelled)
+        await #expect(throws: CancellationError.self) {
+            try await preparation.value
+        }
         #expect(await scope.status().state == .idle)
         #expect(await count.snapshot() == 0)
 

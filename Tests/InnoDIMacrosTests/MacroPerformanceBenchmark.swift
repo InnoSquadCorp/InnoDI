@@ -14,6 +14,9 @@ import Testing
 /// startup costs for every sample. The harness's explicit `--subprocess`
 /// mode retains the slower process-level measurement when that signal is
 /// needed.
+/// This is the SwiftSyntax test expansion driver, not a full compiler build.
+/// Follow-on compiler macro roles, consumer typechecking, linking and runtime
+/// cost require separate actual-consumer evidence.
 ///
 /// Outputs are written to `INNODI_MACRO_BENCH_OUTPUT` when set (the shell
 /// harness picks that path up), otherwise logged to stdout. The env var is

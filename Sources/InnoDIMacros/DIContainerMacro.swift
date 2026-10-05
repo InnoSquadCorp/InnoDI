@@ -144,7 +144,7 @@ extension DIContainerMacro: MemberAttributeMacro {
             return [
                 assistedFactoryMetadataAttribute(
                     for: model,
-                    isMainActor: options.mainActor
+                    isMainActor: model.isMainActor
                 ),
             ]
         }
@@ -516,7 +516,7 @@ private func provideMemberValidationRecovery(
 }
 
 /// Whether a sibling names `memberName` in a key path: `@Provide(with:)`,
-/// `@Multibinding` contributors, `@SubContainer(with:)`, or the parent side of
+/// `@Provide(collection:)`, `@Multibinding` contributors, `@SubContainer(with:)`, or the parent side of
 /// `bindings:` on `@SubContainer` and `@SubContainerFactory`. Each of those
 /// rejects an asynchronous target with its own diagnostic.
 private func hasIncomingKeyPathReference(
@@ -536,6 +536,9 @@ private func hasIncomingKeyPathReference(
             }
             let arguments = parseProvideArguments(attribute)
             if arguments.isMultibinding, arguments.dependencies.contains(memberName) {
+                return true
+            }
+            if arguments.collectionMetadataParseState.entries.contains(where: { $0.contributor == memberName }) {
                 return true
             }
         }

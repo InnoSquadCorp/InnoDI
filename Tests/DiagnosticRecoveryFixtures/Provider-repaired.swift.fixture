@@ -1,0 +1,18 @@
+import InnoDI
+
+struct Consumer {
+    let requests: Provider<Int>
+    func next() -> Int { requests() }
+}
+
+@DIContainer
+struct App {
+    @Provide(.transient, factory: 1)
+    var request: Int
+    @Provide(.shared, factory: { (request: Provider<Int>) in Consumer(requests: request) })
+    var consumer: Consumer
+}
+
+@main enum Check {
+    static func main() { precondition(App().consumer.next() == 1) }
+}

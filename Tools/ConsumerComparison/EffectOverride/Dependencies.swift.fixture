@@ -1,0 +1,51 @@
+import Dependencies
+
+struct NumberClient: Sendable {
+    var fetch: @Sendable () -> Int
+    static let live = Self(fetch: { 42 })
+}
+extension NumberClient: DependencyKey {
+    static let liveValue = Self.live
+}
+extension DependencyValues {
+    var numberClient: NumberClient {
+        get { self[NumberClient.self] }
+        set { self[NumberClient.self] = newValue }
+    }
+}
+struct Feature: Sendable {
+    @Dependency(\.numberClient) var client
+    func result() -> Int { client.fetch() }
+}
+
+@main struct Check {
+    static func main() async {
+        let live = withDependencies { $0.context = .live } operation: { Feature() }
+        let test = withDependencies {
+            $0.context = .live
+            $0.numberClient.fetch = { 7 }
+        } operation: { Feature() }
+        precondition(live.result() == 42 && test.result() == 7)
+        let inherited = withDependencies {
+            $0.context = .live
+            $0.numberClient.fetch = { 9 }
+        } operation: { Task { Feature().result() } }
+        let result = await inherited.value
+        precondition(result == 9 && live.result() == 42 && test.result() == 7)
+        let parallel = await withTaskGroup(of: Int.self) { group in
+            for value in [11, 13] {
+                group.addTask {
+                    withDependencies {
+                        $0.context = .live
+                        $0.numberClient.fetch = { value }
+                    } operation: { Feature().result() }
+                }
+            }
+            var values: [Int] = []
+            for await value in group { values.append(value) }
+            return values.sorted()
+        }
+        precondition(parallel == [11, 13])
+        print("native effect override, captured context, inherited task and parallel isolation passed")
+    }
+}

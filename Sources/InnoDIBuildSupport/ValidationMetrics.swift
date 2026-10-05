@@ -16,6 +16,7 @@ package enum ValidationReasonCode: String, Codable, Equatable, Sendable {
     case staleLockRecovered = "stale-lock-recovered"
     case lockContentionTimeout = "lock-contention-timeout"
     case unsafeFilesystem = "unsafe-filesystem"
+    case externalToolUncached = "external-tool-uncached"
     case liveRunCustomInitFailure = "live-run-custom-init-failure"
     case liveRunSemanticValidation = "live-run-semantic-validation"
     case liveRunSemanticFailure = "live-run-semantic-failure"
@@ -275,6 +276,8 @@ private func reasonDescription(_ reason: ValidationReasonCode) -> String {
         return "The validation coordinator timed out waiting for an active lock to clear."
     case .unsafeFilesystem:
         return "The validation coordinator refused to acquire its lock on a filesystem where O_CREAT | O_EXCL is not atomic. Override with INNODI_ALLOW_UNSAFE_LOCK=1 to bypass."
+    case .externalToolUncached:
+        return "The compatibility external tool reads live filesystem paths, so its result is neither reused nor stored under the captured source signature."
     case .liveRunCustomInitFailure:
         return "The live validation run stopped after a structured cross-file custom init failure."
     case .liveRunSemanticValidation:

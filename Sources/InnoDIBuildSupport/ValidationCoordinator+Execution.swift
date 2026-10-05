@@ -29,11 +29,22 @@ struct ValidationSharedRunPaths {
         lock = directory.appendingPathComponent("lock")
     }
 
-    func loadCachedRun() -> (
+    func loadCachedRun(sourceContentSignature: String) -> (
         result: ValidationCommandResult,
         record: SharedValidationRunRecord
     )? {
-        loadCachedSharedRun(resultURL: result, sharedRunRecordURL: record)
+        guard let cached = loadCachedSharedRun(resultURL: result, sharedRunRecordURL: record) else {
+            return nil
+        }
+        // Semantic successes remain reusable after trivia-only changes. A
+        // failure, warning or textual stderr can contain physical locations,
+        // so it requires the exact bytes that produced those diagnostics.
+        let hasDiagnostics = cached.result.exitCode != 0
+            || !cached.record.issues.isEmpty || !cached.result.stderr.isEmpty
+        guard !hasDiagnostics || cached.record.sourceContentSignature == sourceContentSignature else {
+            return nil
+        }
+        return cached
     }
 }
 
@@ -120,6 +131,8 @@ struct ValidationLockedRunExecutor<Runner: ValidationCommandRunning> {
     let paths: ValidationSharedRunPaths
     let outcomeWriter: ValidationOutcomeWriter
 
+    var canCacheResult: Bool { runner.canCacheValidationResult(toolPath: toolPath) }
+
     func acquireAndExecute(
         recoveredStaleLock: Bool
     ) throws -> ValidationExecutionOutcome? {
@@ -156,7 +169,8 @@ struct ValidationLockedRunExecutor<Runner: ValidationCommandRunning> {
             releaseLock(descriptor: lockDescriptor, at: paths.lock)
         }
 
-        if let cachedRun = paths.loadCachedRun() {
+        if canCacheResult,
+           let cachedRun = paths.loadCachedRun(sourceContentSignature: signatureCollectionOutput.sourceContentSignature) {
             return try outcomeWriter.finalize(
                 result: cachedRun.result,
                 wasCached: true,
@@ -167,12 +181,11 @@ struct ValidationLockedRunExecutor<Runner: ValidationCommandRunning> {
         let liveRun = try executeValidationPipeline(
             recoveredStaleLock: recoveredStaleLock
         )
-        try persistSharedRunRecord(liveRun.record, to: paths.record)
-        try persistResult(liveRun.result, to: paths.result)
-        try persistSharedSummary(
-            result: liveRun.result,
-            record: liveRun.record
-        )
+        if canCacheResult {
+            try persistSharedRunRecord(liveRun.record, to: paths.record)
+            try persistResult(liveRun.result, to: paths.result)
+            try persistSharedSummary(result: liveRun.result, record: liveRun.record)
+        }
 
         return try outcomeWriter.finalize(
             result: liveRun.result,
@@ -192,12 +205,14 @@ struct ValidationLockedRunExecutor<Runner: ValidationCommandRunning> {
         if let analysisManifest {
             workspaceSnapshot = try loadWorkspaceSourceSnapshot(
                 validated: analysisManifest,
-                reusingParsedSources: signatureCollectionOutput.parsedSources
+                reusingParsedSources: signatureCollectionOutput.parsedSources,
+                capturedSourceBytes: signatureCollectionOutput.capturedSourceBytes
             )
         } else {
             workspaceSnapshot = try loadWorkspaceSourceSnapshot(
                 rootPath: rootPath,
-                reusingParsedSources: signatureCollectionOutput.parsedSources
+                reusingParsedSources: signatureCollectionOutput.parsedSources,
+                capturedSourceBytes: signatureCollectionOutput.capturedSourceBytes
             )
         }
 
@@ -226,7 +241,9 @@ struct ValidationLockedRunExecutor<Runner: ValidationCommandRunning> {
                 dagValidationMilliseconds: pipelineResult.dagMilliseconds
             ),
             reasonCodes: pipelineResult.reasonCodes,
-            issues: pipelineResult.issues + aliasReport.issues
+            issues: pipelineResult.issues + aliasReport.issues,
+            sourceContentSignature: signatureCollectionOutput.sourceContentSignature,
+            resultSignature: validationResultSignature(pipelineResult.result)
         )
         return (pipelineResult.result, record)
     }
@@ -240,6 +257,7 @@ struct ValidationLockedRunExecutor<Runner: ValidationCommandRunning> {
         var reasonCodes: [ValidationReasonCode] = recoveredStaleLock
             ? [.staleLockRecovered]
             : []
+        if !canCacheResult { reasonCodes.append(.externalToolUncached) }
         if let customInitFailure {
             reasonCodes.append(.liveRunCustomInitFailure)
             return ValidationPipelineResult(
@@ -283,7 +301,7 @@ struct ValidationLockedRunExecutor<Runner: ValidationCommandRunning> {
                 validated: analysisManifest
             )
         } else {
-            moduleGraph = try ModuleGraphProvider.snapshot(rootPath: rootPath)
+            moduleGraph = ModuleGraphProvider.snapshot(sourceSnapshot: workspaceSnapshot)
         }
         let hierarchyValidation = try WorkspaceHierarchyBuildValidator.validate(
             snapshot: workspaceSnapshot,
@@ -451,7 +469,8 @@ struct ValidationSharedRunResolver<Runner: ValidationCommandRunning> {
     }
 
     private func finalizeCachedRun() throws -> ValidationExecutionOutcome? {
-        guard let cachedRun = paths.loadCachedRun() else {
+        guard executor.canCacheResult,
+              let cachedRun = paths.loadCachedRun(sourceContentSignature: executor.signatureCollectionOutput.sourceContentSignature) else {
             return nil
         }
         return try outcomeWriter.finalize(

@@ -7,9 +7,14 @@ public struct InnoDIMigrator {
     /// Imported modules treated like Apple frameworks: the user asserts they
     /// declare no attribute or macro named like an InnoDI attribute.
     public let trustedModules: Set<String>
+    public let swiftUIImportAccess: MigrationSwiftUIImportAccess?
 
-    public init(trustedModules: Set<String> = []) {
+    public init(
+        trustedModules: Set<String> = [],
+        swiftUIImportAccess: MigrationSwiftUIImportAccess? = nil
+    ) {
         self.trustedModules = trustedModules
+        self.swiftUIImportAccess = swiftUIImportAccess
     }
 
     public func plan(root: URL) throws -> MigrationPlan {
@@ -75,18 +80,33 @@ public struct InnoDIMigrator {
             )
         }
 
-        let rootShadowedNames = parsedSources.reduce(into: Set<String>()) { names, parsed in
-            names.formUnion(innoDIAttributeShadowNames(in: parsed.syntax))
+        var rootShadowedNames: Set<String> = []
+        var reexportedUntrustedModules: [String: Set<String>] = [:]
+        for parsed in parsedSources {
+            let context = innoDIAttributeShadowContext(in: parsed.syntax)
+            rootShadowedNames.formUnion(context.names)
+            for (name, modules) in context.modules {
+                reexportedUntrustedModules[name, default: []].formUnion(modules)
+            }
         }
         var changes: [MigrationFileChange] = []
+        // This source-tree API has no authoritative target map. Treat an
+        // explicit import anywhere in the requested root as a possible peer
+        // rather than guessing that it belongs to another target.
+        let hasExplicitSwiftUIImports = parsedSources.contains {
+            containsExplicitSwiftUIImport(in: $0.syntax)
+        }
         for parsed in parsedSources {
             let attributeContext = unqualifiedInnoDIAttributeContext(
                 in: parsed.syntax,
-                additionalAmbiguousNames: rootShadowedNames
+                additionalAmbiguousNames: rootShadowedNames,
+                reexportedUntrustedModules: reexportedUntrustedModules
             )
             let rewriter = InnoDISourceMigrationRewriter(
                 path: parsed.path,
-                attributeContext: attributeContext
+                attributeContext: attributeContext,
+                swiftUIImportAccess: swiftUIImportAccess,
+                hasOtherExplicitSwiftUIImports: hasExplicitSwiftUIImports
             )
             let rewritten = rewriter.rewrite(parsed.syntax)
             let migratedSource = rewritten.description

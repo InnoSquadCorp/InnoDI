@@ -1,0 +1,33 @@
+import InnoDI
+
+@GenerateMock
+protocol ImplicitActorAPI { func load() -> Int }
+
+@MainActor
+@GenerateMock
+protocol ExplicitActorAPI { func load() -> Int }
+
+@GenerateMock
+nonisolated protocol OrdinaryAPI { func load() -> Int }
+
+nonisolated func exerciseOrdinaryMock() {
+    let mock = OrdinaryAPIMock()
+    mock.loadReturnValue = 42
+    precondition(mock.load() == 42)
+    precondition(mock.loadCalls.count == 1)
+    _ = mock.innoDIReset(.calls)
+    precondition(mock.loadCalls.isEmpty)
+}
+
+@main struct FixtureApp {
+    @MainActor static func main() {
+        let implicit = ImplicitActorAPIMock()
+        implicit.loadReturnValue = 17
+        precondition(implicit.load() == 17)
+        let explicit = ExplicitActorAPIMock()
+        explicit.loadReturnValue = 23
+        precondition(explicit.load() == 23)
+        exerciseOrdinaryMock()
+        print("generated mock explicit and default isolation passed")
+    }
+}

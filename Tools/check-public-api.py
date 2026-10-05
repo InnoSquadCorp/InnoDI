@@ -47,6 +47,11 @@ def parse_arguments() -> argparse.Namespace:
         type=Path,
         help="Override the default Tools/public-api-baseline.json path.",
     )
+    parser.add_argument(
+        "--current-output",
+        type=Path,
+        help="Write the compiler-emitted current contract without changing comparison behavior.",
+    )
     return parser.parse_args()
 
 
@@ -671,9 +676,21 @@ def main() -> int:
         if arguments.baseline
         else package_root / "Tools" / "public-api-baseline.json"
     )
+    current_output = arguments.current_output.resolve() if arguments.current_output else None
+    if current_output is not None and (
+        current_output == baseline_path
+        or (current_output.exists() and baseline_path.exists() and current_output.samefile(baseline_path))
+    ):
+        print("Current contract output must not overwrite the public API baseline.", file=sys.stderr)
+        return 2
 
     output_directory = dump_symbol_graphs(package_root)
     current = current_contract(output_directory)
+
+    if current_output is not None:
+        current_output.parent.mkdir(parents=True, exist_ok=True)
+        current_output.write_text(encoded(current), encoding="utf-8")
+        print(f"Wrote current public API contract: {current_output}")
 
     if arguments.update:
         baseline_path.write_text(encoded(current), encoding="utf-8")

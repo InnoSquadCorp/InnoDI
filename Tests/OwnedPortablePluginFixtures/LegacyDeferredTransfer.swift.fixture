@@ -1,0 +1,18 @@
+import InnoDI
+
+@DIContainer
+struct DeferredTransferContainer {
+    static func read(_ value: InnoDI.Provider<Int>) -> Int { value() }
+    @Provide(.transient) var value: Int = 42
+    @Provide(.shared, asyncFactory: { (value: InnoDI.Provider<Int>) async in Self.read(value) })
+    var result: Int
+}
+
+@main struct Check {
+    static func main() async {
+        let container = DeferredTransferContainer()
+        let result = await container.result
+        precondition(result == 42)
+        print("fully bound, exclusively transferred deferred resolver passed")
+    }
+}

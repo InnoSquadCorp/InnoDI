@@ -1,0 +1,4 @@
+import InnoDI
+@DIContainer(generateOwned: true) struct Container {
+    struct makeOwned {}
+}

@@ -63,17 +63,52 @@ public struct GenerateMockMacro: PeerMacro {
             )
         }
 
-        let functionNames = plannedFunctionNames(in: protocolDecl)
+        let declaredMemberNames = Set(protocolDecl.memberBlock.members.flatMap { member -> [String] in
+            if let function = member.decl.as(FunctionDeclSyntax.self) {
+                return [function.name.text.unescapedIdentifier]
+            }
+            return member.decl.as(VariableDeclSyntax.self)?.bindings.compactMap {
+                $0.pattern.as(IdentifierPatternSyntax.self)?.identifier.text.unescapedIdentifier
+            } ?? []
+        })
+        let stateNames = MockStateNames(reserving: declaredMemberNames)
+        let genericTypeNames = Set(protocolDecl.memberBlock.members.flatMap { member in
+            member.decl.as(FunctionDeclSyntax.self)?.genericParameterClause?
+                .parameters.map { $0.name.text.unescapedIdentifier } ?? []
+        })
+        let concreteSelfType: String
+        if genericTypeNames.contains(mockTypeName),
+           protocolDecl.memberBlock.tokens(viewMode: .sourceAccurate).contains(where: { $0.text == "Self" }) {
+            // Bind outside every generic method before rewriting Self. A
+            // generic parameter may legally have the generated class's name.
+            concreteSelfType = freshMockIdentifier(
+                "_InnoDIMockSelf",
+                reserving: declaredMemberNames.union(genericTypeNames)
+            )
+            sections.append(MockMembers("typealias \(raw: concreteSelfType) = \(raw: mockTypeName)"))
+        } else {
+            concreteSelfType = mockTypeName
+        }
+        let typeRewriter = MockSelfTypeRewriter(mockTypeName: concreteSelfType)
+        let functionNames = plannedFunctionNames(
+            in: protocolDecl,
+            concurrent: usesConcurrentStorage
+        )
         var functionIndex = 0
 
         for member in protocolDecl.memberBlock.members {
             if let function = member.decl.as(FunctionDeclSyntax.self) {
                 let names = functionNames[functionIndex]
                 functionIndex += 1
+                if let reason = unsupportedMockFunctionShape(function) {
+                    unsupportedMembers.append("\(function.name.text) (\(reason))")
+                    continue
+                }
                 if let rendered = renderFunctionMock(
-                    function: function,
+                    function: typeRewriter.rewrite(function).cast(FunctionDeclSyntax.self),
                     names: names,
-                    concurrent: usesConcurrentStorage
+                    concurrent: usesConcurrentStorage,
+                    stateNames: stateNames
                 ) {
                     sections.append(rendered.members)
                     usesNotStubbedError = usesNotStubbedError || rendered.usesNotStubbedError
@@ -90,8 +125,10 @@ public struct GenerateMockMacro: PeerMacro {
                 }
             } else if let variable = member.decl.as(VariableDeclSyntax.self) {
                 if let rendered = renderVariableMock(
-                    variable: variable,
-                    concurrent: usesConcurrentStorage
+                    variable: typeRewriter.rewrite(variable).cast(VariableDeclSyntax.self),
+                    concurrent: usesConcurrentStorage,
+                    stateNames: stateNames,
+                    reserving: declaredMemberNames
                 ) {
                     sections.append(rendered.members)
                     missingStubExpressions.append(
@@ -110,23 +147,6 @@ public struct GenerateMockMacro: PeerMacro {
             }
         }
 
-        let declaredPropertyNames = Set(
-            protocolDecl.memberBlock.members
-                .compactMap { $0.decl.as(VariableDeclSyntax.self) }
-                .flatMap { variable in
-                    variable.bindings.compactMap {
-                        $0.pattern.as(IdentifierPatternSyntax.self)?.identifier.text
-                    }
-                }
-        )
-        let declaredFunctionNames = Set(
-            protocolDecl.memberBlock.members.compactMap {
-                $0.decl.as(FunctionDeclSyntax.self)?.name.text
-            }
-        )
-        let declaredMemberNames = declaredPropertyNames.union(
-            declaredFunctionNames
-        )
         if !recordedCallCounts.isEmpty,
            declaredMemberNames.contains("recordedCallCounts") {
             unsupportedMembers.append("recordedCallCounts generated-helper collision")
@@ -163,7 +183,7 @@ public struct GenerateMockMacro: PeerMacro {
         if usesNotStubbedError {
             sections.insert(
                 MockMembers("""
-                    struct _InnoDIMockNotStubbed: Error, CustomStringConvertible {
+                    struct \(raw: stateNames.notStubbedError): Error, CustomStringConvertible {
                         let selector: String
                         var description: String { "InnoDI mock selector '\\(selector)' was not stubbed before invocation." }
                     }
@@ -175,10 +195,10 @@ public struct GenerateMockMacro: PeerMacro {
             sections.insert(
                 usesConcurrentStorage
                     ? MockMembers("""
-                        private let __innodiMockState = InnoDITesting.DIConcurrentMockState()
+                        private let \(raw: stateNames.concurrentState) = InnoDITesting.DIConcurrentMockState()
                     """)
                     : MockMembers("""
-                        private var __innodiMockGeneration: UInt64 = 0
+                        private var \(raw: stateNames.generation): UInt64 = 0
                     """),
                 at: 0
             )
@@ -188,7 +208,7 @@ public struct GenerateMockMacro: PeerMacro {
                 let expressions = lineSeparatedElements(missingStubExpressions, indentation: 16)
                 sections.append(MockMembers("""
                     var missingStubSelectors: [String] {
-                        __innodiMockState.withCriticalRegion { _ in
+                        \(raw: stateNames.concurrentState).withCriticalRegion { _ in
                             [\(expressions)
                             ].compactMap { $0 }
                         }
@@ -209,7 +229,7 @@ public struct GenerateMockMacro: PeerMacro {
                 let entries = lineSeparatedElements(recordedCallCounts, indentation: 16)
                 sections.append(MockMembers("""
                     var recordedCallCounts: [String: Int] {
-                        __innodiMockState.withCriticalRegion { _ in
+                        \(raw: stateNames.concurrentState).withCriticalRegion { _ in
                             [\(entries)
                             ]
                         }
@@ -230,6 +250,7 @@ public struct GenerateMockMacro: PeerMacro {
                 MockMembers(
                     renderMockResetSurface(
                         concurrent: usesConcurrentStorage,
+                        stateNames: stateNames,
                         recordedCallCounts: recordedCallCounts,
                         resetCallStatements: resetCallStatements,
                         resetStubStatements: resetStubStatements
@@ -239,7 +260,8 @@ public struct GenerateMockMacro: PeerMacro {
         }
 
         let accessPrefix = mockTypeAccessPrefix(for: protocolDecl)
-        let isolationPrefix = isMainActor ? "@MainActor\n" : ""
+        let isNonisolated = protocolDecl.modifiers.contains { $0.name.text == "nonisolated" }
+        let isolationPrefix = isMainActor ? "@MainActor\n" : (isNonisolated ? "nonisolated " : "")
         let body = mockBodyMembers(sections)
         let mockDecl: DeclSyntax
         if body.isEmpty {
@@ -342,6 +364,7 @@ private func lineIndentedStatements(
 
 private func renderMockResetSurface(
     concurrent: Bool,
+    stateNames: MockStateNames,
     recordedCallCounts: [DictionaryElementSyntax],
     resetCallStatements: [CodeBlockItemSyntax],
     resetStubStatements: [CodeBlockItemSyntax]
@@ -363,11 +386,11 @@ private func renderMockResetSurface(
             }
 
             var innoDICallHistoryGeneration: UInt64 {
-                __innodiMockState.withCriticalRegion { $0 }
+                \(raw: stateNames.concurrentState).withCriticalRegion { $0 }
             }
 
             var innoDICallHistorySnapshot: InnoDICallHistorySnapshot {
-                __innodiMockState.withCriticalRegion { generation in
+                \(raw: stateNames.concurrentState).withCriticalRegion { generation in
                     .init(
                         generation: generation,
                         recordedCallCounts: [
@@ -379,8 +402,8 @@ private func renderMockResetSurface(
 
             @discardableResult
             func innoDIReset(_ scope: InnoDIResetScope) -> InnoDICallHistorySnapshot {
-                __innodiMockState.reset { generation in
-                    let snapshot = InnoDICallHistorySnapshot(
+                \(raw: stateNames.concurrentState).reset { generation in
+                    let snapshot: InnoDICallHistorySnapshot = .init(
                         generation: generation,
                         recordedCallCounts: [
         \(counts)
@@ -410,12 +433,12 @@ private func renderMockResetSurface(
         }
 
         var innoDICallHistoryGeneration: UInt64 {
-            __innodiMockGeneration
+            \(raw: stateNames.generation)
         }
 
         var innoDICallHistorySnapshot: InnoDICallHistorySnapshot {
             .init(
-                generation: __innodiMockGeneration,
+                generation: \(raw: stateNames.generation),
                 recordedCallCounts: [
     \(counts)
                 ]
@@ -429,7 +452,7 @@ private func renderMockResetSurface(
             if scope == .all {
     \(stubReset)
             }
-            __innodiMockGeneration &+= 1
+            \(raw: stateNames.generation) &+= 1
             return snapshot
         }
     """

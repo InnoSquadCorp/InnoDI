@@ -1,0 +1,46 @@
+// Linux/Swift 6.4 regression executable, not a package support-floor change.
+import Foundation
+import InnoDI
+import Synchronization
+
+final class CellBox: Sendable {
+    let storage = Mutex<_InnoDISendableSharedCell<Int>?>(nil)
+    func read() -> Int {
+        let cell = storage.withLock { $0! }
+        return cell.value()
+    }
+}
+struct ReenteringSink: DITraceSink {
+    let box: CellBox
+    func record(_ event: DITraceEvent) {
+        if event.kind == .cacheHit { _ = box.read() }
+    }
+}
+final class ReenterOnDrop: Sendable {
+    let box: CellBox
+    init(_ box: CellBox) { self.box = box }
+    deinit { _ = box.read() }
+}
+@main struct Reentry {
+    static func main() {
+        let box = CellBox()
+        if CommandLine.arguments.contains("factory-release") {
+            let cell = _InnoDISendableSharedCell<Int>(traceOwner: .disabled, providerName: "release", factory: { [capture = ReenterOnDrop(box)] in
+                withExtendedLifetime(capture) { 7 }
+            })
+            box.storage.withLock { $0 = cell }
+            _ = box.read()
+        } else if CommandLine.arguments.contains("factory") {
+            let cell = _InnoDISendableSharedCell<Int>(traceOwner: .disabled, providerName: "factory", factory: { box.read() })
+            box.storage.withLock { $0 = cell }
+            _ = box.read()
+        } else {
+            let trace = _InnoDITraceOwner(context: .init(sink: ReenteringSink(box: box)), containerType: Self.self)
+            let cell = _InnoDISendableSharedCell<Int>(traceOwner: trace, providerName: "trace", factory: { 7 })
+            box.storage.withLock { $0 = cell }
+            precondition(box.read() == 7)
+            _ = box.read()
+        }
+        preconditionFailure("reentry must trap, not return")
+    }
+}

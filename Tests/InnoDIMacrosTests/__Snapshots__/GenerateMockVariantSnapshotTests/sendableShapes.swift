@@ -181,7 +181,7 @@ final class SharedAPIMock: SharedAPI {
     @discardableResult
     func innoDIReset(_ scope: InnoDIResetScope) -> InnoDICallHistorySnapshot {
         __innodiMockState.reset { generation in
-            let snapshot = InnoDICallHistorySnapshot(
+            let snapshot: InnoDICallHistorySnapshot = .init(
                 generation: generation,
                 recordedCallCounts: [
                 "load": __innodi_loadCallsBox.snapshot().count,

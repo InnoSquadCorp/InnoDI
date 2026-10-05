@@ -1,0 +1,6 @@
+import InnoDI
+
+@DIContainer(generateOwned: true)
+struct Collision {
+    struct makeOwnedWithOverrides {}
+}

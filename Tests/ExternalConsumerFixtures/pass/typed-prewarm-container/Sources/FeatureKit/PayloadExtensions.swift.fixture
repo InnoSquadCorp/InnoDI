@@ -1,0 +1,7 @@
+extension GlobalPayloadContainer {
+    public var extensionPayload: PrewarmProvider { .service }
+}
+
+extension NestedPayloadContainer {
+    public var extensionPayload: PrewarmProvider { .service }
+}

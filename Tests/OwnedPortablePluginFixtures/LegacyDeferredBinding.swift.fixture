@@ -1,0 +1,41 @@
+import Foundation
+import InnoDI
+
+// The synchronous child keeps initialization open long enough for an eager
+// task to expose premature deferred resolution on the former generator.
+// This bounded overlap is a correctness fixture, not a timing assertion.
+final class Gate: Sendable {
+    let finished = DispatchSemaphore(value: 0)
+    func waitForTask() -> Int {
+        _ = finished.wait(timeout: .now() + .milliseconds(100))
+        return 0
+    }
+}
+
+@DIContainer struct Child {
+    @Input var gate: Gate
+    @Provide(.shared, factory: { (gate: Gate) in gate.waitForTask() }) var ready: Int
+}
+
+@DIContainer struct Container {
+    static func read(_ value: InnoDI.Provider<Int>, gate: Gate) -> Int {
+        let result = value()
+        gate.finished.signal()
+        return result
+    }
+    @Input var gate: Gate
+    @Provide(.transient) var value: Int = 42
+    @Provide(.shared, asyncFactory: { (value: InnoDI.Provider<Int>, gate: Gate) async in Self.read(value, gate: gate) })
+    var result: Int
+    @SubContainer(scope: .shared, with: [\Self.gate]) var child: Child
+}
+
+@main struct Check {
+    static func main() async { await run() }
+    nonisolated static func run() async {
+        let container = Container(gate: Gate())
+        let result = await container.result
+        precondition(result == 42)
+        print("bound resolver completed")
+    }
+}

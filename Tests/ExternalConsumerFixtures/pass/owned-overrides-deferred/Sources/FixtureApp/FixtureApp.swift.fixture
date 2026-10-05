@@ -1,0 +1,42 @@
+import InnoDI
+import OwnedPublicLibrary
+
+func verifyPublicSelf(_ owner: PublicNamespace.Same._InnoDIOwner) {
+    let _: () -> PublicNamespace.Same = owner.container.factory
+    let _: (PublicNamespace.Same) -> PublicNamespace.Same = owner.container.transform
+    let _: [PublicNamespace.Same] = owner.container.children
+}
+
+@main struct PublicCheck {
+    static func main() async throws {
+        let owner = try await PublicNamespace.Container.makeOwned(seed: 9)
+        let token: PublicNamespace.Container._InnoDIOwnedProvider = .service
+        let report = try await owner.prepare(token)
+        precondition(report.isReady)
+        let view: PublicNamespace.Container._InnoDIOwnedView = owner.container
+        let value = try await view.service
+        precondition(value == 10 && view.seed == 9)
+        precondition(view.cachedHandle.value() == 12 && view.cached == 12)
+        await owner.cancel(.service)
+        let status = await owner.status(.service)
+        precondition(status.state == .ready)
+        await owner.close()
+        precondition(view.fresh == 18)
+        precondition(view.freshHandle.value() == 18)
+        precondition(view.cachedHandle.value() == 12)
+        do { _ = try await view.service; preconditionFailure("closed read") }
+        catch DIAsyncScopeError.closed(providerID: "service") {}
+        let overridden = try await PublicNamespace.Container.makeOwnedWithOverrides(seed: 3) {
+            $0.service = 20
+            $0.fresh = 30
+            $0.cached = 40
+        }
+        let overriddenService = try await overridden.container.service
+        precondition(overriddenService == 20 && overridden.container.fresh == 30)
+        precondition(overridden.container.freshHandle.value() == 30)
+        precondition(overridden.container.cachedHandle.value() == 40)
+        precondition(overridden.container.cached == 40)
+        await overridden.close()
+        print("real plugin cross-module owned overrides and deferred API passed")
+    }
+}

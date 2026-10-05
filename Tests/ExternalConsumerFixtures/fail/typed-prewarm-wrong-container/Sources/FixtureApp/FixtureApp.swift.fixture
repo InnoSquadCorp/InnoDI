@@ -1,0 +1,12 @@
+import InnoDI
+
+@DIContainer struct FirstContainer {
+    @Provide(.shared, initialization: .onDemand, factory: 1) var service: Int
+}
+@DIContainer struct OtherContainer {
+    @Provide(.shared, initialization: .onDemand, factory: 2) var service: Int
+}
+
+func selectFromWrongContainer() {
+    FirstContainer().prewarm(OtherContainer._InnoDIPrewarmProvider.service)
+}

@@ -25,6 +25,7 @@ CONFIG="release"
 BINDINGS="100"
 KEEP_USER_CACHE=0
 BUILD_LOG_PATH=""
+GENERATE_OWNED=0
 
 usage() {
     cat <<USAGE
@@ -34,6 +35,8 @@ Options:
   --target <root|consumer>     What to build (default: root)
   --config <debug|release>     Build configuration (default: release)
   --bindings <N>               Synthetic consumer @Provide count (default: 100)
+  --owned                     Include generated owned API in the consumer
+                              (same ordinary construction, separate scenario)
   --keep-user-cache            Skip wiping ~/Library/Caches/org.swift.swiftpm
   --build-log <path>           Preserve the underlying Swift build log
   --help                       Show this help
@@ -53,6 +56,10 @@ while [[ $# -gt 0 ]]; do
         --bindings)
             BINDINGS="${2:?--bindings requires a value}"
             shift 2
+            ;;
+        --owned)
+            GENERATE_OWNED=1
+            shift
             ;;
         --keep-user-cache)
             KEEP_USER_CACHE=1
@@ -81,6 +88,11 @@ case "$TARGET" in
         exit 1
         ;;
 esac
+
+if [[ "$GENERATE_OWNED" == 1 && "$TARGET" != consumer ]]; then
+    echo "--owned requires --target consumer" >&2
+    exit 1
+fi
 
 case "$CONFIG" in
     debug|release) ;;
@@ -114,9 +126,14 @@ if [[ "$TARGET" == "root" ]]; then
 else
     PACKAGE_DIR="$ROOT_DIR/Tools/.synthetic/SyntheticConsumer"
     SCENARIO="synthetic-consumer-${BINDINGS}"
+    GENERATOR_COMMAND=(swift "$ROOT_DIR/Tools/generate-synthetic-consumer.swift"
+        "$ROOT_DIR/Tools/.synthetic/SyntheticConsumer" "$BINDINGS")
+    if [[ "$GENERATE_OWNED" == 1 ]]; then
+        SCENARIO="synthetic-owned-api-consumer-${BINDINGS}"
+        GENERATOR_COMMAND+=(--owned)
+    fi
     mkdir -p "$ROOT_DIR/Tools/.synthetic"
-    swift "$ROOT_DIR/Tools/generate-synthetic-consumer.swift" \
-        "$ROOT_DIR/Tools/.synthetic/SyntheticConsumer" "$BINDINGS" 1>&2
+    "${GENERATOR_COMMAND[@]}" 1>&2
 fi
 
 clear_caches "$PACKAGE_DIR"

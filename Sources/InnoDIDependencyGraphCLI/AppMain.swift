@@ -108,6 +108,25 @@ package func runDependencyGraphCLI() -> Int32 {
         )
     }
 
+    // Extension initializers reject container generation before any generated
+    // qualifier is needed. Match the build coordinator's diagnostic ordering.
+    do {
+        let customInitPreflight = try CustomInitBuildValidator.validate(snapshot: snapshot)
+        if let failure = customInitPreflight.asCommandResult() {
+            return writeValidationResult(
+                DependencyGraphCommandResult(
+                    exitCode: failure.exitCode,
+                    stdout: failure.stdout,
+                    stderr: failure.stderr
+                ),
+                outputPath: outputPath
+            )
+        }
+    } catch {
+        fputs("Error validating container initializers: \(error.localizedDescription)\n", stderr)
+        return ExitCode.failure
+    }
+
     let generatedQualifierPreflight = GeneratedQualifierBuildValidator
         .validate(snapshot: snapshot)
     if let failure = generatedQualifierPreflight.asCommandResult() {

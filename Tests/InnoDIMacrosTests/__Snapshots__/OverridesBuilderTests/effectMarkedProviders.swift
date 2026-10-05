@@ -33,6 +33,12 @@ public struct AppContainer {
     public struct Overrides: InnoDI.DIOverrideEffectValidating {
         public var apiClient: APIClient? = nil
         public var viewModel: ViewModel? = nil
+        public mutating func set<Value>(_ keyPath: Swift.WritableKeyPath<Self, Value?>, to value: Value) {
+            self[keyPath: keyPath] = .some(value)
+        }
+        public mutating func useDefault<Value>(_ keyPath: Swift.WritableKeyPath<Self, Value?>) {
+            self[keyPath: keyPath] = .none
+        }
         public static let requiredEffectOverrides: [InnoDI.DIProviderEffectRequirement] = [InnoDI.DIProviderEffectRequirement(providerName: "apiClient", effect: .sideEffect)]
         public var missingEffectOverrides: [InnoDI.DIProviderEffectRequirement] {
             var missing: [InnoDI.DIProviderEffectRequirement] = []

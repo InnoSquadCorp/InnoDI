@@ -7,33 +7,138 @@ import Testing
 
 @Suite("Generated qualifier full-source preflight")
 struct GeneratedQualifierBuildValidatorTests {
-    @Test("Plain containers ignore unused same-target qualifier shadows")
-    func plainContainerTopLevelShadowsAreAllowed() {
+    @Test("Typed synchronous prewarm checks enclosing Swift type shadows without reserving values")
+    func typedPrewarmQualifierShadows() {
+        for (shadow, expectedCount) in [
+            ("struct Swift {}", 1),
+            ("typealias Swift = Int", 1),
+            ("static let Swift = 0", 0),
+            ("struct Unrelated { struct Swift {} }", 0),
+        ] {
+            let snapshot = makeSnapshot([
+                .init(
+                    path: "Sources/App/Container.swift",
+                    source: """
+                    struct Outer {
+                        \(shadow)
+                        @DIContainer struct Container {
+                            @Provide(.shared, initialization: .onDemand, factory: 1) var service: Int
+                        }
+                    }
+                    """
+                ),
+            ])
+            let report = GeneratedQualifierBuildValidator.validate(snapshot: snapshot)
+            #expect(report.issues.count == expectedCount, Comment(rawValue: shadow))
+            if expectedCount == 1 {
+                #expect(report.issues.first?.metadata["qualifier"] == "Swift")
+                #expect(report.issues.first?.metadata["lookupScopes"] == "enclosing-nominal-member")
+            }
+        }
+    }
+
+    @Test("Typed synchronous prewarm checks same-target Swift type shadows")
+    func typedPrewarmTopLevelQualifierShadows() {
+        for (shadow, expectedCount) in [("struct Swift {}", 1), ("let Swift = 0", 0)] {
+            let snapshot = makeSnapshot([
+                .init(path: "Sources/App/Container.swift", source: """
+                    @DIContainer struct Container {
+                        @Provide(.shared, initialization: .onDemand, factory: 1) var service: Int
+                    }
+                    """),
+                .init(path: "Sources/App/Shadows.swift", source: shadow),
+            ])
+            let report = GeneratedQualifierBuildValidator.validate(snapshot: snapshot)
+            #expect(report.issues.count == expectedCount, Comment(rawValue: shadow))
+            if expectedCount == 1 {
+                #expect(report.issues.first?.metadata["qualifier"] == "Swift")
+                #expect(report.issues.first?.metadata["lookupScopes"] == "same-target-top-level")
+            }
+        }
+    }
+
+    @Test("Override helpers reject Swift types and preserve unused/value qualifiers", arguments: [
+        ("@DIContainer struct AppContainer {}", false),
+        ("@DIContainer struct AppContainer { @Input var value: Int }", false),
+        ("@DIContainer struct AppContainer { @Provide(factory: 1) var value: Int }", true),
+        ("@DIContainer(validateDAG: false) struct AppContainer { @Provide(factory: 1) var value: Int }", true),
+    ])
+    func plainContainerTopLevelQualifierShadows(_ container: String, _ hasSlots: Bool) {
+        for (swiftDeclaration, expectedCount) in [("struct Swift {}", 1), ("let Swift = 0", 0)] {
+            let snapshot = makeSnapshot([
+                .init(
+                    path: "Sources/App/Container.swift",
+                    source: container
+                ),
+                .init(
+                    path: "Sources/App/Shadows.swift",
+                    source: """
+                    \(swiftDeclaration)
+                    enum _Concurrency {}
+                    let InnoDI = 0
+                    """
+                ),
+            ])
+
+            let report = GeneratedQualifierBuildValidator.validate(
+                snapshot: snapshot
+            )
+
+            #expect(report.issues.count == (hasSlots ? expectedCount : 0))
+            #expect(report.issues.allSatisfy {
+                $0.code == "container.reserved-module-name"
+                    && $0.metadata["qualifier"] == "Swift"
+                    && $0.metadata["lookupScopes"] == "same-target-top-level"
+            })
+        }
+    }
+
+    @Test("Dependency-order normalized fallback shadows follow the actual construction prefix", arguments: ["prior", "forward", "moved", "canonicalForward"])
+    func dependencyOrderNormalizedFallbackShadow(_ scenario: String) {
+        let members: String
+        switch scenario {
+        case "prior":
+            members = """
+                @Provide(.shared, factory: 1) var target: Int
+                @Provide(.shared, factory: { (_storage_target: Int) in _storage_target }) var consumer: Int
+                """
+        case "forward":
+            members = """
+                @Provide(.shared, factory: { (_storage_target: Int) in _storage_target }) var consumer: Int
+                @Provide(.shared, factory: 1) var target: Int
+                """
+        case "moved":
+            members = """
+                @Provide(.shared, factory: { (later: Int) in later }) var target: Int
+                @Provide(.shared, factory: { (_storage_target: Int) in _storage_target }) var consumer: Int
+                @Provide(.shared, factory: 1) var later: Int
+                """
+        default:
+            members = """
+                @Provide(.shared, factory: { (target: Int) in target }) var consumer: Int
+                @Provide(.shared, factory: 1) var target: Int
+                """
+        }
         let snapshot = makeSnapshot([
             .init(
                 path: "Sources/App/Container.swift",
                 source: """
-                @DIContainer
-                struct AppContainer {
-                    @Input var value: Int
+                struct Outer {
+                    static let InnoDI = 0
+                    @DIContainer(validateDAG: false, initializationOrder: ContainerInitializationOrder.dependency)
+                    struct Container { \(members) }
                 }
                 """
             ),
-            .init(
-                path: "Sources/App/Shadows.swift",
-                source: """
-                struct Swift {}
-                enum _Concurrency {}
-                let InnoDI = 0
-                """
-            ),
         ])
-
-        let report = GeneratedQualifierBuildValidator.validate(
-            snapshot: snapshot
-        )
-
-        #expect(report.issues.isEmpty)
+        let report = GeneratedQualifierBuildValidator.validate(snapshot: snapshot)
+        if scenario == "prior" || scenario == "canonicalForward" {
+            #expect(report.issues.isEmpty)
+        } else {
+            #expect(report.issues.count == 1)
+            #expect(report.issues.first?.metadata["qualifier"] == "InnoDI")
+            #expect(report.issues.first?.metadata["lookupScopes"] == "enclosing-nominal-member")
+        }
     }
 
     @Test("Container qualifier checks follow emitted feature support")
@@ -402,7 +507,7 @@ struct GeneratedQualifierBuildValidatorTests {
         })
     }
 
-    @Test("Plain containers ignore unused inherited qualifier shadows")
+    @Test("Input-only builders keep inherited qualifier shadows unused")
     func plainNestedContainerSuperclassShadowsAreAllowed() {
         let snapshot = makeSnapshot([
             .init(
@@ -429,6 +534,22 @@ struct GeneratedQualifierBuildValidatorTests {
         )
 
         #expect(report.issues.isEmpty)
+    }
+
+    @Test("Override slots require a verifiable enclosing superclass")
+    func overrideSlotsRequireKnownSuperclass() {
+        let snapshot = makeSnapshot([
+            .init(path: "Sources/App/Container.swift", source: """
+                class FeatureHost: ExternalBase {
+                    @DIContainer struct Container {
+                        @Provide(factory: 1) var value: Int
+                    }
+                }
+                """),
+        ])
+        let report = GeneratedQualifierBuildValidator.validate(snapshot: snapshot)
+        #expect(report.issues.count == 1)
+        #expect(report.issues.first?.code == "generated-qualifier.inheritance-unverifiable")
     }
 
     @Test("Emitted container qualifiers include an enclosing superclass")

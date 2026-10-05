@@ -28,6 +28,12 @@ struct AppContainer {
     // MARK: - Overrides Builder
     @_Concurrency.MainActor struct Overrides: InnoDI.DIMainActorOverrideEffectValidating {
         var apiClient: APIClient? = nil
+        mutating func set<Value>(_ keyPath: Swift.WritableKeyPath<Self, Value?>, to value: Value) {
+            self[keyPath: keyPath] = .some(value)
+        }
+        mutating func useDefault<Value>(_ keyPath: Swift.WritableKeyPath<Self, Value?>) {
+            self[keyPath: keyPath] = .none
+        }
         static let requiredEffectOverrides: [InnoDI.DIProviderEffectRequirement] = [InnoDI.DIProviderEffectRequirement(providerName: "apiClient", effect: .sideEffect)]
         var missingEffectOverrides: [InnoDI.DIProviderEffectRequirement] {
             var missing: [InnoDI.DIProviderEffectRequirement] = []

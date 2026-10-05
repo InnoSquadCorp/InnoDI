@@ -1,0 +1,11 @@
+import InnoDI
+
+@DIContainer
+struct AsyncCollectionContributor {
+    @Provide(.shared, asyncFactory: { () async in 42 })
+    var remote: Int
+
+    @Provide(.transient, collection: .ordered([\Self.remote]),
+             factory: DICollectionGroup([42]))
+    var values: DICollectionGroup<Int>
+}

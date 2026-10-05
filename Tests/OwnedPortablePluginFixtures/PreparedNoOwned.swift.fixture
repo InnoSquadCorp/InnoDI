@@ -1,0 +1,7 @@
+import InnoDI
+@DIContainer struct Graph {
+    @Provide(.shared, asyncFactory: { () async in 1 }) var service: Int
+}
+func rejected() async throws {
+    _ = try await Graph.withPrepared(.service) { _ in 1 }
+}

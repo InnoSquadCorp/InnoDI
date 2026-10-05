@@ -81,8 +81,8 @@ func assertExpandedSourceTypechecks(
     let stderrURL = fixtureDirectoryURL.appendingPathComponent("stderr.txt")
 
     try expansionResult.expansion.write(to: fixtureURL, atomically: true, encoding: .utf8)
-    FileManager.default.createFile(atPath: stdoutURL.path(percentEncoded: false), contents: Data())
-    FileManager.default.createFile(atPath: stderrURL.path(percentEncoded: false), contents: Data())
+    _ = FileManager.default.createFile(atPath: stdoutURL.path(percentEncoded: false), contents: Data())
+    _ = FileManager.default.createFile(atPath: stderrURL.path(percentEncoded: false), contents: Data())
 
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/env")

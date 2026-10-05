@@ -52,6 +52,14 @@ InnoDI keeps validation deterministic by choosing a few explicit boundaries.
 - `.transient` members may reference any container member, but names still
   resolve strictly.
 
+These are the default `ContainerInitializationOrder.declaration` rules.
+`ContainerInitializationOrder.dependency` opts into stable topological
+construction within the sync-shared and async-shared stages. Hard forward
+references within a stage become available; inputs and all sync-shared values
+are available to the async stage. Scope/effect restrictions and ownership-cycle
+validation remain unchanged. Deferred edges do not order construction. Factory
+side effects may move; see <doc:DIContainer> before adopting the opt-in.
+
 ## Provider Effects
 
 - A synchronous provider can be consumed by sync, `async`, and `async throws`
@@ -88,9 +96,15 @@ InnoDI keeps validation deterministic by choosing a few explicit boundaries.
   when the isolated operation returns a `Sendable` result, such as a
   `withOverrides` operation result; it does not make a non-`Sendable` container
   safe to carry back off actor.
-- `Lazy<T>` and `Provider<T>` wrappers are not a cross-actor transport
-  mechanism. Treat them as staying inside the container's isolation domain
-  unless `T` and the surrounding call path are already safe to move.
+- `Lazy<T>`, `Provider<T>`, and their generated deferred cells are
+  non-`Sendable`. Swift checks the payload and resolver captures when generated
+  async work crosses an isolation boundary; a `Sendable` result alone does not
+  make a captured non-`Sendable` dependency safe. This also applies indirectly
+  through synchronous on-demand factories. Keep these graphs on one actor, or
+  use dependencies whose complete capture path satisfies the compiler checks.
+  Generated eager tasks start only after their deferred targets are bound.
+- An explicit `@MainActor` on the container preserves the same isolation for
+  generated on-demand factory captures as the `mainActor: true` option.
 - Non-`Sendable` dependencies should be passed through explicit container
   boundaries and isolated by the app layer, not hidden behind global lookup.
 

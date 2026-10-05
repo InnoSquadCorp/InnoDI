@@ -8,6 +8,10 @@ enum SwiftPMModuleGraphProvider {
     ) throws -> SwiftPMManifestSnapshot {
         let source = try String(contentsOf: manifestURL, encoding: .utf8)
         let syntax = Parser.parse(source: source)
+        return snapshot(from: manifestURL, syntax: syntax)
+    }
+
+    static func snapshot(from manifestURL: URL, syntax: SourceFileSyntax) -> SwiftPMManifestSnapshot {
         let collector = SwiftPMManifestCollector(manifestURL: manifestURL)
         collector.walk(syntax)
         return collector.snapshot

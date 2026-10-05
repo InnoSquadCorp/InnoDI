@@ -33,7 +33,7 @@ CORE = {
     "Exhaustive release contracts": {"Run clean coverage gate", "Macro Performance Check", "Macro Performance Trend"},
     "Exhaustive consumer contracts (Xcode 26.6)": {"Run strict external compatibility contracts"},
     "path-identity": {"Run representative renamed-checkout contracts", "Validate examples from the renamed checkout"},
-    "Swift 6.2 compatibility": {"Run strict external compatibility contracts"},
+    "Swift 6.2 compatibility": {"Run minimum-toolchain package contracts", "Run strict external compatibility contracts"},
     "docc / docc": {"Generate DocC"},
     "examples / sample-app": {"Build and Test SampleApp", "Run SampleApp"},
     "examples / swiftui-example": {"Build and Test SwiftUIExample"},

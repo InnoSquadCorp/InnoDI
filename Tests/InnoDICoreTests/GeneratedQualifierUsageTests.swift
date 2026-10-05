@@ -6,7 +6,7 @@ import Testing
 
 @Suite("Generated qualifier usage planning")
 struct GeneratedQualifierUsageTests {
-    @Test("Plain managed containers only record attached support attributes")
+    @Test("Input-only containers keep the empty builder free of extra qualifiers")
     func plainContainerHasNoBodyOrExtensionQualifiers() throws {
         let usage = try containerUsage(
             """
@@ -20,6 +20,55 @@ struct GeneratedQualifierUsageTests {
         #expect(usage.attachedAttributes == [.init("InnoDI")])
         #expect(usage.memberBodies.isEmpty)
         #expect(usage.fileScopeExtensions.isEmpty)
+    }
+
+    @Test("Override helpers require Swift types only for builders with slots", arguments: [
+        "@Provide(factory: 1) var value: Int",
+        "@Provide(.transient, factory: 1) var value: Int",
+        "@SubContainer(scope: .shared) var child: Child",
+    ])
+    func overrideHelperQualifier(_ members: String) throws {
+        for attribute in ["@DIContainer", "@DIContainer(validateDAG: false)"] {
+            let usage = try containerUsage("\(attribute) struct Container { \(members) }")
+            #expect(usage.memberBodies == [.init("Swift", namespace: .typeOnly)])
+        }
+    }
+
+    @Test("Rejected override generation does not claim its Swift qualifier", arguments: [
+        "@DIContainer struct Container { @Provide(factory: 1) var value: Int; init() {} }",
+        "@DIContainer struct Container { @Provide(factory: 1) var dependency: Int\n#if DEBUG\ninit() {}\n#endif\n}",
+        "@DIContainer struct Container { @Provide(factory: 1) var value: Int; struct Overrides {} }",
+        "@DIContainer struct Container { @Provide(factory: 1) var value: Int; typealias Overrides = Int }",
+        "@DIContainer struct Container { @Provide(factory: 1) var value: Int\n#if DEBUG\nstruct Overrides {}\n#endif\n}",
+        "@DIContainer struct Container { @Provide(factory: 1) var value: Int; var other = 1 }",
+        "@DIContainer struct Container { @Provide(factory: 1) var value: Int; var other = 1 { didSet {} } }",
+        "@DIContainer struct Container { @Provide(factory: 1) var dependency: Int\n#if DEBUG\n@Input var value: Int\n#endif\n}",
+        "@DIContainer(validateDAG: flag) struct Container { @Provide(factory: 1) var value: Int }",
+        "@DIContainer(generateOwned: flag) struct Container { @Provide(factory: 1) var value: Int }",
+        "@DIContainer(initializationOrder: unknown) struct Container { @Provide(factory: 1) var value: Int }",
+        "@DIContainer private struct Container { @Provide(factory: 1) var value: Int }",
+        "@DIContainer struct Container<T> { @Provide(factory: 1) var value: Int }",
+        "@DIContainer struct Container { @Provide(factory: 1) var dependency: Int; @_InnoDIProvideAccessor var value: Int }",
+        "@DIContainer struct Container { @Provide(.shared, effect: .unknown, factory: 1) var value: Int }",
+        "@DIContainer struct Container { @Input var value: Int; @Provide(factory: 1) var value: Int }",
+    ])
+    func rejectedOverrideHelpersDoNotClaimQualifier(_ source: String) throws {
+        let usage = try containerUsage(source)
+        #expect(usage.memberBodies.isEmpty)
+    }
+
+    @Test("Nested declarations and computed members do not suppress override helpers")
+    func unrelatedDeclarationsKeepOverrideHelperQualifier() throws {
+        let usage = try containerUsage("""
+            @DIContainer struct Container {
+                @Provide(factory: 1) var dependency: Int
+                struct Payload { struct Overrides {}; init() {} }
+                var value: Int { 1 }
+                static var counter = 0
+            }
+            extension Other { init() {} }
+            """)
+        #expect(usage.memberBodies == [.init("Swift", namespace: .typeOnly)])
     }
 
     @Test("Main actor containers add the Swift body qualifier")
@@ -65,7 +114,10 @@ struct GeneratedQualifierUsageTests {
             }
             """
         )
-        #expect(sync.memberBodies == [.init("InnoDI", namespace: .typeOrValue)])
+        #expect(sync.memberBodies == [
+            .init("InnoDI", namespace: .typeOrValue),
+            .init("Swift", namespace: .typeOnly),
+        ])
 
         let async = try containerUsage(
             """
@@ -83,8 +135,8 @@ struct GeneratedQualifierUsageTests {
         ])
     }
 
-    @Test("Transient async factories do not emit Task support")
-    func transientAsyncHasNoBodyQualifier() throws {
+    @Test("Transient async factories require only the typed override qualifier")
+    func transientAsyncHasOnlyOverrideBodyQualifier() throws {
         let usage = try containerUsage(
             """
             @DIContainer
@@ -95,7 +147,7 @@ struct GeneratedQualifierUsageTests {
             """
         )
 
-        #expect(usage.memberBodies.isEmpty)
+        #expect(usage.memberBodies == [.init("Swift", namespace: .typeOnly)])
     }
 
     @Test("Deferred cells require Swift types and InnoDI runtime support")
@@ -140,7 +192,7 @@ struct GeneratedQualifierUsageTests {
             """
         )
 
-        #expect(shared.memberBodies.isEmpty)
+        #expect(shared.memberBodies == [.init("Swift", namespace: .typeOnly)])
         #expect(transient.memberBodies == [
             .init("Swift"),
             .init("InnoDI", namespace: .typeOrValue),
@@ -167,10 +219,75 @@ struct GeneratedQualifierUsageTests {
             """
         )
 
-        #expect(resolved.memberBodies.isEmpty)
+        #expect(resolved.memberBodies == [.init("Swift", namespace: .typeOnly)])
         #expect(unresolved.memberBodies == [
+            .init("Swift", namespace: .typeOnly),
             .init("InnoDI", namespace: .typeOrValue),
         ])
+    }
+
+    @Test("Dependency-order forward edges do not generate unresolved fallbacks", arguments: [false, true])
+    func dependencyOrderForwardQualifier(isAsync: Bool) throws {
+        let factoryLabel = isAsync ? "asyncFactory" : "factory"
+        let effect = isAsync ? "async" : ""
+        let members = """
+            @Provide(.shared, \(factoryLabel): { (later: Int) \(effect) in later }) var first: Int
+            @Provide(.shared, \(factoryLabel): { () \(effect) in 1 }) var later: Int
+            """
+        let dependencyOrder = try containerUsage("""
+            @DIContainer(validateDAG: false, initializationOrder: ContainerInitializationOrder.dependency)
+            struct Container { \(members) }
+            """)
+        let declarationOrder = try containerUsage("""
+            @DIContainer(validateDAG: false)
+            struct Container { \(members) }
+            """)
+        #expect(!dependencyOrder.memberBodies.contains(.init("InnoDI", namespace: .typeOrValue)))
+        #expect(declarationOrder.memberBodies.contains(.init("InnoDI", namespace: .typeOrValue)))
+    }
+
+    @Test("Dependency-order qualifier analysis retains actual fallback requirements", arguments: [
+        "@Provide(.shared, factory: { (missing: Int) in missing }) var first: Int",
+        "@Provide(.shared, factory: { (transient: Int) in transient }) var first: Int; @Provide(.transient, factory: 1) var transient: Int",
+    ])
+    func dependencyOrderFallbackQualifier(_ members: String) throws {
+        let usage = try containerUsage("""
+            @DIContainer(validateDAG: false, initializationOrder: ContainerInitializationOrder.dependency)
+            struct Container { \(members) }
+            """)
+        #expect(usage.memberBodies.contains(.init("InnoDI", namespace: .typeOrValue)))
+    }
+
+    @Test("Dependency-order Type.self wiring does not claim fallback qualifiers")
+    func dependencyOrderWithQualifier() throws {
+        let usage = try containerUsage("""
+            @DIContainer(validateDAG: false, initializationOrder: ContainerInitializationOrder.dependency)
+            struct Container {
+                @Provide(.shared, Service.self, with: [\\Self.later]) var service: Service
+                @Provide(.shared, factory: 1) var later: Int
+            }
+            """)
+        #expect(!usage.memberBodies.contains(.init("InnoDI", namespace: .typeOrValue)))
+    }
+
+    @Test("Opt-in does not mistake a storage-prefixed recovery name for a topo edge")
+    func dependencyOrderStorageFallbackQualifier() throws {
+        let usage = try containerUsage("""
+            @DIContainer(validateDAG: false, initializationOrder: ContainerInitializationOrder.dependency)
+            struct Container {
+                @Provide(.shared, factory: { (_storage_later: Int) in _storage_later }) var first: Int
+                @Provide(.shared, factory: 1) var later: Int
+            }
+            """)
+        #expect(usage.memberBodies.contains(.init("InnoDI", namespace: .typeOrValue)))
+        let inputUsage = try containerUsage("""
+            @DIContainer(validateDAG: false, initializationOrder: ContainerInitializationOrder.dependency)
+            struct Container {
+                @Provide(.shared, factory: { (_storage_input: Int) in _storage_input }) var first: Int
+                @Input var input: Int
+            }
+            """)
+        #expect(!inputUsage.memberBodies.contains(.init("InnoDI", namespace: .typeOrValue)))
     }
 
     @Test("Sync dependencies mirror generated storage-name normalization")
@@ -190,7 +307,7 @@ struct GeneratedQualifierUsageTests {
             """
         )
 
-        #expect(usage.memberBodies.isEmpty)
+        #expect(usage.memberBodies == [.init("Swift", namespace: .typeOnly)])
     }
 
     @Test("Async dependencies preserve exact dependency names")

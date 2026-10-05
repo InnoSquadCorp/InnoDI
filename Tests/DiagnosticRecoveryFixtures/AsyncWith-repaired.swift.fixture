@@ -1,0 +1,10 @@
+import InnoDI
+
+struct Consumer: Sendable { let request: Int }
+
+@DIContainer
+struct App {
+    @Provide(.shared, asyncFactory: { () async throws in 1 }) var request: Int
+    @Provide(.shared, asyncFactory: { (request: Int) async throws in Consumer(request: request) }) var consumer: Consumer
+}
+@main enum Check { static func main() async throws { let value = try await App().consumer; precondition(value.request == 1) } }

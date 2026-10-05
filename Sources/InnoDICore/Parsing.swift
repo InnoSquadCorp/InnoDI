@@ -44,6 +44,23 @@ public enum DIContainerRoleValue: String, Equatable, Sendable {
     case root
 }
 
+/// Internal semantic policy; public macro arguments use named string tokens.
+package enum ContainerInitializationOrderValue: String, Equatable, Sendable {
+    case declaration
+    case dependency
+}
+
+package enum ContainerInitializationOrderParseState: Equatable, Sendable {
+    case omitted
+    case parsed(ContainerInitializationOrderValue)
+    case invalid
+
+    package var value: ContainerInitializationOrderValue {
+        if case let .parsed(value) = self { return value }
+        return .declaration
+    }
+}
+
 /// Parse state for macro arguments that must be literal Bool expressions.
 public enum BoolArgumentParseState: Equatable, Sendable {
     /// The labeled argument did not appear in source.
@@ -428,6 +445,20 @@ public enum SubContainerBindingsParseState: Equatable, Sendable {
 
 /// Parsed arguments extracted from a single `@DIContainer` attribute.
 public struct DIContainerAttributeInfo {
+    /// Opt-in owned construction; omitted and literal false preserve legacy emission.
+    package fileprivate(set) var generateOwnedParseState: BoolArgumentParseState = .omitted
+
+    package var generateOwned: Bool { generateOwnedParseState.value ?? false }
+
+    /// Kept package-scoped so the source-compatible public parser model does
+    /// not publish an alternative configuration API for macro callers.
+    package fileprivate(set) var initializationOrderParseState:
+        ContainerInitializationOrderParseState = .omitted
+
+    package var initializationOrder: ContainerInitializationOrderValue {
+        initializationOrderParseState.value
+    }
+
     /// 6.0 container role. Legacy marker macros normalize into the same
     /// semantic model in their respective validators.
     public let role: DIContainerRoleValue
@@ -1305,6 +1336,8 @@ public func parseDIContainerAttribute(_ attributes: AttributeListSyntax?) -> DIC
     var role: DIContainerRoleValue = .local
     let isRoleAttribute = attributeBaseName(attr.attributeName) == "DIContainerRole"
     var roleArgumentIsValid = !isRoleAttribute
+    var initializationOrderParseState: ContainerInitializationOrderParseState = .omitted
+    var generateOwnedParseState: BoolArgumentParseState = .omitted
 
     if let arguments = attr.arguments?.as(LabeledExprListSyntax.self) {
         for argument in arguments {
@@ -1329,6 +1362,22 @@ public func parseDIContainerAttribute(_ attributes: AttributeListSyntax?) -> DIC
                     roleArgumentIsValid = false
                 }
             }
+            if label == "initializationOrder" {
+                // A repeated argument is invalid even when its final value
+                // would otherwise be valid. Never recover by silently choosing
+                // one policy that can change observable factory side effects.
+                if initializationOrderParseState != .omitted {
+                    initializationOrderParseState = .invalid
+                } else if let value = parseContainerInitializationOrder(argument.expression) {
+                    initializationOrderParseState = .parsed(value)
+                } else {
+                    initializationOrderParseState = .invalid
+                }
+            }
+            if label == "generateOwned" {
+                generateOwnedParseState = generateOwnedParseState == .omitted
+                    ? parseBoolArgument(argument.expression) : .invalid
+            }
             if label == "root" {
                 rootParseState = parseBoolArgument(argument.expression)
                 if let value = rootParseState.value {
@@ -1350,7 +1399,7 @@ public func parseDIContainerAttribute(_ attributes: AttributeListSyntax?) -> DIC
         }
     }
 
-    return DIContainerAttributeInfo(
+    var info = DIContainerAttributeInfo(
         role: role,
         roleArgumentIsValid: roleArgumentIsValid,
         root: root,
@@ -1360,6 +1409,31 @@ public func parseDIContainerAttribute(_ attributes: AttributeListSyntax?) -> DIC
         validateDAGParseState: validateDAGParseState,
         mainActorParseState: mainActorParseState
     )
+    info.initializationOrderParseState = initializationOrderParseState
+    info.generateOwnedParseState = generateOwnedParseState
+    return info
+}
+
+private func parseContainerInitializationOrder(
+    _ expression: ExprSyntax
+) -> ContainerInitializationOrderValue? {
+    guard let member = expression.as(MemberAccessExprSyntax.self),
+          let base = member.base else { return nil }
+    let isSupportedBase: Bool
+    if let reference = base.as(DeclReferenceExprSyntax.self) {
+        isSupportedBase = reference.baseName.text == "ContainerInitializationOrder"
+            && reference.argumentNames == nil
+    } else if let qualified = base.as(MemberAccessExprSyntax.self),
+              let module = qualified.base?.as(DeclReferenceExprSyntax.self) {
+        isSupportedBase = module.baseName.text == "InnoDI"
+            && module.argumentNames == nil
+            && qualified.declName.baseName.text == "ContainerInitializationOrder"
+            && qualified.declName.argumentNames == nil
+    } else {
+        isSupportedBase = false
+    }
+    guard isSupportedBase, member.declName.argumentNames == nil else { return nil }
+    return ContainerInitializationOrderValue(rawValue: member.declName.baseName.text)
 }
 
 private func isSupportedContainerRoleReference(

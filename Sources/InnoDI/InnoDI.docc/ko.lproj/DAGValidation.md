@@ -65,37 +65,45 @@ sibling 컨테이너 멤버를 참조하면 안 됩니다.
 
 ## 설정에 따라 강제하기
 
-흔한 패턴은 production에서는 검증을 켜 두고, 알려진 잘못된 마이그레이션 기간에
-내부 빌드만 건너뛰게 하는 것입니다. 매크로의 Boolean 옵션은 literal `true`나
-`false`여야 하므로, 조건부 컴파일로 attribute 표기를 고르세요.
+매크로의 Boolean 옵션은 literal `true` 또는 `false`여야 합니다. production
+컨테이너는 검증을 켠 채로 유지하세요.
 
+<!-- innodi:compile -->
 ```swift
-#if FAST_BUILD
-@DIContainer(validateDAG: false)
-#else
+import InnoDI
+
 @DIContainer
-#endif
 struct AppContainer {
-    // ...
+    @Provide(.shared, factory: 42)
+    var value: Int
 }
 ```
 
-`Package.swift`의 해당 `swiftSettings` 줄은 다음과 같습니다.
+일시적으로 검증을 끄려면 별도로 선택하는 scratch 또는 test target에 전용
+컨테이너 선언을 두세요. 해당 target은 production 애플리케이션에 포함하면
+안 됩니다.
 
+<!-- innodi:compile -->
 ```swift
-.target(
-    name: "AppLib",
-    swiftSettings: [
-        // FAST_BUILD only flips on for the local-iteration scheme; release
-        // and CI builds keep validateDAG on.
-        .define("FAST_BUILD", .when(configuration: .debug))
-    ]
-)
+import InnoDI
+
+@DIContainer(validateDAG: false)
+struct MigrationFixtureContainer {
+    @Provide(.shared, factory: 42)
+    var value: Int
+}
 ```
 
-Xcode 기반 프로젝트에서는 반복 개발용 scheme의 debug `OTHER_SWIFT_FLAGS`에만
-`FAST_BUILD`(`-D FAST_BUILD`)를 설정하세요. release scheme은 이를 설정하지
-않으므로 `validateDAG: true`를 유지합니다.
+`#if FAST_BUILD` / `#else` / `#endif`로 부착 매크로 attribute와 선언을
+나누지 마세요. 각 분기에 완전한 선언을 반복해도 소스 기반 그래프 검증에는
+충분하지 않습니다. 검증기는 컴파일러의 활성 조건을 전달받지 않으므로
+분기를 선택하거나 합칠 수 없습니다. 조건부 선언의 identity가 반복되면
+모든 선언 위치와 함께 `graph.conditional-identity-unresolved`를 진단합니다.
+빌드 target의 소스 파일 선택으로 정의를 하나만 포함하거나, 컨테이너 선언은
+하나로 유지하고 factory 내부의 구현만 조건부로 작성하세요.
+
+모든 debug 설정에 `FAST_BUILD`를 정의하면 debug CI 빌드에도 적용됩니다.
+빌드 flag만으로는 로컬 전용 검증 정책이 만들어지지 않습니다.
 
 ## Reviewer 체크리스트
 
@@ -104,8 +112,8 @@ diff에 `validateDAG: false`가 보이면 flag 하나를 바꾼 것으로 넘기
 
 1. 어느 컨테이너가 끄고 있고, 그것을 정당화하는 일시적 조건은 무엇인가?
 2. tracking issue와 예상 제거 날짜가 있는가?
-3. diff가 위의 설정 기반 fallback도 연결해 release 설정에서 검증이 켜진 채로
-   남는가?
+3. production target은 검증을 유지하고, 검증을 끈 scratch 또는 test
+   target은 제품에서 제외하는가?
 4. 해당 컨테이너에 validator가 잡았을 순환을 잡아낼 로컬 테스트가 있는가?
 
 저장소 수준 규칙(CODEOWNERS 승인, PR template checkbox, custom lint rule)이

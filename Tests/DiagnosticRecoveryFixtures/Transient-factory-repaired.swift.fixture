@@ -1,0 +1,12 @@
+import InnoDI
+
+struct Consumer { let request: Int }
+
+@DIContainer
+struct App {
+    @Provide(.transient, factory: 1)
+    var request: Int
+    @Provide(.transient, factory: { (request: Int) in Consumer(request: request) })
+    var consumer: Consumer
+}
+@main enum Check { static func main() { precondition(App().consumer.request == 1) } }

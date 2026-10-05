@@ -1,0 +1,7 @@
+import InnoDI
+
+@DIContainer(initializationOrder: ContainerInitializationOrder.dependency)
+struct InvalidContainer {
+    @Provide(.shared, factory: { (second: Int) in second }) var first: Int
+    @Provide(.shared, asyncFactory: { () async in 42 }) var second: Int
+}

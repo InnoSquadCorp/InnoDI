@@ -63,8 +63,31 @@ package struct GeneratedQualifierUsage {
         }
 
         var memberBodies: Set<GeneratedQualifierRequirement> = []
+        // Builders with override slots expose set/useDefault through
+        // Swift.WritableKeyPath. Empty/input-only builders emit neither method.
+        // Only type shadows interfere with that lookup. Rejected declarations and the custom
+        // Overrides recovery branch do not emit these methods.
+        let hasOverrideSlots = members.contains {
+            $0.provide?.scope == .shared || $0.provide?.scope == .transient
+                || $0.subContainer != nil
+        }
+        if hasOverrideSlots, containerGenerationIsLocallyViable,
+           overrideMutationHelpersAreLocallyViable(in: declaration, options: options) {
+            memberBodies.insert(.init("Swift", namespace: .typeOnly))
+        }
         if options?.mainActor == true {
             memberBodies.insert(.init("Swift"))
+        }
+
+        // Owned construction names concrete runtime support in expressions,
+        // even for an input-only/empty container. Literal false emits nothing
+        // new and must not reserve any additional qualifier.
+        if options?.generateOwned == true, containerGenerationIsLocallyViable {
+            memberBodies.formUnion([
+                .init("InnoDI", namespace: .typeOrValue),
+                .init("_Concurrency", namespace: .typeOrValue),
+                .init("Swift"),
+            ])
         }
 
         let validProvides = members.compactMap(\.provide)
@@ -97,6 +120,14 @@ package struct GeneratedQualifierUsage {
                     namespace: containerGenerationIsLocallyViable ? .typeOrValue : .typeOnly
                 )
             )
+        }
+
+        // Synchronous selective prewarming emits `Swift.PartialKeyPath` and
+        // the selection-only enum's `Swift.Sendable` conformance. Both are
+        // type lookups: same-spelled value declarations remain safe.
+        if containerGenerationIsLocallyViable,
+           syncShared.contains(where: { $0.initialization == .onDemand }) {
+            memberBodies.insert(.init("Swift"))
         }
 
         let validTargetsByName = Dictionary(
@@ -134,7 +165,8 @@ package struct GeneratedQualifierUsage {
             syncShared: syncShared,
             asyncShared: asyncShared,
             deferredTargetNames: deferredTargetNames,
-            validTargetsByName: validTargetsByName
+            validTargetsByName: validTargetsByName,
+            initializationOrder: options?.initializationOrder ?? .declaration
            ) {
             memberBodies.insert(
                 .init("InnoDI", namespace: .typeOrValue)
@@ -182,6 +214,104 @@ package struct GeneratedQualifierUsage {
         return GeneratedQualifierUsage(
             memberBodies: memberBodies,
             fileScopeExtensions: [.init("InnoDISwiftUI")]
+        )
+    }
+}
+
+private func overrideMutationHelpersAreLocallyViable(
+    in declaration: some DeclGroupSyntax,
+    options: DIContainerAttributeInfo?
+) -> Bool {
+    guard classifyDIContainerDeclaration(declaration).isSupported,
+          let options,
+          options.roleArgumentIsValid,
+          options.initializationOrderParseState != .invalid,
+          ![options.rootParseState, options.validateDAGParseState,
+            options.mainActorParseState, options.generateOwnedParseState]
+            .contains(where: \.isInvalid),
+          !declaration.memberBlock.members.contains(where: {
+              blocksOverrideMutationHelpers(in: Syntax($0.decl))
+          }) else {
+        return false
+    }
+
+    var managedNames: Set<String> = []
+    for member in declaration.memberBlock.members {
+        guard let variable = member.decl.as(VariableDeclSyntax.self),
+              parseManagedMemberSemantics(variable.attributes).hasAnyRole,
+              let identifier = variable.bindings.first?.pattern.as(IdentifierPatternSyntax.self) else {
+            continue
+        }
+        if !managedNames.insert(unescapedInnoDIIdentifierName(identifier.identifier)).inserted {
+            return false
+        }
+    }
+
+    // Both the build coordinator and graph CLI reject same/cross-file
+    // extension initializers in CustomInitBuildValidator before this pass.
+    // Do not rescan every source-file statement for every container here.
+    return true
+}
+
+private func blocksOverrideMutationHelpers(
+    in syntax: Syntax,
+    isConditional: Bool = false
+) -> Bool {
+    if syntax.is(InitializerDeclSyntax.self) { return true }
+    // Keep these casts separate, as in the macro's Overrides conflict parser.
+    // A chained generic optional expression exceeds Swift 6.2's type-check budget.
+    if let declaration = syntax.as(StructDeclSyntax.self) {
+        return unescapedInnoDIIdentifierName(declaration.name) == "Overrides"
+    }
+    if let declaration = syntax.as(ClassDeclSyntax.self) {
+        return unescapedInnoDIIdentifierName(declaration.name) == "Overrides"
+    }
+    if let declaration = syntax.as(ActorDeclSyntax.self) {
+        return unescapedInnoDIIdentifierName(declaration.name) == "Overrides"
+    }
+    if let declaration = syntax.as(EnumDeclSyntax.self) {
+        return unescapedInnoDIIdentifierName(declaration.name) == "Overrides"
+    }
+    if let declaration = syntax.as(ProtocolDeclSyntax.self) {
+        return unescapedInnoDIIdentifierName(declaration.name) == "Overrides"
+    }
+    if let declaration = syntax.as(TypeAliasDeclSyntax.self) {
+        return unescapedInnoDIIdentifierName(declaration.name) == "Overrides"
+    }
+    if let variable = syntax.as(VariableDeclSyntax.self) {
+        if findInnoDIAttribute(named: "_InnoDIProvideAccessor", in: variable.attributes) != nil
+            || findInnoDIAttribute(named: "_InnoDISubContainerAccessor", in: variable.attributes) != nil {
+            return true
+        }
+        let semantics = parseManagedMemberSemantics(variable.attributes)
+        if semantics.hasAnyRole {
+            return isConditional
+                || (semantics.provideArguments != nil
+                    && semantics.provideArguments?.operationalEffect == nil)
+        }
+        if variable.modifiers.contains(where: { ["static", "class"].contains($0.name.text) }) {
+            return false
+        }
+        return variable.bindings.contains { binding in
+            guard let accessors = binding.accessorBlock?.accessors else { return true }
+            switch accessors {
+            case .getter: return false
+            case .accessors(let list):
+                return !list.isEmpty && list.allSatisfy {
+                    ["willSet", "didSet"].contains($0.accessorSpecifier.text)
+                }
+            }
+        }
+    }
+    guard syntax.is(IfConfigDeclSyntax.self)
+        || syntax.is(IfConfigClauseListSyntax.self)
+        || syntax.is(IfConfigClauseSyntax.self)
+        || syntax.is(MemberBlockItemSyntax.self)
+        || syntax.is(MemberBlockItemListSyntax.self) else { return false }
+    return syntax.children(viewMode: .sourceAccurate).contains {
+        blocksOverrideMutationHelpers(
+            in: $0,
+            isConditional: isConditional || syntax.is(IfConfigDeclSyntax.self)
         )
     }
 }
@@ -352,10 +482,21 @@ private func emitsUnresolvedFallback(
     syncShared: [ManagedProvideMember],
     asyncShared: [ManagedProvideMember],
     deferredTargetNames: Set<String>,
-    validTargetsByName: [String: ManagedProvideMember]
+    validTargetsByName: [String: ManagedProvideMember],
+    initializationOrder: ContainerInitializationOrderValue
 ) -> Bool {
+    let orderedSync: [ManagedProvideMember]
+    let orderedAsync: [ManagedProvideMember]
+    do {
+        orderedSync = try constructionOrder(syncShared, policy: initializationOrder)
+        orderedAsync = try constructionOrder(asyncShared, policy: initializationOrder)
+    } catch {
+        // Invalid plans are rejected independently before codegen. Keep the
+        // qualifier requirement conservative for source-analysis recovery.
+        return true
+    }
     var availableSyncNames = inputNames
-    for member in syncShared.sorted(by: sourceOrder) {
+    for member in orderedSync {
         if member.references.contains(where: { reference in
             dependencyRequiresFallback(
                 reference,
@@ -377,7 +518,7 @@ private func emitsUnresolvedFallback(
     }
 
     var availableAsyncNames = availableSyncNames
-    for member in asyncShared.sorted(by: sourceOrder) {
+    for member in orderedAsync {
         if member.references.contains(where: { reference in
             dependencyRequiresFallback(
                 reference,
@@ -392,6 +533,25 @@ private func emitsUnresolvedFallback(
         availableAsyncNames.insert(member.name)
     }
     return false
+}
+
+/// Reuse the exact syntax-free ordering primitive used by macro codegen.
+/// Availability still walks a prefix of that order, preserving the existing
+/// storage-prefix fallback normalization without inventing normalized edges.
+private func constructionOrder(
+    _ members: [ManagedProvideMember],
+    policy: ContainerInitializationOrderValue
+) throws -> [ManagedProvideMember] {
+    let sourceOrdered = members.sorted(by: sourceOrder)
+    guard policy == .dependency else { return sourceOrdered }
+    let nodes = sourceOrdered.map { member in
+        InitializationOrderNode(
+            name: member.name,
+            hardDependencies: member.references.filter { $0.kind == .hard }.map(\.name)
+                + member.withDependencies
+        )
+    }
+    return try stableInitializationOrder(nodes).map { sourceOrdered[$0] }
 }
 
 private func dependencyRequiresFallback(

@@ -23,36 +23,16 @@ public struct AppContainer {
         .init(container: feature)
     }
 
-    #if canImport(InnoDISwiftUI) && canImport(SwiftUI)
-    @_Concurrency.MainActor
-    public func featureRootView<Identity>(
-        identity: Identity,
-        close: @escaping InnoDISwiftUI.DIContainerHostOwner<Identity, FeatureContainer>.Close = { _ in
-        }
-    ) -> some SwiftUI.View where Identity: Swift.Hashable & Swift.Sendable {
-        InnoDISwiftUI.DIContainerHost(
-            identity: identity,
-            factory: { _ in
-                self.feature
-            },
-            close: close,
-            content: { container, _ in
-                FeatureRootScene(container: container)
-            },
-            loading: {
-                SwiftUI.EmptyView()
-            },
-            failure: { _, _ in
-                SwiftUI.EmptyView()
-            }
-        )
-    }
-    #endif
-
     // MARK: - Overrides Builder
     public struct Overrides {
         public var feature: FeatureContainer? = nil
         public var featureOverrides: ((inout FeatureContainer._InnoDIMountOverrides) -> Void)? = nil
+        public mutating func set<Value>(_ keyPath: Swift.WritableKeyPath<Self, Value?>, to value: Value) {
+            self[keyPath: keyPath] = .some(value)
+        }
+        public mutating func useDefault<Value>(_ keyPath: Swift.WritableKeyPath<Self, Value?>) {
+            self[keyPath: keyPath] = .none
+        }
     }
 
     public typealias _InnoDIMountOverrides = Overrides

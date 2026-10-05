@@ -1,0 +1,5 @@
+import InnoDI
+@DIContainer(generateOwned: true) struct Container {
+    @Provide(.shared, factory: { (value: InnoDI.Provider<Int>) in value.callAsFunction() }) var result: Int
+    @Provide(.transient, factory: 1) var value: Int
+}

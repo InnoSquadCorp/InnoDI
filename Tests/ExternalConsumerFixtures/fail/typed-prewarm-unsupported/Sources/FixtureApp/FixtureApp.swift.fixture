@@ -1,0 +1,18 @@
+import InnoDI
+
+@DIContainer struct Container {
+    @Input var input: Int
+    @Provide(.shared, initialization: .onDemand, factory: 1) var valid: Int
+    @Provide(.shared, factory: 2) var eager: Int
+    @Provide(.transient, factory: 3) var transient: Int
+    @Provide(.shared, asyncFactory: { () async in 4 }) var asynchronous: Int
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { () async in 5 }) var asyncOnDemand: Int
+}
+
+func rejectUnsupported(_ container: Container) {
+    container.prewarm(Container._InnoDIPrewarmProvider.input)
+    container.prewarm(Container._InnoDIPrewarmProvider.eager)
+    container.prewarm(Container._InnoDIPrewarmProvider.transient)
+    container.prewarm(Container._InnoDIPrewarmProvider.asynchronous)
+    container.prewarm(Container._InnoDIPrewarmProvider.asyncOnDemand)
+}

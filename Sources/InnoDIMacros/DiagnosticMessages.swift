@@ -9,6 +9,13 @@
 import InnoDICore
 import SwiftDiagnostics
 
+enum DependencyUnavailabilityReason: Equatable {
+    case transientScope
+    case declarationOrder
+    case incompatibleEffects
+    case constructionScope
+}
+
 extension SimpleDiagnostic {
     static func provideUnknownEffect(_ name: String) -> Self {
         Self(
@@ -564,6 +571,13 @@ extension SimpleDiagnostic {
         )
     }
 
+    static func swiftUIFeatureRootHostingRequiresBool() -> Self {
+        Self(
+            "FeatureRoot hosted: requires a literal true or false. Use hosted: true only in a source file that imports SwiftUI and InnoDISwiftUI.",
+            code: .swiftUIFeatureRootHostingRequiresBool
+        )
+    }
+
     static func swiftUIEnvironmentBridgeUnknownMember(memberName: String) -> Self {
         Self(
             "@DIEnvironmentBridge references unknown container member '\(memberName)'.",
@@ -644,9 +658,24 @@ extension SimpleDiagnostic {
         )
     }
 
-    static func provideUnavailableDependencyReference(memberName: String, dependencyName: String) -> Self {
-        Self(
-            "Dependency '\(dependencyName)' referenced by '\(memberName)' is not available in this declaration order or scope.",
+    static func provideUnavailableDependencyReference(
+        memberName: String,
+        dependencyName: String,
+        reason: DependencyUnavailabilityReason = .declarationOrder
+    ) -> Self {
+        let explanation: String
+        switch reason {
+        case .transientScope:
+            explanation = "is not available in this construction scope because it is a transient provider"
+        case .declarationOrder:
+            explanation = "is not available in this declaration order"
+        case .incompatibleEffects:
+            explanation = "requires incompatible construction effects"
+        case .constructionScope:
+            explanation = "is not available in this construction scope"
+        }
+        return Self(
+            "Dependency '\(dependencyName)' referenced by '\(memberName)' \(explanation).",
             code: .provideUnavailableDependencyReference
         )
     }
@@ -700,6 +729,13 @@ extension SimpleDiagnostic {
         )
     }
 
+    static func containerInitializationOrderTokenRequired() -> Self {
+        Self(
+            "initializationOrder: requires ContainerInitializationOrder.declaration or ContainerInitializationOrder.dependency (optionally qualified by InnoDI); specify the argument only once.",
+            code: .containerInitializationOrderTokenRequired
+        )
+    }
+
     static func containerBoolLiteralRequired(label: String) -> Self {
         Self(
             "@DIContainer \(label): requires a literal true or false. Use conditional compilation to choose different attribute spellings per build configuration.",
@@ -727,6 +763,18 @@ extension SimpleDiagnostic {
             "A nested 'Overrides' \(kind) is already declared, so @DIContainer cannot synthesize its required override API. Rename the user declaration; custom Overrides types are unsupported in InnoDI 6.0.",
             code: .containerOverridesNameConflict
         )
+    }
+
+    static func containerOwnedNameConflict(name: String = "makeOwned") -> Self {
+        Self("generateOwned: true synthesizes \(name)(...), but a direct declaration already uses '\(name)'. Rename that declaration.", code: .containerOwnedNameConflict)
+    }
+
+    static func containerOwnedUnsupported(_ shape: String) -> Self {
+        Self("generateOwned: true does not yet support \(shape). Use supported input/shared providers or remove generateOwned: true to retain the legacy container API.", code: .containerOwnedUnsupported)
+    }
+
+    static func containerOwnedRequiresDAG() -> Self {
+        Self("generateOwned: true requires validateDAG: true so every owned lifecycle edge is validated.", code: .containerOwnedRequiresDAG)
     }
 
     static func containerPrewarmNameConflict() -> Self {

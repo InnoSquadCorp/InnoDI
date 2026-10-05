@@ -16,7 +16,7 @@
 | Associated types | Candidate direction is explicit pinning via `@GenerateMock(associatedTypes: ...)`; it is not implemented while cross-module resolution remains unsettled. |
 | Actor protocols | Protocol-level `@MainActor` is supported. Custom global actors and individually isolated requirements fail closed and remain outside the current GA scope. |
 | Mutation tracking | Generated mocks expose explicit stub-setup state independently from optional values, generation-tagged call records, atomic aggregate snapshots, and typed `.calls`/`.all` reset. `Sendable` protocols use one lock-backed linearization region from `InnoDITesting`; `@MainActor` mocks use actor serialization. |
-| Snapshot of call args | Generated `Call` structs preserve written parameter types. `Sendable` protocol records require `Sendable` fields; generic methods alone use documented handler erasure. No implicit `Equatable` or `Any` fallback is synthesized. |
+| Snapshot of call args | Generated `Call` structs preserve value types, using arrays for variadics and the final mock class for protocol `Self`. Parameter-only ownership/escaping annotations are removed from fields; borrowed and consuming Copyable values are explicitly copied. Nonescaping closures, noncopyable generic values, and `sending` results fail at the attribute. `Sendable` protocol records require `Sendable` fields; generic methods alone use documented handler erasure. No implicit `Equatable` or `Any` fallback is synthesized. |
 
 ## Summary
 
@@ -31,6 +31,11 @@ single-executor mocks. Protocols inheriting `Sendable` generate lock-backed
 call and stub storage from `InnoDITesting`, while protocol-level `@MainActor`
 is preserved on the generated mock. Custom global actors and individually
 isolated requirements fail closed instead of producing a partial conformance.
+Explicit `nonisolated` protocols preserve that modifier on their mock, including
+under default MainActor isolation. Escaping autoclosures are recorded lazily;
+the mock never evaluates them merely to manufacture a call record. Record
+metadata reserves `generation`, and same-named input fields receive an available
+numeric suffix. Generated local bindings do not shadow the caller's arguments.
 
 Not in scope for this RFC: runtime mocking (swizzling, proxy objects),
 partial mocks that fall back to the real implementation, or anything that
