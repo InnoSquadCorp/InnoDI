@@ -99,6 +99,7 @@ iOSInjectionProject/
 .swiftpm/
 **/.swiftpm/
 **/Package.resolved
+!skills/innodi/assets/consumer/Package.resolved
 
 # Xcode user data (should be ignored)
 **/xcuserdata/

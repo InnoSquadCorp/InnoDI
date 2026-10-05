@@ -1,0 +1,35 @@
+{
+  "status": "passed",
+  "started_at": "2026-10-05T13:47:09.293394+00:00",
+  "finished_at": "2026-10-05T13:47:54.803406+00:00",
+  "swift": "swift-driver version: 1.168.6 Apple Swift version 6.4 (swiftlang-6.4.0.34.1 clang-2100.3.34.1)\nTarget: arm64-apple-macosx27.0.0",
+  "xcode": "Xcode 27.0\nBuild version 27A266a",
+  "source_sha256": {
+    "Package.resolved": "cb426db9f8cacf7994e772d355cccee4a1b331c704d7d04ec00546206533f017",
+    "Package.swift": "f595b5227db9d44196831cece5811d19926b3c288622a193f5bb053cae6c4eae",
+    "Sources/InnoDISkillExample/Services.swift": "65fb32535be1ed8d3c4abc1aac6d62edadc1fdcaf198b8105b64c3a25893c602",
+    "Sources/InnoDISkillExample/SwiftUIBoundary.swift": "d97287e6b5c8b610f9ebe8de5a766ba81f9d364634b38d1634a60f05a7559872",
+    "Tests/InnoDISkillExampleTests/ConsumerTests.swift": "dc677b090e69d008c0983caab8c7cc2220285faa9f3b0159c2e58b55aaca91ab"
+  },
+  "dependencies": {
+    "innodi": {
+      "version": "7.0.0",
+      "revision": "4783eee7f674f99a337768c107b7a5f640810c2a",
+      "clean": true
+    },
+    "swift-syntax": {
+      "version": "604.0.0",
+      "revision": "050f1a346fbbac0ca2cfb15a95274f7bd1cf0ccf",
+      "clean": true
+    }
+  },
+  "command": "python3 skills/innodi/scripts/validate_consumer.py --scratch-path /tmp/innodi-skill-source-validation-20261005",
+  "swift_test_result": {
+    "tests": 10,
+    "suites": 1,
+    "failures": 0,
+    "strict_concurrency": "complete",
+    "warnings_as_errors": true
+  },
+  "notes": "Fresh run after transferring the skill into the InnoDI repository. Verifies an exact remote 7.0.0 consumer; not the working-tree library or AI host behavior."
+}
