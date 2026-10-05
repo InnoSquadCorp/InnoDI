@@ -4,9 +4,9 @@
 
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
-> [!IMPORTANT]
-> This checkout documents **unreleased 7.0.0**. Its examples and rules require the 7.0 development checkout, not the published 6.0.0 package.
-> [Stable 6.0.0 documentation](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.md).
+> This page documents **InnoDI 7.0.0**. For source changes from 6.x, follow the
+> [migration guide](Sources/InnoDI/InnoDI.docc/MigrationGuide.md#6x--70).
+> [Versioned 7.0.0 documentation](https://github.com/InnoSquadCorp/InnoDI/blob/7.0.0/README.md).
 
 Macro-driven dependency injection for Swift with compile-time and build-time
 validation, dependency-graph tooling, hierarchy checks, and SwiftUI helpers.
@@ -148,22 +148,11 @@ Add InnoDI to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(name: "InnoDI", path: "../InnoDI")
+    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "7.0.0")
 ]
 ```
 
-For the examples on this page, use the local **7.0 development checkout** above (adjust `../InnoDI` to its path). No 7.0.0 release tag is available yet.
-
-For the published **6.0.0** package, use the dependency below and follow the linked stable documentation, not this page's 7.0 examples.
-[Stable 6.0.0 documentation](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.md).
-
-```swift
-dependencies: [
-    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "6.0.0")
-]
-```
-
-The remaining product, plugin, and API examples on this page use the **7.0 development checkout**.
+The product, plugin, and API examples on this page use **InnoDI 7.0.0**.
 For the source changes from 6.x, follow the
 [migration guide](Sources/InnoDI/InnoDI.docc/MigrationGuide.md#6x--70).
 
@@ -383,9 +372,8 @@ change close, cancellation, retry, or container-copy lifetime contracts.
 
 Existing containers need no migration. Adoption adds one argument; do not
 mechanically reorder declarations or change the default across an app without
-reviewing side effects. This API is included in the unreleased 7.0 candidate;
-public API baseline review and supported Apple toolchain qualification remain
-pending.
+reviewing side effects. This API is included in InnoDI 7.0; the release retains
+public API baseline and supported Apple toolchain checks.
 
 
 In 6.0, generic component-mounting helpers must distinguish the two marker
