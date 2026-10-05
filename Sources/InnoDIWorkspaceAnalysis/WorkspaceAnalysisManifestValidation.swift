@@ -456,14 +456,23 @@ private func packageRelativeManifestPath(
     _ filePath: String,
     packageDirectory: String
 ) -> String? {
-    let fileComponents = URL(fileURLWithPath: canonicalManifestPath(filePath))
+    // Match the build plugin's lexical logical path while retaining physical
+    // containment. A declared in-package alias is supported; an alias whose
+    // destination escapes the owning package is not.
+    let fileComponents = URL(fileURLWithPath: filePath)
+        .standardizedFileURL.pathComponents
+    let packageComponents = URL(fileURLWithPath: packageDirectory, isDirectory: true)
+        .standardizedFileURL.pathComponents
+    let resolvedFileComponents = URL(fileURLWithPath: canonicalManifestPath(filePath))
         .pathComponents
-    let packageComponents = URL(
+    let resolvedPackageComponents = URL(
         fileURLWithPath: canonicalManifestPath(packageDirectory),
         isDirectory: true
     ).pathComponents
     guard fileComponents.count > packageComponents.count,
-          fileComponents.starts(with: packageComponents) else {
+          fileComponents.starts(with: packageComponents),
+          resolvedFileComponents.count > resolvedPackageComponents.count,
+          resolvedFileComponents.starts(with: resolvedPackageComponents) else {
         return nil
     }
     return fileComponents.dropFirst(packageComponents.count)

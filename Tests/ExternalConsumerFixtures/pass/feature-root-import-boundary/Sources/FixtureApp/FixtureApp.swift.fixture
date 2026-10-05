@@ -1,0 +1,21 @@
+import InnoDI
+import InnoDISwiftUI
+import SwiftUI
+
+struct HostedRoot: View {
+    let container: Child
+    var body: some View { EmptyView() }
+}
+@MainActor @DIContainer struct HostedParent {
+    @SubContainer(scope: .shared, featureRoots: [FeatureRoot(HostedRoot.self, hosted: true)]) var child: Child
+}
+@main struct FixtureApp {
+    @MainActor static func main() {
+        precondition(featureModulesAreAvailable())
+        _ = PlainParent().childRootView()
+        let hosted = HostedParent { $0.childOverrides = { _ in } }
+        _ = hosted.childRootView()
+        _ = hosted.childRootView(identity: 1)
+        print("feature-root source import and explicit hosting boundaries passed")
+    }
+}

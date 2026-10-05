@@ -444,6 +444,21 @@
         },
         {
           "kind": "conformsTo",
+          "source": "s:6InnoDI25DIAsyncPreparationFailureV",
+          "target": "s:SQ"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI25DIAsyncPreparationFailureV",
+          "target": "s:s5ErrorP"
+        },
+        {
+          "kind": "conformsTo",
+          "source": "s:6InnoDI25DIAsyncPreparationFailureV",
+          "target": "s:s8SendableP"
+        },
+        {
+          "kind": "conformsTo",
           "source": "s:6InnoDI25DIKeyedProviderCollectionV",
           "target": "s:SK"
         },
@@ -544,13 +559,28 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:6InnoDI11FeatureRootV6hostedSbvp",
+          "target": "s:6InnoDI11FeatureRootV"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:6InnoDI11FeatureRootV8rootViewypXpvp",
+          "target": "s:6InnoDI11FeatureRootV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI11FeatureRootV_2as6hostedACypXp_SSSgSbtcfc",
           "target": "s:6InnoDI11FeatureRootV"
         },
         {
           "kind": "memberOf",
           "source": "s:6InnoDI11FeatureRootV_2asACypXp_SSSgtcfc",
           "target": "s:6InnoDI11FeatureRootV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DIAsyncScopeC10providerID9admission9operationACyxGSS_AA01_aC9AdmissionCxyYaYbKctcfc",
+          "target": "s:6InnoDI12DIAsyncScopeC"
         },
         {
           "kind": "memberOf",
@@ -579,7 +609,27 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:6InnoDI12DIAsyncScopeC5startAA0C14ProviderStatusVyYaKF",
+          "target": "s:6InnoDI12DIAsyncScopeC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DIAsyncScopeC5value10providerID9admissionACyxGx_SSAA01_aC9AdmissionCtcfc",
+          "target": "s:6InnoDI12DIAsyncScopeC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DIAsyncScopeC5value10providerIDACyxGx_SStcfc",
+          "target": "s:6InnoDI12DIAsyncScopeC"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:6InnoDI12DIAsyncScopeC5valuexyYaKF",
+          "target": "s:6InnoDI12DIAsyncScopeC"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI12DIAsyncScopeC6cancelyyYaF",
           "target": "s:6InnoDI12DIAsyncScopeC"
         },
         {
@@ -1199,6 +1249,11 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:6InnoDI24DIAsyncPreparationReportV12requireReadyyyKF",
+          "target": "s:6InnoDI24DIAsyncPreparationReportV"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:6InnoDI24DIAsyncPreparationReportV19selectedProviderIDs7entriesACSaySSG_SayAA0cD5EntryVGtcfc",
           "target": "s:6InnoDI24DIAsyncPreparationReportV"
         },
@@ -1216,6 +1271,16 @@
           "kind": "memberOf",
           "source": "s:6InnoDI24DIAsyncPreparationReportV7isReadySbvp",
           "target": "s:6InnoDI24DIAsyncPreparationReportV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI25DIAsyncPreparationFailureV6reportAA0cD6ReportVvp",
+          "target": "s:6InnoDI25DIAsyncPreparationFailureV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI25DIAsyncPreparationFailureV6reportAcA0cD6ReportV_tcfc",
+          "target": "s:6InnoDI25DIAsyncPreparationFailureV"
         },
         {
           "kind": "memberOf",
@@ -1326,6 +1391,16 @@
           "kind": "memberOf",
           "source": "s:6InnoDI27DIProviderEffectRequirementV6effectAA0cD0Ovp",
           "target": "s:6InnoDI27DIProviderEffectRequirementV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI28ContainerInitializationOrderO10dependencySSvpZ",
+          "target": "s:6InnoDI28ContainerInitializationOrderO"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:6InnoDI28ContainerInitializationOrderO11declarationSSvpZ",
+          "target": "s:6InnoDI28ContainerInitializationOrderO"
         },
         {
           "kind": "memberOf",
@@ -1447,16 +1522,18 @@
           },
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI11DIContainer11validateDAGySb_tcfm"
+            "precise": "s:6InnoDI11DIContainer11validateDAG19initializationOrder13generateOwnedySb_SSSbtcfm"
           },
           "kind": {
             "identifier": "swift.macro"
           },
           "parameterDefaults": [
+            true,
+            true,
             true
           ],
           "pathComponents": [
-            "DIContainer(validateDAG:)"
+            "DIContainer(validateDAG:initializationOrder:generateOwned:)"
           ]
         },
         {
@@ -1600,6 +1677,27 @@
           },
           "identifier": {
             "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI11FeatureRootV6hostedSbvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "FeatureRoot",
+            "hosted"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
             "precise": "s:6InnoDI11FeatureRootV8rootViewypXpvp"
           },
           "kind": {
@@ -1608,6 +1706,29 @@
           "pathComponents": [
             "FeatureRoot",
             "rootView"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI11FeatureRootV_2as6hostedACypXp_SSSgSbtcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "parameterDefaults": [
+            false,
+            true,
+            false
+          ],
+          "pathComponents": [
+            "FeatureRoot",
+            "init(_:as:hosted:)"
           ]
         },
         {
@@ -1647,6 +1768,46 @@
           },
           "pathComponents": [
             "DIAsyncScope"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Value",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Value"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DIAsyncScopeC10providerID9admission9operationACyxGSS_AA01_aC9AdmissionCxyYaYbKctcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "parameterDefaults": [
+            false,
+            false,
+            false
+          ],
+          "pathComponents": [
+            "DIAsyncScope",
+            "init(providerID:admission:operation:)"
           ],
           "swiftGenerics": {
             "constraints": [
@@ -1848,6 +2009,122 @@
           },
           "identifier": {
             "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DIAsyncScopeC5startAA0C14ProviderStatusVyYaKF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "parameterDefaults": [],
+          "pathComponents": [
+            "DIAsyncScope",
+            "start()"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Value",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Value"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DIAsyncScopeC5value10providerID9admissionACyxGx_SSAA01_aC9AdmissionCtcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "parameterDefaults": [
+            false,
+            false,
+            false
+          ],
+          "pathComponents": [
+            "DIAsyncScope",
+            "init(value:providerID:admission:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Value",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Value"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DIAsyncScopeC5value10providerIDACyxGx_SStcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "parameterDefaults": [
+            false,
+            false
+          ],
+          "pathComponents": [
+            "DIAsyncScope",
+            "init(value:providerID:)"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Value",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Value"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
             "precise": "s:6InnoDI12DIAsyncScopeC5valuexyYaKF"
           },
           "kind": {
@@ -1857,6 +2134,43 @@
           "pathComponents": [
             "DIAsyncScope",
             "value()"
+          ],
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Value",
+                "rhs": "Sendable",
+                "rhsPrecise": "s:s8SendableP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Value"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI12DIAsyncScopeC6cancelyyYaF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "parameterDefaults": [],
+          "pathComponents": [
+            "DIAsyncScope",
+            "cancel()"
           ],
           "swiftGenerics": {
             "constraints": [
@@ -2918,7 +3232,7 @@
           },
           "identifier": {
             "interfaceLanguage": "swift",
-            "precise": "s:6InnoDI15DIContainerRole4role9mainActor11validateDAGySS_S2btcfm"
+            "precise": "s:6InnoDI15DIContainerRole4role9mainActor11validateDAG19initializationOrder13generateOwnedySS_S2bSSSbtcfm"
           },
           "kind": {
             "identifier": "swift.macro"
@@ -2926,10 +3240,12 @@
           "parameterDefaults": [
             false,
             true,
+            true,
+            true,
             true
           ],
           "pathComponents": [
-            "DIContainerRole(role:mainActor:validateDAG:)"
+            "DIContainerRole(role:mainActor:validateDAG:initializationOrder:generateOwned:)"
           ]
         },
         {
@@ -5425,6 +5741,26 @@
           "accessLevel": "public",
           "declarationContract": {
             "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI24DIAsyncPreparationReportV12requireReadyyyKF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "parameterDefaults": [],
+          "pathComponents": [
+            "DIAsyncPreparationReport",
+            "requireReady()"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
             "namedAttributes": []
           },
           "identifier": {
@@ -5504,6 +5840,65 @@
           "pathComponents": [
             "DIAsyncPreparationReport",
             "isReady"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI25DIAsyncPreparationFailureV"
+          },
+          "kind": {
+            "identifier": "swift.struct"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationFailure"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI25DIAsyncPreparationFailureV6reportAA0cD6ReportVvp"
+          },
+          "kind": {
+            "identifier": "swift.property"
+          },
+          "pathComponents": [
+            "DIAsyncPreparationFailure",
+            "report"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI25DIAsyncPreparationFailureV6reportAcA0cD6ReportV_tcfc"
+          },
+          "kind": {
+            "identifier": "swift.init"
+          },
+          "parameterDefaults": [
+            false
+          ],
+          "pathComponents": [
+            "DIAsyncPreparationFailure",
+            "init(report:)"
           ]
         },
         {
@@ -6315,6 +6710,65 @@
           "pathComponents": [
             "DIProviderEffectRequirement",
             "effect"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI28ContainerInitializationOrderO"
+          },
+          "kind": {
+            "identifier": "swift.enum"
+          },
+          "pathComponents": [
+            "ContainerInitializationOrder"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI28ContainerInitializationOrderO10dependencySSvpZ"
+          },
+          "kind": {
+            "identifier": "swift.type.property"
+          },
+          "pathComponents": [
+            "ContainerInitializationOrder",
+            "dependency"
+          ]
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutatingGetter": false,
+            "namedAttributes": [],
+            "nonmutatingSetter": false,
+            "writable": false
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:6InnoDI28ContainerInitializationOrderO11declarationSSvpZ"
+          },
+          "kind": {
+            "identifier": "swift.type.property"
+          },
+          "pathComponents": [
+            "ContainerInitializationOrder",
+            "declaration"
           ]
         },
         {
@@ -8367,7 +8821,17 @@
         },
         {
           "kind": "memberOf",
+          "source": "s:13InnoDITesting16DIOverridePresetVAA0A2DI0C16EffectValidatingRzlE14applyValidated2toyxz_tKF",
+          "target": "s:13InnoDITesting16DIOverridePresetV"
+        },
+        {
+          "kind": "memberOf",
           "source": "s:13InnoDITesting16DIOverridePresetVAA0A2DI0C16EffectValidatingRzlE9validated4base7profilexx_AA06DITestF7ProfileVtKF",
+          "target": "s:13InnoDITesting16DIOverridePresetV"
+        },
+        {
+          "kind": "memberOf",
+          "source": "s:13InnoDITesting16DIOverridePresetVAA0A2DI35DIMainActorOverrideEffectValidatingRzlE14applyValidated2toyxz_tKF",
           "target": "s:13InnoDITesting16DIOverridePresetV"
         },
         {
@@ -8798,6 +9262,57 @@
           },
           "identifier": {
             "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting16DIOverridePresetVAA0A2DI0C16EffectValidatingRzlE14applyValidated2toyxz_tKF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "parameterDefaults": [
+            false
+          ],
+          "pathComponents": [
+            "DIOverridePreset",
+            "applyValidated(to:)"
+          ],
+          "swiftExtension": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Overrides",
+                "rhs": "DIOverrideEffectValidating",
+                "rhsPrecise": "s:6InnoDI26DIOverrideEffectValidatingP"
+              }
+            ],
+            "extendedModule": "InnoDITesting",
+            "typeKind": "swift.struct"
+          },
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Overrides",
+                "rhs": "DIOverrideEffectValidating",
+                "rhsPrecise": "s:6InnoDI26DIOverrideEffectValidatingP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Overrides"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": []
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
             "precise": "s:13InnoDITesting16DIOverridePresetVAA0A2DI0C16EffectValidatingRzlE9validated4base7profilexx_AA06DITestF7ProfileVtKF"
           },
           "kind": {
@@ -8830,6 +9345,59 @@
                 "lhs": "Overrides",
                 "rhs": "DIOverrideEffectValidating",
                 "rhsPrecise": "s:6InnoDI26DIOverrideEffectValidatingP"
+              }
+            ],
+            "parameters": [
+              {
+                "depth": 0,
+                "index": 0,
+                "name": "Overrides"
+              }
+            ]
+          }
+        },
+        {
+          "accessLevel": "public",
+          "declarationContract": {
+            "isolationModifiers": [],
+            "mutating": false,
+            "namedAttributes": [
+              "s:ScM"
+            ]
+          },
+          "identifier": {
+            "interfaceLanguage": "swift",
+            "precise": "s:13InnoDITesting16DIOverridePresetVAA0A2DI35DIMainActorOverrideEffectValidatingRzlE14applyValidated2toyxz_tKF"
+          },
+          "kind": {
+            "identifier": "swift.method"
+          },
+          "parameterDefaults": [
+            false
+          ],
+          "pathComponents": [
+            "DIOverridePreset",
+            "applyValidated(to:)"
+          ],
+          "swiftExtension": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Overrides",
+                "rhs": "DIMainActorOverrideEffectValidating",
+                "rhsPrecise": "s:6InnoDI35DIMainActorOverrideEffectValidatingP"
+              }
+            ],
+            "extendedModule": "InnoDITesting",
+            "typeKind": "swift.struct"
+          },
+          "swiftGenerics": {
+            "constraints": [
+              {
+                "kind": "conformance",
+                "lhs": "Overrides",
+                "rhs": "DIMainActorOverrideEffectValidating",
+                "rhsPrecise": "s:6InnoDI35DIMainActorOverrideEffectValidatingP"
               }
             ],
             "parameters": [

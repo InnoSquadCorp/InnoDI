@@ -1,0 +1,650 @@
+// Apple/full-runtime counterpart: requires the real AsyncSharedCell.swift.
+// Do not qualify this file using a replacement legacy cell or lock adapter.
+import InnoDI
+import Foundation
+#if canImport(os)
+import os
+#else
+import Synchronization
+#endif
+
+// Test-only checked synchronization; no unchecked Sendable adapter.
+final class PreparedProbe: Sendable {
+    private struct State: Sendable {
+        var events: [String] = []
+        var waiters: [String: [CheckedContinuation<Void, Never>]] = [:]
+    }
+    #if canImport(os)
+    private let state = OSAllocatedUnfairLock(initialState: State())
+    #else
+    private let state = Mutex(State())
+    #endif
+    func record(_ event: String) {
+        let waiters = state.withLock {
+            $0.events.append(event)
+            return $0.waiters.removeValue(forKey: event) ?? []
+        }
+        for waiter in waiters { waiter.resume() }
+    }
+    func count(_ event: String) -> Int { state.withLock { $0.events.filter { $0 == event }.count } }
+    var snapshot: [String] { state.withLock { $0.events } }
+    func waitFor(_ event: String, fileID: StaticString = #fileID, line: UInt = #line) async {
+        let location = "\(event) at \(fileID):\(line)"
+        await withCheckedContinuation { continuation in
+            let recorded = state.withLock {
+                if $0.events.contains(event) { return true }
+                $0.waiters[event, default: []].append(continuation)
+                return false
+            }
+            if recorded {
+                continuation.resume()
+            } else {
+                FileHandle.standardError.write(Data("pending resource release: \(location)\n".utf8))
+            }
+        }
+        FileHandle.standardError.write(Data("observed resource release: \(location)\n".utf8))
+    }
+}
+// Saves an ordinary Task handle, never an UnsafeCurrentTask. The start barrier
+// keeps cleanup from using the handle before its checked-lock installation.
+final class PreparedCallerTask: Sendable {
+    #if canImport(os)
+    private let task = OSAllocatedUnfairLock<Task<Void, Never>?>(initialState: nil)
+    #else
+    private let task = Mutex<Task<Void, Never>?>(nil)
+    #endif
+    func install(_ caller: Task<Void, Never>) {
+        task.withLock { $0 = caller }
+    }
+    func cancel() {
+        guard let caller = task.withLock({ $0 }) else {
+            preconditionFailure("cleanup ran before the caller Task was installed")
+        }
+        caller.cancel()
+    }
+    func clear() { task.withLock { $0 = nil } }
+}
+
+actor PreparedStartBarrier {
+    private var opened = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+    func wait() async {
+        if opened { return }
+        await withCheckedContinuation { waiters.append($0) }
+    }
+    func open() {
+        opened = true
+        let pending = waiters; waiters.removeAll()
+        for waiter in pending { waiter.resume() }
+    }
+}
+
+final class PreparedResource: Sendable {
+    let name: String
+    let probe: PreparedProbe
+    private let cancelCallerOnRelease: PreparedCallerTask?
+    init(_ name: String, _ probe: PreparedProbe, cancelCallerOnRelease: PreparedCallerTask? = nil) {
+        self.name = name; self.probe = probe
+        self.cancelCallerOnRelease = cancelCallerOnRelease
+        probe.record("make:\(name)")
+    }
+    deinit {
+        probe.record("release:\(name)")
+        if let cancelCallerOnRelease {
+            cancelCallerOnRelease.cancel()
+            probe.record("cancel:caller")
+        }
+    }
+}
+// Deliberately non-Sendable: the helper must preserve caller isolation and must
+// not impose a Sendable requirement on its view, closure captures, or result.
+final class PreparedLocal {
+    var number: Int
+    init(_ number: Int) { self.number = number }
+}
+final class PreparedLocalResult {
+    let local: PreparedLocal
+    init(_ local: PreparedLocal) { self.local = local }
+}
+final class PreparedBodyFailure: Error {
+    let number: Int
+    init(_ number: Int) { self.number = number }
+}
+enum PreparedFactoryFailure: Error { case unavailable }
+enum PreparedPreflightFailure: Error { case rejected }
+
+@DIContainer(generateOwned: true)
+struct PreparedGraph {
+    @Input var probe: PreparedProbe
+    @Input var borrowed: PreparedLocal
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { (probe: PreparedProbe) async in
+        PreparedResource("first", probe)
+    }) var first: PreparedResource
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { (probe: PreparedProbe, first: PreparedResource) async throws in
+        precondition(first.name == "first"); return PreparedResource("second", probe)
+    }) var second: PreparedResource
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { (probe: PreparedProbe) async in
+        PreparedResource("spare", probe)
+    }) var spare: PreparedResource
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { (probe: PreparedProbe) async in
+        Optional.some(PreparedResource("optional", probe))
+    }) var optional: PreparedResource?
+    @Provide(.transient, factory: { (probe: PreparedProbe) in
+        probe.record("make:transient"); return PreparedLocal(99)
+    }) var transient: PreparedLocal
+}
+
+actor PreparedAttempts {
+    private var attempts = 0
+    private let failures: Int
+    init(failures: Int) { self.failures = failures }
+    func run() throws -> Int {
+        attempts += 1
+        if attempts <= failures { throw PreparedFactoryFailure.unavailable }
+        return attempts
+    }
+    var count: Int { attempts }
+}
+@DIContainer(generateOwned: true)
+struct PreparedFailureGraph {
+    @Input var probe: PreparedProbe
+    @Input var attempts: PreparedAttempts
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { (probe: PreparedProbe) async in
+        PreparedResource("ready", probe)
+    }) var ready: PreparedResource
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { (attempts: PreparedAttempts) async throws in
+        try await attempts.run()
+    }) var failure: Int
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { (probe: PreparedProbe, failure: Int) async throws in
+        probe.record("make:blocked"); return failure + 1
+    }) var blocked: Int
+}
+
+// Signals factory admission and cancellation without polling, yields, or sleeps.
+actor PreparedGate {
+    private var entered = false
+    private var cancelled = false
+    private var finished = false
+    private var continuation: CheckedContinuation<Int, any Error>?
+    private var entryWaiters: [CheckedContinuation<Void, Never>] = []
+    private var finishWaiters: [CheckedContinuation<Void, Never>] = []
+    func run() async throws -> Int {
+        entered = true
+        let waiters = entryWaiters; entryWaiters.removeAll()
+        for waiter in waiters { waiter.resume() }
+        defer {
+            finished = true
+            let waiters = finishWaiters; finishWaiters.removeAll()
+            for waiter in waiters { waiter.resume() }
+        }
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation = $0 }
+        } onCancel: {
+            Task { await self.cancel() }
+        }
+    }
+    func waitForEntry() async {
+        if entered { return }
+        await withCheckedContinuation { entryWaiters.append($0) }
+    }
+    private func cancel() {
+        cancelled = true
+        continuation?.resume(throwing: CancellationError()); continuation = nil
+    }
+    func waitForFinish() async {
+        if finished { return }
+        await withCheckedContinuation { finishWaiters.append($0) }
+    }
+    var wasCancelled: Bool { cancelled }
+}
+@DIContainer(generateOwned: true)
+struct PreparedWaitingGraph {
+    @Input var probe: PreparedProbe
+    @Input var gate: PreparedGate
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { (probe: PreparedProbe) async in
+        PreparedResource("ready", probe)
+    }) var ready: PreparedResource
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { (gate: PreparedGate) async throws in
+        try await gate.run()
+    }) var waiting: Int
+}
+@DIContainer(generateOwned: true)
+struct PreparedEagerGraph {
+    @Input var probe: PreparedProbe
+    @Provide(.shared, factory: { (probe: PreparedProbe) in probe.record("sync"); return 3 }) var sync: Int
+    @Provide(.shared, asyncFactory: { (probe: PreparedProbe) async in probe.record("eager"); return 5 }) var eager: Int
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { () async in 7 }) var selected: Int
+}
+
+@MainActor func preparedSuccessAndTeardown() async throws {
+    let probe = PreparedProbe()
+    let local = PreparedLocal(11)
+    let result = try await PreparedGraph.withPrepared(.second, .first, .second, probe: probe, borrowed: local) { view in
+        let second = try await view.second
+        precondition(second.name == "second")
+        precondition(probe.count("make:first") == 1 && probe.count("make:second") == 1)
+        precondition(probe.count("make:spare") == 0 && probe.count("make:optional") == 0)
+        precondition(view.borrowed === local)
+        return PreparedLocalResult(view.borrowed)
+    }
+    precondition(result.local === local)
+    // close releases scope ownership before returning, but completed factory
+    // tasks may retain their result briefly. Observe their eventual release
+    // separately; the process/test timeout bounds this deterministic wait.
+    await probe.waitFor("release:first")
+    await probe.waitFor("release:second")
+    precondition(probe.count("release:first") == 1 && probe.count("release:second") == 1)
+
+    // Seeded values have no factory-task result holders. This is the strict
+    // pre-return reverse-close oracle; the closure retains only the probe.
+    let seeded = PreparedProbe()
+    let closedView = try await PreparedGraph.withPrepared(.first, .second, probe: seeded, borrowed: local, overrides: {
+        $0.first = PreparedResource("first", seeded)
+        $0.second = PreparedResource("second", seeded)
+    }) { $0 }
+    precondition(seeded.snapshot == ["make:first", "make:second", "release:second", "release:first"])
+    do { _ = try await closedView.first; preconditionFailure("successful helper escaped live scope") }
+    catch DIAsyncScopeError.closed(providerID: "first") {}
+
+    let eager = PreparedProbe()
+    try await PreparedEagerGraph.withPrepared(.selected, probe: eager, _innoDITrace: .disabled) { view in
+        precondition(view.sync == 3)
+        let value = try await view.eager
+        precondition(value == 5)
+    }
+    precondition(eager.count("sync") == 1 && eager.count("eager") == 1)
+}
+
+@MainActor func preparedPartialFailure() async throws {
+    let probe = PreparedProbe()
+    let attempts = PreparedAttempts(failures: 20)
+    do {
+        try await PreparedFailureGraph.withPrepared(.ready, .blocked, probe: probe, attempts: attempts) { _ in
+            probe.record("body")
+        }
+        preconditionFailure("partial readiness entered operation")
+    } catch let failure as DIAsyncPreparationFailure {
+        let report = failure.report
+        precondition(!report.isReady)
+        precondition(report.selectedProviderIDs == ["ready", "blocked"])
+        precondition(report.entries.map(\.providerID) == ["ready", "failure", "blocked"])
+        precondition(report.entries.map(\.disposition) == [.ready, .failed, .blocked])
+        precondition(report.entries[2].blockingDependencies == ["failure"])
+        precondition(report.entries[2].status.state == .idle)
+        precondition(report.entries[1].status.errorDescription?.contains("PreparedFactoryFailure") == true)
+        do { try report.requireReady(); preconditionFailure("non-ready report accepted") }
+        catch let same as DIAsyncPreparationFailure { precondition(same == failure) }
+    }
+    let count = await attempts.count
+    precondition(count == 1 && probe.count("body") == 0 && probe.count("make:blocked") == 0)
+    await probe.waitFor("release:ready")
+    precondition(probe.count("release:ready") == 1)
+}
+
+@MainActor func preparedPreflight() async throws {
+    let probe = PreparedProbe()
+    do {
+        try await PreparedEagerGraph.withPrepared(.selected, probe: probe, overrides: { _ in
+            probe.record("preflight"); throw PreparedPreflightFailure.rejected
+        }) { _ in probe.record("body") }
+        preconditionFailure("throwing preflight succeeded")
+    } catch PreparedPreflightFailure.rejected {}
+    precondition(probe.snapshot == ["preflight"])
+    let cancelledProbe = PreparedProbe()
+    let task = Task {
+        withUnsafeCurrentTask { $0?.cancel() }
+        do {
+            try await PreparedEagerGraph.withPrepared(.selected, probe: cancelledProbe, overrides: { _ in
+                cancelledProbe.record("preflight")
+            }) { _ in cancelledProbe.record("body") }
+            preconditionFailure("cancelled caller entered construction")
+        } catch is CancellationError {}
+    }
+    try await task.value
+    precondition(cancelledProbe.snapshot.isEmpty)
+
+    let cancelledByOverride = PreparedProbe()
+    let preflightCancellation = Task {
+        do {
+            try await PreparedEagerGraph.withPrepared(.selected, probe: cancelledByOverride, overrides: { _ in
+                cancelledByOverride.record("preflight")
+                withUnsafeCurrentTask { $0?.cancel() }
+            }) { _ in cancelledByOverride.record("body") }
+            preconditionFailure("override cancellation entered construction")
+        } catch is CancellationError {}
+    }
+    try await preflightCancellation.value
+    precondition(cancelledByOverride.snapshot == ["preflight"])
+}
+
+@MainActor func preparedCancellationDuringPrepare() async throws {
+    let probe = PreparedProbe()
+    let gate = PreparedGate()
+    let task = Task {
+        do {
+            try await PreparedWaitingGraph.withPrepared(.ready, .waiting, probe: probe, gate: gate) { _ in
+                probe.record("body")
+            }
+            preconditionFailure("cancelled preparation succeeded")
+        } catch is CancellationError {
+            // Cancellation wins over the report's cancelled disposition.
+            await probe.waitFor("release:ready")
+            precondition(probe.count("release:ready") == 1)
+        }
+    }
+    await gate.waitForEntry()
+    precondition(probe.count("make:ready") == 1)
+    task.cancel()
+    try await task.value
+    precondition(probe.count("body") == 0)
+    await gate.waitForFinish()
+    let cancelled = await gate.wasCancelled
+    precondition(cancelled)
+}
+
+@MainActor final class PreparedEscaped {
+    var view: PreparedGraph._InnoDIOwnedView?
+    func requireClosed() async throws {
+        guard let view else { preconditionFailure("body did not receive a view") }
+        do { _ = try await view.first; preconditionFailure("body escaped a live owner") }
+        catch DIAsyncScopeError.closed(providerID: "first") {}
+    }
+}
+
+@MainActor func preparedBodyOutcomes() async throws {
+    for cancel in [false, true] {
+        let probe = PreparedProbe()
+        let escaped = PreparedEscaped()
+        let expected = PreparedBodyFailure(cancel ? 2 : 1)
+        let task = Task {
+            do {
+                try await PreparedGraph.withPrepared(.first, probe: probe, borrowed: PreparedLocal(1)) { view in
+                    escaped.view = view
+                    if cancel { withUnsafeCurrentTask { $0?.cancel() } }
+                    throw expected
+                }
+                preconditionFailure("body error lost")
+            } catch let actual as PreparedBodyFailure {
+                precondition(actual === expected)
+            }
+        }
+        try await task.value
+        // Inspect using the uncancelled parent task so the admission error is
+        // observable instead of the read's earlier cancellation check.
+        try await escaped.requireClosed()
+        await probe.waitFor("release:first")
+        precondition(probe.count("release:first") == 1)
+    }
+    let probe = PreparedProbe(), escaped = PreparedEscaped()
+    let cancelledSuccess = Task {
+        do {
+            _ = try await PreparedGraph.withPrepared(.first, probe: probe, borrowed: PreparedLocal(1)) { view in
+                escaped.view = view
+                withUnsafeCurrentTask { $0?.cancel() }
+                return PreparedLocalResult(PreparedLocal(17))
+            }
+            preconditionFailure("cancelled successful body returned")
+        } catch is CancellationError {}
+    }
+    try await cancelledSuccess.value
+    try await escaped.requireClosed()
+    await probe.waitFor("release:first")
+    precondition(probe.count("release:first") == 1)
+}
+
+@MainActor func preparedCancellationDuringCleanup() async throws {
+    for throwsBody in [false, true] {
+        let probe = PreparedProbe(), handle = PreparedCallerTask()
+        let barrier = PreparedStartBarrier(), escaped = PreparedEscaped()
+        let expected = PreparedBodyFailure(71)
+        let caller = Task<Void, Never> {
+            await barrier.wait()
+            do {
+                _ = try await PreparedGraph.withPrepared(.first, .second, probe: probe, borrowed: PreparedLocal(70), overrides: {
+                    // Neither the preset nor an external variable retains these
+                    // values. No factory task ever owns either seeded result.
+                    $0.first = PreparedResource("first", probe)
+                    $0.second = PreparedResource("second", probe, cancelCallerOnRelease: handle)
+                }) { view in
+                    escaped.view = view
+                    precondition(!Task.isCancelled)
+                    probe.record(throwsBody ? "body:throw" : "body:return")
+                    if throwsBody { throw expected }
+                    return PreparedLocalResult(view.borrowed)
+                }
+                preconditionFailure("cleanup cancellation did not reach the caller")
+            } catch {
+                precondition(Task.isCancelled)
+                if throwsBody {
+                    guard let actual = error as? PreparedBodyFailure else {
+                        preconditionFailure("cleanup cancellation replaced the body error")
+                    }
+                    precondition(actual === expected)
+                } else {
+                    precondition(error is CancellationError)
+                }
+                // Cancellation happens at the first release. close must still
+                // finish the remaining scope before the helper delivers either
+                // its post-success cancellation or the original body error.
+                precondition(probe.snapshot == [
+                    "make:first", "make:second", throwsBody ? "body:throw" : "body:return",
+                    "release:second", "cancel:caller", "release:first"
+                ])
+            }
+        }
+        handle.install(caller)
+        await barrier.open()
+        await caller.value
+        handle.clear()
+        try await escaped.requireClosed()
+        precondition(probe.count("release:first") == 1 && probe.count("release:second") == 1)
+    }
+}
+
+@MainActor func preparedEscapingAndNesting() async throws {
+    let outerProbe = PreparedProbe(), innerProbe = PreparedProbe()
+    let local = PreparedLocal(23)
+    let escaped = try await PreparedGraph.withPrepared(.first, probe: outerProbe, borrowed: local) { outer in
+        let inner = try await PreparedGraph.withPrepared(.first, probe: innerProbe, borrowed: local) { $0 }
+        precondition(inner.borrowed === local)
+        do { _ = try await inner.first; preconditionFailure("escaped inner async read") }
+        catch DIAsyncScopeError.closed(providerID: "first") {}
+        await innerProbe.waitFor("release:first")
+        precondition(innerProbe.count("release:first") == 1)
+        let live = try await outer.first
+        precondition(live.name == "first" && outerProbe.count("release:first") == 0)
+        return outer
+    }
+    precondition(escaped.borrowed === local)
+    escaped.borrowed.number += 1
+    precondition(local.number == 24)
+    do { _ = try await escaped.first; preconditionFailure("escaped outer async read") }
+    catch DIAsyncScopeError.closed(providerID: "first") {}
+    await outerProbe.waitFor("release:first")
+    precondition(outerProbe.count("release:first") == 1)
+}
+
+@MainActor func preparedOverrides() async throws {
+    let probe = PreparedProbe(), borrowed = PreparedLocal(31), replacement = PreparedLocal(32)
+    let resource = PreparedResource("replacement", probe)
+    try await PreparedGraph.withPrepared(.first, .optional, probe: probe, borrowed: borrowed, overrides: {
+        $0.first = resource
+        $0.optional = .some(nil) // Explicit optional nil is distinct from default.
+        $0.transient = replacement // A value override retains identity.
+    }) { view in
+        let first = try await view.first
+        let optional = try await view.optional
+        precondition(first === resource && optional == nil)
+        precondition(view.transient === replacement && view.transient === replacement)
+    }
+    precondition(probe.snapshot == ["make:replacement"])
+    // Closing owned async scopes cannot revoke a service retained by the caller.
+    precondition(resource.name == "replacement")
+}
+
+@MainActor func preparedLongLivedAndRetry() async throws {
+    let probe = PreparedProbe(), attempts = PreparedAttempts(failures: 1)
+    let owner = try await PreparedFailureGraph.makeOwned(probe: probe, attempts: attempts)
+    do { try await owner.requireReady(.blocked); preconditionFailure("requireReady ignored failure") }
+    catch let failure as DIAsyncPreparationFailure {
+        precondition(failure.report.entries.map(\.disposition) == [.failed, .blocked])
+    }
+    // requireReady does not close or implicitly retry a cached failure.
+    do { try await owner.requireReady(.blocked); preconditionFailure("failure not cached") }
+    catch is DIAsyncPreparationFailure {}
+    let beforeRetry = await attempts.count
+    precondition(beforeRetry == 1)
+    let oldReport = try await owner.prepare(.blocked)
+    precondition(!oldReport.isReady)
+    try await owner.retryAndRequireReady(.blocked)
+    let value = try await owner.container.blocked
+    precondition(value == 3)
+    let afterRetry = await attempts.count
+    let state = await owner.status(.failure)
+    precondition(afterRetry == 2 && state.generation == 1 && state.state == .ready)
+    let report = try await owner.prepare(.blocked, .blocked)
+    precondition(report.selectedProviderIDs == ["blocked", "blocked"])
+    precondition(report.entries.map(\.providerID) == ["failure", "blocked"])
+    try report.requireReady()
+    do { try await owner.retryAndRequireReady(.blocked); preconditionFailure("ready retry accepted") }
+    catch DIAsyncPreparationPlanError.retryRequiresFailure(selectedProviderIDs: ["blocked"]) {}
+    await owner.close()
+    await owner.close() // Idempotence preserves the same closed admission.
+    do { try await owner.requireReady(.blocked); preconditionFailure("closed owner prepared") }
+    catch DIAsyncScopeError.closed(providerID: "blocked") {}
+
+    let failingAttempts = PreparedAttempts(failures: 20)
+    let failing = try await PreparedFailureGraph.makeOwned(probe: PreparedProbe(), attempts: failingAttempts)
+    do { try await failing.requireReady(.blocked); preconditionFailure("initial failure expected") }
+    catch is DIAsyncPreparationFailure {}
+    do { try await failing.retryAndRequireReady(.blocked); preconditionFailure("retry failure expected") }
+    catch let failure as DIAsyncPreparationFailure {
+        precondition(failure.report.entries[0].status.generation == 1)
+    }
+    let retryCount = await failingAttempts.count
+    precondition(retryCount == 2) // Exactly one retry, even when it fails again.
+    await failing.close()
+
+    let cleanupProbe = PreparedProbe()
+    let cleanup = try await PreparedGraph.makeOwnedWithOverrides(probe: cleanupProbe, borrowed: PreparedLocal(5)) {
+        $0.first = PreparedResource("first", cleanupProbe)
+        $0.second = PreparedResource("second", cleanupProbe)
+    }
+    try await cleanup.requireReady(.second, .first, .second)
+    let copy = cleanup
+    await copy.close(); await cleanup.close()
+    precondition(cleanupProbe.snapshot == ["make:first", "make:second", "release:second", "release:first"])
+}
+
+actor PreparedOrdinaryCaller {
+    private var invocations = 0
+    private let local = PreparedLocal(41)
+    func verify() async throws {
+        let probe = PreparedProbe()
+        let result = try await PreparedGraph.withPrepared(.first, probe: probe, borrowed: local) { view in
+            self.preconditionIsolated()
+            self.invocations += 1
+            precondition(view.borrowed === self.local)
+            let value = try await view.first
+            precondition(value.name == "first")
+            return PreparedLocalResult(view.borrowed)
+        }
+        precondition(result.local === local && invocations == 1)
+        await probe.waitFor("release:first")
+        precondition(probe.count("release:first") == 1)
+    }
+}
+
+@DIContainer(generateOwned: true)
+struct PreparedNeither {
+    @Input var local: PreparedLocal
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { () async in 7 }) var number: Int
+}
+nonisolated(nonsending) func preparedCheckNeither() async throws {
+    let local = PreparedLocal(53)
+    let result = try await PreparedNeither.withPrepared(.number, local: local, overrides: { $0.number = 19 }) { view in
+        let number = try await view.number
+        precondition(number == 19 && view.local === local)
+        return PreparedLocalResult(view.local)
+    }
+    precondition(result.local === local)
+    let owner = try await PreparedNeither.makeOwned(local: local)
+    try await owner.requireReady(.number)
+    await owner.close()
+}
+
+@DIContainerRole(role: ContainerRole.local, mainActor: true, generateOwned: true)
+struct PreparedOption {
+    @Input var local: PreparedLocal
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { () async in 7 }) var number: Int
+}
+@MainActor func preparedCheckOption() async throws {
+    let local = PreparedLocal(53)
+    let result = try await PreparedOption.withPrepared(.number, local: local, overrides: { $0.number = 19 }) { view in
+        let number = try await view.number
+        precondition(number == 19 && view.local === local)
+        return PreparedLocalResult(view.local)
+    }
+    precondition(result.local === local)
+    let owner = try await PreparedOption.makeOwned(local: local)
+    try await owner.requireReady(.number)
+    await owner.close()
+}
+
+@MainActor
+@DIContainer(generateOwned: true)
+struct PreparedExplicit {
+    @Input var local: PreparedLocal
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { () async in 7 }) var number: Int
+}
+@MainActor func preparedCheckExplicit() async throws {
+    let local = PreparedLocal(53)
+    let result = try await PreparedExplicit.withPrepared(.number, local: local, overrides: { $0.number = 19 }) { view in
+        let number = try await view.number
+        precondition(number == 19 && view.local === local)
+        return PreparedLocalResult(view.local)
+    }
+    precondition(result.local === local)
+    let owner = try await PreparedExplicit.makeOwned(local: local)
+    try await owner.requireReady(.number)
+    await owner.close()
+}
+
+@MainActor
+@DIContainerRole(role: ContainerRole.local, mainActor: true, generateOwned: true)
+struct PreparedBoth {
+    @Input var local: PreparedLocal
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { () async in 7 }) var number: Int
+}
+@MainActor func preparedCheckBoth() async throws {
+    let local = PreparedLocal(53)
+    let result = try await PreparedBoth.withPrepared(.number, local: local, overrides: { $0.number = 19 }) { view in
+        let number = try await view.number
+        precondition(number == 19 && view.local === local)
+        return PreparedLocalResult(view.local)
+    }
+    precondition(result.local === local)
+    let owner = try await PreparedBoth.makeOwned(local: local)
+    try await owner.requireReady(.number)
+    await owner.close()
+}
+
+@main struct PreparedCheck {
+    @MainActor static func main() async throws {
+        try await preparedSuccessAndTeardown()
+        try await preparedPartialFailure()
+        try await preparedPreflight()
+        try await preparedCancellationDuringPrepare()
+        try await preparedBodyOutcomes()
+        try await preparedCancellationDuringCleanup()
+        try await preparedEscapingAndNesting()
+        try await preparedOverrides()
+        try await preparedLongLivedAndRetry()
+        try await PreparedOrdinaryCaller().verify()
+        try await preparedCheckNeither()
+        try await preparedCheckOption()
+        try await preparedCheckExplicit()
+        try await preparedCheckBoth()
+        print("real plugin prepared lifecycle/readiness/cancellation/retry/isolation passed")
+    }
+}

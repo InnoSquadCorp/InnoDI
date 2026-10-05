@@ -17,7 +17,7 @@ struct StorageAliasContainer {
 @main
 struct FixtureApp {
     static func main() {
-        let _: ShadowKit.Swift = .init()
+        precondition(ShadowKit.Swift == 0)
         let _: ShadowKit.InnoDI = .init()
         let container = AppContainer(value: 42)
         precondition(container.value == 42)

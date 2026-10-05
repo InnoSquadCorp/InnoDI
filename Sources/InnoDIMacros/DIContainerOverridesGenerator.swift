@@ -64,7 +64,7 @@ internal func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclS
 
         let applyType = overrideApplyClosureType(
             overridesTypeDescription: "\(member.type.trimmedDescription).\(innoDIMountOverridesTypeName)",
-            isMainActor: model.options.mainActor,
+            isMainActor: model.isMainActor,
             isOptional: true
         )
         let applySlot = VariableDeclSyntax(
@@ -79,6 +79,14 @@ internal func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclS
             ])
         )
         memberDecls.append(MemberBlockItemSyntax(decl: applySlot))
+    }
+
+    // Keep the outer optional as the override-presence bit, even when Value
+    // itself is optional. Empty builders have no slots to mutate; retaining
+    // their empty shape also avoids adding an unused Swift qualifier.
+    // These methods inherit the builder's actor isolation.
+    if !candidates.isEmpty || !subs.isEmpty {
+        memberDecls.append(contentsOf: makeOverrideSlotMutationMethods(model: model))
     }
 
     if !effectCandidates.isEmpty {
@@ -127,7 +135,7 @@ internal func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclS
             inheritedTypes: InheritedTypeListSyntax([
                 InheritedTypeSyntax(
                     type: TypeSyntax(
-                        stringLiteral: model.options.mainActor
+                        stringLiteral: model.isMainActor
                             ? "InnoDI.DIMainActorOverrideEffectValidating"
                             : "InnoDI.DIOverrideEffectValidating"
                     )
@@ -136,7 +144,7 @@ internal func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclS
         )
 
     let structDecl = StructDeclSyntax(
-        attributes: model.options.mainActor ? mainActorAttributeList() : AttributeListSyntax([]),
+        attributes: model.isMainActor ? mainActorAttributeList() : AttributeListSyntax([]),
         modifiers: modifiers,
         name: .identifier("Overrides"),
         inheritanceClause: inheritanceClause,
@@ -146,6 +154,50 @@ internal func makeOverridesStructDecl(model: DIContainerExpansionModel) -> DeclS
     )
 
     return DeclSyntax(structDecl)
+}
+
+private func makeOverrideSlotMutationMethods(
+    model: DIContainerExpansionModel
+) -> [MemberBlockItemSyntax] {
+    var modifiers = accessModifiers(model.accessLevel)
+    modifiers.append(DeclModifierSyntax(name: .keyword(.mutating)))
+
+    func method(name: String, setsValue: Bool) -> MemberBlockItemSyntax {
+        var parameters = FunctionParameterListSyntax([
+            FunctionParameterSyntax(
+                firstName: .wildcardToken(), secondName: .identifier("keyPath"),
+                type: TypeSyntax("Swift.WritableKeyPath<Self, Value?>"),
+                trailingComma: setsValue ? .commaToken() : nil
+            )
+        ])
+        if setsValue {
+            parameters.append(FunctionParameterSyntax(
+                firstName: .identifier("to"), secondName: .identifier("value"),
+                type: TypeSyntax("Value")
+            ))
+        }
+        return MemberBlockItemSyntax(decl: FunctionDeclSyntax(
+            modifiers: modifiers,
+            name: .identifier(name),
+            genericParameterClause: GenericParameterClauseSyntax(
+                parameters: GenericParameterListSyntax([
+                    GenericParameterSyntax(name: .identifier("Value"))
+                ])
+            ),
+            signature: FunctionSignatureSyntax(
+                parameterClause: FunctionParameterClauseSyntax(parameters: parameters)
+            ),
+            body: CodeBlockSyntax(statements: CodeBlockItemListSyntax([
+                setsValue
+                    ? "self[keyPath: keyPath] = .some(value)"
+                    : "self[keyPath: keyPath] = .none"
+            ]))
+        ))
+    }
+    return [
+        method(name: "set", setsValue: true),
+        method(name: "useDefault", setsValue: false)
+    ]
 }
 
 /// Stable child-mount ABI used by parent `@SubContainer` code. Valid
@@ -173,7 +225,7 @@ internal func makeOverridesConflictMountTypeDecl(
 ) -> DeclSyntax {
     DeclSyntax(
         StructDeclSyntax(
-            attributes: model.options.mainActor
+            attributes: model.isMainActor
                 ? mainActorAttributeList()
                 : AttributeListSyntax([]),
             modifiers: accessModifiers(model.accessLevel),
@@ -225,7 +277,7 @@ internal func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclS
     // isolation on the closure type as well as on the initializer:
     //   _ _innoDIApplyOverrides: [@MainActor] (inout Overrides) -> Void
     let overridesClosureType = overrideApplyClosureType(
-        isMainActor: model.options.mainActor
+        isMainActor: model.isMainActor
     )
     let closureParam = FunctionParameterSyntax(
         firstName: .wildcardToken(),
@@ -362,7 +414,7 @@ internal func makeConvenienceInitDecl(model: DIContainerExpansionModel) -> DeclS
     statements.append(CodeBlockItemSyntax(item: .expr(ExprSyntax(selfInitCall))))
 
     let initDecl = InitializerDeclSyntax(
-        attributes: model.options.mainActor ? mainActorAttributeList() : AttributeListSyntax([]),
+        attributes: model.isMainActor ? mainActorAttributeList() : AttributeListSyntax([]),
         modifiers: modifiers,
         signature: signature,
         body: CodeBlockSyntax(statements: CodeBlockItemListSyntax(statements))
@@ -398,7 +450,7 @@ internal func makeOverridesConflictRecoveryInitDecl(
             colon: .colonToken(),
             type: overrideApplyClosureType(
                 overridesTypeDescription: innoDIMountOverridesTypeName,
-                isMainActor: model.options.mainActor
+                isMainActor: model.isMainActor
             ),
             ellipsis: nil,
             defaultValue: nil,
@@ -409,7 +461,7 @@ internal func makeOverridesConflictRecoveryInitDecl(
     let loop: CodeBlockItemSyntax = "while true {}"
     return DeclSyntax(
         InitializerDeclSyntax(
-            attributes: model.options.mainActor
+            attributes: model.isMainActor
                 ? mainActorAttributeList()
                 : AttributeListSyntax([]),
             modifiers: modifiers,

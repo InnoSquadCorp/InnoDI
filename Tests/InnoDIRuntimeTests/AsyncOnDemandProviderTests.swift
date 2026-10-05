@@ -106,8 +106,40 @@ struct MainActorAsyncOnDemandContainer {
     var reads: Int
 }
 
+// A source-written actor annotation must select the same generated capture
+// isolation as DIContainerRole(mainActor: true), including synchronous
+// on-demand dependencies retained by the asynchronous operation.
+@MainActor
+@DIContainer
+struct ExplicitMainActorAsyncOnDemandContainer {
+    @Input var counter: MainActorAsyncOnDemandCounter
+
+    @Provide(.shared, initialization: .onDemand, factory: { (counter: MainActorAsyncOnDemandCounter) in counter })
+    var localCounter: MainActorAsyncOnDemandCounter
+
+    @Provide(.shared, initialization: .onDemand, asyncFactory: { (localCounter: MainActorAsyncOnDemandCounter) async in
+        localCounter.reads += 1
+        markMainActorAsyncOnDemandRead(localCounter)
+        return localCounter.reads
+    })
+    var reads: Int
+}
+
 @Suite("Async on-demand shared provider lifetime", .timeLimit(.minutes(1)))
 struct AsyncOnDemandProviderTests {
+    @MainActor
+    @Test("Explicit MainActor keeps non-Sendable on-demand captures on their actor")
+    func explicitMainActorKeepsOnDemandCaptures() async throws {
+        let counter = MainActorAsyncOnDemandCounter()
+        let container = ExplicitMainActorAsyncOnDemandContainer(counter: counter)
+        #expect(counter.reads == 0)
+        #expect(try await container.reads == 1)
+        #expect(try await container.reads == 1)
+        #expect(counter.reads == 1)
+        #expect(counter.ranOnMainActor)
+        await container.closeAsyncProviders()
+    }
+
     private static let closed = DIAsyncScopeError.closed(providerID: "resource")
 
     @Test("Initialization starts nothing before the first read")

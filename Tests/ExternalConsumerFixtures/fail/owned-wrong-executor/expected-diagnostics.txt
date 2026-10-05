@@ -1,0 +1,1 @@
+main actor-isolated property 'value' can not be referenced from a nonisolated context

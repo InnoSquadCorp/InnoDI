@@ -9,7 +9,10 @@ struct DIContainerValidator {
         declaration: some DeclGroupSyntax,
         context: some MacroExpansionContext
     ) -> Bool {
-        let resolutionContext = DependencyResolutionContext(members: model.members)
+        let resolutionContext = DependencyResolutionContext(
+            members: model.members,
+            initializationOrder: model.options.initializationOrder
+        )
         let memberByName = Dictionary(
             model.members.map { ($0.name, $0) },
             uniquingKeysWith: { first, _ in first }
@@ -21,7 +24,7 @@ struct DIContainerValidator {
         )
         let dagValidationEnabled = model.options.validateDAG
 
-        var hadErrors = false
+        var hadErrors = validateOwnedContainer(model: model, declaration: declaration, context: context)
         hadErrors = validateGeneratedSymbolCollisions(
             model: model,
             context: context

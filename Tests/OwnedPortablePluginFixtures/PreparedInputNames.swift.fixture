@@ -1,0 +1,27 @@
+import InnoDI
+
+final class PreparedNamedResult { let value: Int; init(_ value: Int) { self.value = value } }
+@DIContainer(generateOwned: true)
+struct PreparedNamedInputs {
+    struct Result {}
+    struct OperationResult {}
+    @Input var provider: Int
+    @Input var additional: Int
+    @Input var operation: Int
+    @Input var overrides: Int
+    @Input var action: () -> Int
+    @Provide(.shared, asyncFactory: { () async in 7 }) var service: Int
+}
+@main struct CheckPreparedNames {
+    @MainActor static func main() async throws {
+        let result = try await PreparedNamedInputs.withPrepared(
+            .service, provider: 1, additional: 2, operation: 3, overrides: 4,
+            action: { 5 }, overrides: { $0.service = 9 }, operation: { values in
+                let service = try await values.service
+                return PreparedNamedResult(values.provider + values.additional + values.operation + values.overrides + values.action() + service)
+            }
+        )
+        precondition(result.value == 24)
+        print("prepared input labels and non-Sendable result passed")
+    }
+}

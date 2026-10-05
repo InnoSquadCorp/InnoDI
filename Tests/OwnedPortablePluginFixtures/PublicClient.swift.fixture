@@ -1,0 +1,55 @@
+import InnoDI
+import OwnedPublicLibrary
+
+func verifyPublicSelf(_ owner: PublicNamespace.Same._InnoDIOwner) {
+    let _: () -> PublicNamespace.Same = owner.container.factory
+    let _: (PublicNamespace.Same) -> PublicNamespace.Same = owner.container.transform
+    let _: [PublicNamespace.Same] = owner.container.children
+}
+
+@main struct PublicCheck {
+    static func main() async throws {
+        let owner = try await PublicNamespace.Container.makeOwned(seed: 9)
+        let _: PublicOwner = owner
+        let token: PublicPreparation = .service
+        let report = try await owner.prepare(token)
+        precondition(report.isReady)
+        let view: PublicServices = owner.container
+        let value = try await view.service
+        precondition(value == 10 && view.seed == 9)
+        await owner.cancel(.service)
+        let status = await owner.status(.service)
+        precondition(status.state == .ready)
+        await owner.close()
+        precondition(view.fresh == 18)
+        precondition(view.freshHandle.value() == 18)
+        do { _ = try await view.service; preconditionFailure("closed read") }
+        catch DIAsyncScopeError.closed(providerID: "service") {}
+        let overridden = try await PublicNamespace.Container.makeOwnedWithOverrides(seed: 3) {
+            $0.service = 20
+            $0.fresh = 30
+        }
+        let overriddenService = try await overridden.container.service
+        precondition(overriddenService == 20 && overridden.container.fresh == 30)
+        precondition(overridden.container.freshHandle.value() == 30)
+        await overridden.close()
+        let preparedView = try await PublicNamespace.Container.withPrepared(.service, seed: 4, overrides: {
+            $0.set(\.service, to: 70)
+        }) { services in
+            let value = try await services.service
+            precondition(value == 70)
+            return services
+        }
+        precondition(preparedView.seed == 4)
+        do { _ = try await preparedView.service; preconditionFailure("prepared escaped view remained open") }
+        catch DIAsyncScopeError.closed(providerID: "service") {}
+        let required = try await PublicNamespace.Container.makeOwned(seed: 5)
+        try await required.requireReady(.service)
+        await required.close()
+        let prewarming = PublicPrewarming()
+        let selection: PublicPrewarmSelection = .value
+        prewarming.prewarm(selection)
+        precondition(prewarming.value == 42)
+        print("real plugin cross-module owned API passed")
+    }
+}

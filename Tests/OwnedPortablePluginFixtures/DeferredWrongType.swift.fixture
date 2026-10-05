@@ -1,0 +1,6 @@
+import InnoDI
+struct Holder { let value: InnoDI.Lazy<String> }
+@DIContainer(generateOwned: true) struct Container {
+    @Input var value: Int
+    @Provide(.shared, factory: { (value: InnoDI.Lazy<String>) in Holder(value: value) }) var result: Holder
+}

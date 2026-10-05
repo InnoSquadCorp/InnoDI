@@ -1,0 +1,5 @@
+type 'Container._InnoDIPrewarmProvider' has no member 'input'
+type 'Container._InnoDIPrewarmProvider' has no member 'eager'
+type 'Container._InnoDIPrewarmProvider' has no member 'transient'
+type 'Container._InnoDIPrewarmProvider' has no member 'asynchronous'
+type 'Container._InnoDIPrewarmProvider' has no member 'asyncOnDemand'

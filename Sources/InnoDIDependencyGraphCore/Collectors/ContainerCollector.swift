@@ -48,8 +48,15 @@ private struct PendingCollectionContract {
     let entries: [CollectionMetadataEntryArgument]
 }
 
+struct ContainerDeclarationOccurrence: Hashable, Sendable {
+    let containerID: String
+    let source: DependencyGraphProvider.SourceLocation
+    let isConditional: Bool
+}
+
 final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
     var nodes: [DependencyGraphNode] = []
+    var declarationOccurrences: [ContainerDeclarationOccurrence] = []
     var typeAliases: [SemanticTypeAliasRecord] = []
     /// `@SubContainer` references collected while walking each container
     /// body. Resolved into graph edges by `resolveSubContainerReferences`
@@ -61,6 +68,8 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
     private let moduleIdentity: String?
     private var currentRelativeFilePath: String = ""
     private var sourceLocationConverter: SourceLocationConverter?
+    private var currentDiagnosticFilePath: String = ""
+    private var conditionalCompilationDepth = 0
     var declarationPath: [String] = []
 
     override init(viewMode: SyntaxTreeViewMode = .sourceAccurate) {
@@ -74,6 +83,15 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
     ) {
         self.moduleIdentity = moduleIdentity
         super.init(viewMode: viewMode)
+    }
+
+    override func visit(_ node: IfConfigDeclSyntax) -> SyntaxVisitorContinueKind {
+        conditionalCompilationDepth += 1
+        return .visitChildren
+    }
+
+    override func visitPost(_ node: IfConfigDeclSyntax) {
+        conditionalCompilationDepth -= 1
     }
 
     override func visit(_ node: StructDeclSyntax) -> SyntaxVisitorContinueKind {
@@ -126,8 +144,14 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
         return .skipChildren
     }
 
-    func walkFile(relativePath: String, tree: SourceFileSyntax) {
+    func walkFile(
+        relativePath: String,
+        tree: SourceFileSyntax,
+        sourceFilePath: String? = nil
+    ) {
         currentRelativeFilePath = relativePath
+        currentDiagnosticFilePath = sourceFilePath ?? relativePath
+        conditionalCompilationDepth = 0
         sourceLocationConverter = SourceLocationConverter(
             fileName: relativePath,
             tree: tree
@@ -155,6 +179,11 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
         var requiredInputs: [String] = []
         var assistedInputs: [String] = []
         var collectionContracts: [PendingCollectionContract] = []
+        // Collection contracts belong to this declaration. A source-accurate
+        // walk can encounter another #if branch (or invalid duplicate source)
+        // with the same semantic ID. Never use that declaration's providers to
+        // resolve this declaration's contributor lifetimes.
+        var providers: [DependencyGraphProvider] = []
         for member in node.memberBlock.members {
             guard let varDecl = member.decl.as(VariableDeclSyntax.self) else { continue }
             guard let binding = varDecl.bindings.first,
@@ -387,13 +416,13 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
         }
 
         if !collectionContracts.isEmpty {
-            let providersByID = Dictionary(
-                uniqueKeysWithValues: providers
-                    .filter { $0.containerID == parentID }
-                    .map { ($0.id, $0) }
-            )
-            let contractsByProviderID = Dictionary(
-                uniqueKeysWithValues: collectionContracts.map { pending in
+            let providersByID = Dictionary(grouping: providers, by: \.id)
+                .compactMapValues { $0.count == 1 ? $0.first : nil }
+            // Invalid duplicate members remain available to declaration/
+            // identity validation. Do not trap or silently choose a winner.
+            let contractsByProviderID = Dictionary(grouping: collectionContracts, by: \.providerID)
+                .compactMapValues { contracts -> DependencyGraphProvider.CollectionContract? in
+                    guard contracts.count == 1, let pending = contracts.first else { return nil }
                     let entries = pending.entries.enumerated().map {
                         order, entry in
                         let contributorID = providerID(
@@ -407,23 +436,35 @@ final class ContainerCollector: SyntaxVisitor, DeclarationPathTracking {
                             providerLifetime: providersByID[contributorID]?.lifetime
                         )
                     }
-                    return (
-                        pending.providerID,
-                        DependencyGraphProvider.CollectionContract(
-                            kind: pending.kind,
-                            entries: entries
-                        )
+                    return DependencyGraphProvider.CollectionContract(
+                        kind: pending.kind,
+                        entries: entries
                     )
                 }
-            )
             providers = providers.map { provider in
-                guard let contract = contractsByProviderID[provider.id] else {
+                guard providersByID[provider.id] != nil,
+                      let contract = contractsByProviderID[provider.id] else {
                     return provider
                 }
                 return provider.replacingCollectionContract(contract)
             }
         }
 
+        self.providers.append(contentsOf: providers)
+        let location = sourceLocationConverter?.location(
+            for: node.positionAfterSkippingLeadingTrivia
+        )
+        declarationOccurrences.append(
+            ContainerDeclarationOccurrence(
+                containerID: parentID,
+                source: DependencyGraphProvider.SourceLocation(
+                    path: currentDiagnosticFilePath,
+                    line: location?.line ?? 1,
+                    column: location?.column ?? 1
+                ),
+                isConditional: conditionalCompilationDepth > 0
+            )
+        )
         nodes.append(
             DependencyGraphNode(
                 id: parentID,

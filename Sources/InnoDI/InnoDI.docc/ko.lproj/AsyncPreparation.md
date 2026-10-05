@@ -12,6 +12,7 @@ let profile = DIAsyncScope(providerID: "App.profile") {
 }
 
 let status = await profile.prepare()
+try Task.checkCancellation()
 guard status.state == .ready else { return }
 ```
 
@@ -46,6 +47,8 @@ commit 전 취소는 아무것도 변경하지 않고 예약을 해제합니다.
 일반적인 취소·실패·종료 결과를 보고할 수 있습니다.
 
 사용자 정의 `DIAsyncPreparing`은 prepare/close에 계속 사용할 수 있지만,
+취소에 협조해야 합니다. Plan은 기다리던 사용자 메서드가 반환된 뒤에 취소를
+확인할 수 있습니다.
 plan retry는 `nonTransactionalProvider`로 변경 전에 거부합니다. 사용자 reset의
 부분 실패를 안전하게 되돌릴 수 없기 때문입니다. 트랜잭션 재시도에는 소유 작업을
 `DIAsyncScope`로 감싸 사용하세요.
@@ -56,8 +59,11 @@ running/closed는 거부합니다. 실패 전용 `retry()`와는 별개입니다
 있으므로 actor 내부에서도 status/retry/reset/close는 비동기 호출입니다.
 
 이미 취소된 task는 factory를 시작하지 않습니다. waiter 또는 prepare 요청
-하나를 취소하면 그 요청만 `cancelled`로 보고하며 owner의 공통 작업은
-유지합니다. 소유 작업이 `CancellationError`를 던지면 scope도 `cancelled`가
+하나를 취소해도 owner의 공통 작업은 유지합니다. Nonthrowing scope `prepare()`는
+실제 provider 상태를 반환하므로 idle, running, ready일 수 있습니다. Throwing
+plan `prepare(_:)`는 provider가 동시에 ready가 되었어도 호출자가 취소됐다면
+`CancellationError`를 던집니다. 나중에 읽거나 준비해서 기존 작업을 다시 기다리세요.
+호출자 취소만으로 retry가 가능해지지는 않습니다. 소유 작업이 `CancellationError`를 던지면 scope도 `cancelled`가
 되고 재시도할 수 있습니다. 재시도는 새로운 generation에서 시작하며 이전 child
 결과와 섞이지 않습니다.
 

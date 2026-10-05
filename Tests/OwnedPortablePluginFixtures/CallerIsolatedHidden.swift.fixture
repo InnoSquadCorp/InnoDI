@@ -1,0 +1,4 @@
+import CallerIsolatedLibrary
+@MainActor func hidden(_ services: CallerIsolatedServices) async {
+    _ = await services.hidden
+}

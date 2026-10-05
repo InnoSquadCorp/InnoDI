@@ -6,7 +6,7 @@ struct AppContainer {
 
     // MARK: - Initialization
     @_Concurrency.MainActor init(config: Config, feature: FeatureContainer? = nil, featureOverrides: (@_Concurrency.MainActor (inout FeatureContainer._InnoDIMountOverrides) -> Void)? = nil, _innoDITrace: DITraceContext = .disabled) {
-        final class _InnoDIDeferredCell<T>: @unchecked Swift.Sendable {
+        final class _InnoDIDeferredCell<T> {
             private var value: T?
             private var resolver: (() -> T)?
 
@@ -50,6 +50,12 @@ struct AppContainer {
     @_Concurrency.MainActor struct Overrides {
         var feature: FeatureContainer? = nil
         var featureOverrides: (@_Concurrency.MainActor (inout FeatureContainer._InnoDIMountOverrides) -> Void)? = nil
+        mutating func set<Value>(_ keyPath: Swift.WritableKeyPath<Self, Value?>, to value: Value) {
+            self[keyPath: keyPath] = .some(value)
+        }
+        mutating func useDefault<Value>(_ keyPath: Swift.WritableKeyPath<Self, Value?>) {
+            self[keyPath: keyPath] = .none
+        }
     }
 
     typealias _InnoDIMountOverrides = Overrides

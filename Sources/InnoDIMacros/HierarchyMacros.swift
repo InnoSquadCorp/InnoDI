@@ -66,7 +66,7 @@ extension DIComponentMacro: PeerMacro {
             accessLevel: hierarchyAccessLevelModifiers(for: declGroup.modifiers),
             protocolName: protocolName,
             inputMembers: inputMembers,
-            isMainActor: model.options.mainActor
+            isMainActor: model.isMainActor
         )
 
         return [DeclSyntax(protocolDecl)]
@@ -139,7 +139,7 @@ extension DIComponentMacro: MemberMacro {
         let tracedArguments = (
             inputCallArguments + ["_innoDITrace: _innoDITrace", "_innoDIApplyOverrides"]
         ).joined(separator: ", ")
-        let isMainActor = model.options.mainActor
+        let isMainActor = model.isMainActor
         let applyOverridesType = overrideApplyClosureType(
             isMainActor: isMainActor
         ).trimmedDescription
@@ -235,7 +235,7 @@ extension DIComponentMacro: ExtensionMacro {
                 type: type,
                 dependenciesType: dependenciesType,
                 accessLevel: accessLevel,
-                isMainActor: model.options.mainActor
+                isMainActor: model.isMainActor
             )
         ]
     }

@@ -10,7 +10,8 @@ nested된, 지원되는 유효한 non-generic Swift struct를 DI 컨테이너로
 안의 선언은 지원하지 않습니다. 런타임 변형보다 명시적 wiring, 결정적 검증,
 graph tooling에 초점을 둡니다.
 
-4.0.0의 stable baseline:
+최신 안정 릴리스는 6.0.0입니다. 이 소스 문서는 미출시 7.0 후보를 설명합니다.
+안정 버전을 설치했다면 해당 tag의 문서를 사용하세요. 패키지는 다음을 제공합니다:
 
 - 매크로 기반 컨테이너 API 생성
 - 컴파일 타임과 빌드 타임 검증
@@ -19,13 +20,18 @@ graph tooling에 초점을 둡니다.
 - `@SubContainer`, 명시적 `@DIContainerRole` hierarchy role
 - `InnoDISwiftUI`의 SwiftUI helper
 
-4.1.0은 이 baseline 위에 release hardening을 추가합니다.
+7.0 후보는 명시적인 소유권과 소비자 계약을 추가합니다:
 
-- validation coordinator lock의 unsafe filesystem fail-fast
-- 지원 파일시스템에서 `O_CREAT | O_EXCL`와 `flock`을 함께 쓰는 layered lock
-- macro-synthesized `fatalError` accessor 대신 build-time diagnostic
-- strict concurrency와 macro-source `fatalError` allow-list를 모두 강제하는 PR/release gate
-- `@SubContainer` same-name wiring은 `with:`만 사용하며 `withNames:` escape hatch는 제거됨
+- `generateOwned: true`, 선택한 async 준비·취소·재시도·종료
+- 선택한 준비 상태를 확인하고 정리를 기다리는 `withPrepared`
+- typed prewarm 선택과 선택적인 dependency 초기화 순서
+- 명시적 optional nil/default override 변경과 effect preset 검증
+- 컴파일러가 검사하는 deferred capture와 명시적인 feature-host import
+
+생성과 접근은 계속 매크로가 만드는 typed Swift입니다. Owned lifecycle 지원은
+concrete scope를 조율하며 문자열로 서비스를 찾지 않습니다. Breaking change는
+<doc:MigrationGuide>, 소유권 경계는 <doc:OwnedContainers>를 참고하세요.
+Portable 테스트 일부의 통과가 지원 Apple toolchain과 release 검증을 대체하지는 않습니다.
 
 ## Topics
 
@@ -57,6 +63,7 @@ graph tooling에 초점을 둡니다.
 - <doc:lock-safety>
 - <doc:DAGValidation>
 - <doc:AsyncPreparation>
+- <doc:OwnedContainers>
 - <doc:RuntimeTracing>
 - <doc:PluginOptOut>
 - <doc:MigrationGuide>
@@ -66,7 +73,7 @@ graph tooling에 초점을 둡니다.
 - <doc:DIContainer>
 - <doc:Provide>
 - ``Input(_:escaping:)``
-- ``DIContainerRole(role:mainActor:validateDAG:)``
+- ``DIContainerRole(role:mainActor:validateDAG:initializationOrder:generateOwned:)``
 
 ### Experimental
 
@@ -78,7 +85,7 @@ graph tooling에 초점을 둡니다.
 
 ### Symbols
 
-- ``DIContainer(validateDAG:)``
+- ``DIContainer(validateDAG:initializationOrder:generateOwned:)``
 - ``Provide(_:_:with:initialization:effect:collection:factory:asyncFactory:)``
 - ``DIScope``
 - ``Lazy``

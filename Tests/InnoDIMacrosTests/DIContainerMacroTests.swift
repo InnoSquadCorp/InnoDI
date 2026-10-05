@@ -91,8 +91,8 @@ struct DIContainerMacroTests {
         #expect(result.expansion.contains("providerName: \"apiClient\""))
         #expect(result.expansion.contains("}(config)"))
         #expect(result.expansion.contains("self._storage_apiClient = _innoDIOnDemand_apiClient"))
-        #expect(result.expansion.contains("func prewarm(_ providers: Swift.PartialKeyPath<Self>...) throws"))
-        #expect(result.expansion.contains("throw InnoDI.DIPrewarmError.unsupportedProvider"))
+        #expect(result.expansion.contains("func prewarm(_ providers: _InnoDIPrewarmProvider...)"))
+        #expect(!result.expansion.contains("DIPrewarmError.unsupportedProvider"))
     }
 
     @Test("Async consumers use capture-checked cells through on-demand dependency chains")
@@ -260,6 +260,12 @@ struct DIContainerMacroTests {
                     // MARK: - Overrides Builder
                     package struct Overrides {
                         package var apiClient: APIClient? = nil
+                        package mutating func set<Value>(_ keyPath: Swift.WritableKeyPath<Self, Value?>, to value: Value) {
+                            self[keyPath: keyPath] = .some(value)
+                        }
+                        package mutating func useDefault<Value>(_ keyPath: Swift.WritableKeyPath<Self, Value?>) {
+                            self[keyPath: keyPath] = .none
+                        }
                     }
 
                     package typealias _InnoDIMountOverrides = Overrides

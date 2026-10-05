@@ -1,0 +1,1 @@
+generateOwned: true does not yet support async transient provider 'service'. Use supported input/shared providers or remove generateOwned: true to retain the legacy container API.

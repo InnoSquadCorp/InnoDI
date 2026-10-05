@@ -1,0 +1,26 @@
+import InnoDI
+
+struct Config { let endpoint: String }
+final class Request {
+    let config: Config
+    init(config: Config) { self.config = config }
+}
+
+// INNODI_DOCUMENTED_EXAMPLE
+
+@main struct Check {
+    static func main() {
+        let container = AppContainer(config: Config(endpoint: "live"))
+        precondition(container.logger.requests() !== container.logger.requests())
+        precondition(container.logger.requests().config.endpoint == "live")
+        container.logger.logNew()
+
+        let replacement = Request(config: Config(endpoint: "mock"))
+        let test = AppContainer(config: Config(endpoint: "live")) {
+            $0.request = replacement
+        }
+        precondition(test.logger.requests() === replacement)
+        precondition(test.logger.requests() === test.logger.requests())
+        print("Public Provider documentation: live transient and stored override identities passed")
+    }
+}

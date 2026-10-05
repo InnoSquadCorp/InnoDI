@@ -11,20 +11,38 @@ struct MockFunctionNames {
     let thrownErrorProperty: String
     let handlerProperty: String
 
-    func generatedValueNames(for function: FunctionDeclSyntax) -> Set<String> {
+    func generatedValueNames(
+        for function: FunctionDeclSyntax,
+        concurrent: Bool = false
+    ) -> Set<String> {
         let isGeneric = function.genericParameterClause != nil
         let isThrowing = function.signature.effectSpecifiers?.throwsClause != nil
         let returnsVoid = isVoidReturnType(
             function.signature.returnClause?.type.trimmedDescription
         )
 
+        let isTypedThrowing = function.signature.effectSpecifiers?
+            .throwsClause?.type != nil
         var names: Set<String> = [callsProperty]
+        if concurrent {
+            names.insert("__innodi_\(callsProperty)Box")
+        }
+        let stubProperty: String?
         if isGeneric {
-            names.insert(handlerProperty)
+            stubProperty = handlerProperty
+        } else if isTypedThrowing {
+            stubProperty = resultProperty
         } else if !returnsVoid {
-            names.insert(isThrowing ? resultProperty : returnProperty)
+            stubProperty = isThrowing ? resultProperty : returnProperty
         } else if isThrowing {
-            names.insert(thrownErrorProperty)
+            stubProperty = thrownErrorProperty
+        } else {
+            stubProperty = nil
+        }
+        if let stubProperty {
+            names.insert(stubProperty)
+            names.insert("__innodi_\(stubProperty)\(concurrent ? "Box" : "Storage")")
+            names.insert("__innodi_\(stem)\(concurrent ? "StubbedBox" : "IsStubbed")")
         }
         return names
     }
@@ -65,7 +83,8 @@ private func makeFunctionNames(stem: String) -> MockFunctionNames {
 }
 
 func plannedFunctionNames(
-    in protocolDecl: ProtocolDeclSyntax
+    in protocolDecl: ProtocolDeclSyntax,
+    concurrent: Bool = false
 ) -> [MockFunctionNames] {
     let functions = protocolDecl.memberBlock.members.compactMap {
         $0.decl.as(FunctionDeclSyntax.self)
@@ -76,11 +95,17 @@ func plannedFunctionNames(
     ).mapValues(\.count)
     let declaredValueNames = Set(
         protocolDecl.memberBlock.members.flatMap { member -> [String] in
+            if let function = member.decl.as(FunctionDeclSyntax.self) {
+                // A property can coexist with a function that has arguments.
+                // Only the zero-argument function conflicts with its getter.
+                return function.signature.parameterClause.parameters.isEmpty
+                    ? [function.name.text.unescapedIdentifier] : []
+            }
             guard let variable = member.decl.as(VariableDeclSyntax.self) else {
                 return []
             }
             return variable.bindings.compactMap {
-                $0.pattern.as(IdentifierPatternSyntax.self)?.identifier.text
+                $0.pattern.as(IdentifierPatternSyntax.self)?.identifier.text.unescapedIdentifier
             }
         }
     )
@@ -97,12 +122,14 @@ func plannedFunctionNames(
         by: { $0 }
     ).mapValues(\.count)
 
+    var allocatedNames = declaredValueNames
     return zip(functions, candidates).map { function, candidate in
         let collidesWithFunction = (stemCounts[candidate.stem] ?? 0) > 1
         let collidesWithProperty = !candidate
-            .generatedValueNames(for: function)
-            .isDisjoint(with: declaredValueNames)
+            .generatedValueNames(for: function, concurrent: concurrent)
+            .isDisjoint(with: allocatedNames)
         guard collidesWithFunction || collidesWithProperty else {
+            allocatedNames.formUnion(candidate.generatedValueNames(for: function, concurrent: concurrent))
             return candidate
         }
 
@@ -112,10 +139,61 @@ func plannedFunctionNames(
             function.signature.trimmedDescription,
             function.genericWhereClause?.trimmedDescription ?? "",
         ].joined(separator: "|")
-        return makeFunctionNames(
-            stem: candidate.stem
-                + signatureIdentity.stableIdentifierSuffix.capitalizedFirst
-        )
+        let stem = candidate.stem + signatureIdentity.stableIdentifierSuffix.capitalizedFirst
+        var resolved = makeFunctionNames(stem: stem)
+        var suffix = 2
+        while !resolved.generatedValueNames(for: function, concurrent: concurrent)
+            .isDisjoint(with: allocatedNames) {
+            resolved = makeFunctionNames(stem: stem + String(suffix))
+            suffix += 1
+        }
+        allocatedNames.formUnion(resolved.generatedValueNames(for: function, concurrent: concurrent))
+        return resolved
+    }
+}
+
+/// The macro's private state must not hide a same-spelled requirement.
+struct MockStateNames {
+    let generation: String
+    let concurrentState: String
+    let notStubbedError: String
+
+    init(reserving names: Set<String> = []) {
+        generation = freshMockIdentifier("__innodiMockGeneration", reserving: names)
+        concurrentState = freshMockIdentifier("__innodiMockState", reserving: names)
+        notStubbedError = freshMockIdentifier("_InnoDIMockNotStubbed", reserving: names)
+    }
+}
+
+func freshMockIdentifier(_ preferred: String, reserving names: Set<String>) -> String {
+    var name = preferred
+    var suffix = 2
+    while names.contains(name) {
+        name = preferred + String(suffix)
+        suffix += 1
+    }
+    return name
+}
+
+/// Parameter and generic bindings remain visible inside generated method bodies.
+/// Choose locals around them, and qualify a member only when lookup needs it.
+struct MockFunctionScope {
+    private let names: Set<String>
+
+    init(_ function: FunctionDeclSyntax) {
+        names = Set(function.signature.parameterClause.parameters.map {
+            ($0.secondName ?? $0.firstName).text.unescapedIdentifier
+        }).union(function.genericParameterClause?.parameters.map {
+            $0.name.text.unescapedIdentifier
+        } ?? [])
+    }
+
+    func local(_ name: String) -> String {
+        freshMockIdentifier(name, reserving: names)
+    }
+
+    func member(_ name: String) -> String {
+        names.contains(name) ? "self.\(name)" : name
     }
 }
 

@@ -15,7 +15,9 @@ an `@Injected` property wrapper or a dynamic registration container; those
 patterns are useful in runtime DI tools, but InnoDI optimizes for code-review
 visibility, deterministic macro expansion, and build-time graph validation.
 
-4.0.0 treats the following as the stable baseline:
+The latest stable release is 6.0.0. This source documentation describes the
+unreleased 7.0 candidate; use the tagged documentation for a stable installation.
+The package provides:
 
 - macro-generated container APIs
 - compile-time and build-time validation
@@ -24,18 +26,19 @@ visibility, deterministic macro expansion, and build-time graph validation.
 - `@SubContainer` and explicit `@DIContainerRole` hierarchy roles
 - SwiftUI helpers in `InnoDISwiftUI`
 
-4.1.0 adds release-hardening around that baseline:
+The 7.0 candidate adds opt-in ownership and more explicit consumer contracts:
 
-- unsafe-filesystem fail-fast for the validation coordinator lock
-- layered `O_CREAT | O_EXCL` plus `flock` locking on supported filesystems
-- build-time diagnostics instead of macro-synthesized `fatalError` accessors
-- shared parsed workspace snapshots across build validators
-- in-process DAG validation from the build coordinator
-- PR and release gates that both enforce strict concurrency and the
-  macro-source `fatalError` allow-list
-- compiled documentation snippet checks in CI
-- `@SubContainer` same-name wiring through `with:` only; the string-based
-  `withNames:` escape hatch has been removed
+- `generateOwned: true`, selected async preparation, cancellation, retry and close
+- `withPrepared`, which checks selected readiness and awaits cleanup
+- typed prewarm selections and opt-in dependency initialization order
+- explicit optional-nil/default override mutation and validated effect presets
+- compiler-checked deferred captures and explicit feature-host imports
+
+Construction and access remain macro-generated, typed Swift. Owned lifecycle
+support coordinates concrete scopes; it does not resolve services by string.
+See <doc:MigrationGuide> for breaking changes and <doc:OwnedContainers> for the
+ownership boundaries. Passing a portable test subset does not replace the
+supported Apple toolchain and release gates.
 
 ## Topics
 
@@ -67,6 +70,7 @@ visibility, deterministic macro expansion, and build-time graph validation.
 - <doc:lock-safety>
 - <doc:DAGValidation>
 - <doc:AsyncPreparation>
+- <doc:OwnedContainers>
 - <doc:RuntimeTracing>
 - <doc:PluginOptOut>
 - <doc:MigrationGuide>
@@ -76,7 +80,7 @@ visibility, deterministic macro expansion, and build-time graph validation.
 - <doc:DIContainer>
 - <doc:Provide>
 - ``Input(_:escaping:)``
-- ``DIContainerRole(role:mainActor:validateDAG:)``
+- ``DIContainerRole(role:mainActor:validateDAG:initializationOrder:generateOwned:)``
 
 ### Experimental
 
@@ -88,7 +92,7 @@ visibility, deterministic macro expansion, and build-time graph validation.
 
 ### Symbols
 
-- ``DIContainer(validateDAG:)``
+- ``DIContainer(validateDAG:initializationOrder:generateOwned:)``
 - ``Provide(_:_:with:initialization:effect:collection:factory:asyncFactory:)``
 - ``DIScope``
 - ``Lazy``

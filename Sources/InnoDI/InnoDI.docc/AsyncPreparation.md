@@ -12,6 +12,7 @@ let profile = DIAsyncScope(providerID: "App.profile") {
 }
 
 let status = await profile.prepare()
+try Task.checkCancellation()
 guard status.state == .ready else { return }
 ```
 
@@ -47,7 +48,8 @@ leave only part of the set advanced. Preparation after commit is still ordinary
 cancellable work and can report failure, cancellation, or closure.
 
 Custom `DIAsyncPreparing` implementations still support plan preparation and
-close. Plan retry rejects a selected custom implementation with
+close. They must cooperate with cancellation: the plan can check cancellation
+only after an awaited custom method returns. Plan retry rejects a selected custom implementation with
 `nonTransactionalProvider` before mutation; a custom throwing reset cannot
 provide the library's atomic generation contract. Wrap owned work in
 `DIAsyncScope` to participate in transactional retry.
@@ -59,8 +61,12 @@ failure-only `retry()`. Status, retry, reset, and close are asynchronous even
 inside actor-isolated code because they may await a reservation.
 
 A task that is already cancelled does not start a factory. Cancelling one
-waiter or preparation request reports `cancelled` for that request without
-cancelling shared owner work. An owned operation that throws
+waiter or preparation request does not cancel shared owner work. The nonthrowing
+scope `prepare()` returns the actual provider state, which may remain idle,
+running, or ready. The throwing plan `prepare(_:)` instead throws
+`CancellationError` for a cancelled caller, even if a provider became ready at
+the same time. Rejoin that work with a later read or preparation; caller
+cancellation alone does not make retry valid. An owned operation that throws
 `CancellationError` moves the scope to `cancelled` and can be retried. Each
 retry advances to a clean generation; previously returned child values are not
 mixed into the replacement subgraph.

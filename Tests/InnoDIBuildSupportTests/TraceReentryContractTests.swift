@@ -35,7 +35,7 @@ struct TraceReentryContractTests {
                 #expect(!result.timedOut, "\(event), sameCell=\(sameCell)")
                 if sameCell {
                     #expect(result.exitCode != 0)
-                    #expect(result.stderr.contains("Reentrant on-demand provider resolution detected"),
+                    #expect(result.stderr.contains("Reentrant on-demand provider resolution detected: 'value'"),
                             "\(event): \(result.stderr)")
                 } else {
                     #expect(result.exitCode == 0, "\(event): \(result.stderr)")

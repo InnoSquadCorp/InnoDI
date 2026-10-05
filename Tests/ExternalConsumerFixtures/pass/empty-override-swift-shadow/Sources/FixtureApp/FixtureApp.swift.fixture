@@ -1,0 +1,21 @@
+import InnoDI
+import ShadowKit
+
+@DIContainer
+struct EmptyContainer {}
+
+@DIContainer
+struct InputOnlyContainer {
+    @Input var value: Int
+}
+
+@main
+struct FixtureApp {
+    static func main() {
+        let _: ShadowKit.Swift = .init()
+        _ = EmptyContainer()
+        _ = EmptyContainer.Overrides()
+        precondition(InputOnlyContainer(value: 42).value == 42)
+        _ = InputOnlyContainer.Overrides()
+    }
+}

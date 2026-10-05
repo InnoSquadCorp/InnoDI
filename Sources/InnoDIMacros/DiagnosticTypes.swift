@@ -115,10 +115,14 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case containerMainActorConflict = "container.mainactor-conflict"
     case containerMainActorNonisolatedMember = "container.mainactor-nonisolated-member"
     case containerRoleTokenRequired = "container.role-token-required"
+    case containerInitializationOrderTokenRequired = "container.initialization-order-token-required"
     case containerBoolLiteralRequired = "container.bool-literal-required"
     case containerCustomInitUnsupported = "container.custom-init-unsupported"
     case containerUnmanagedStoredProperty = "container.unmanaged-stored-property"
     case containerOverridesNameConflict = "container.overrides-name-conflict"
+    case containerOwnedNameConflict = "container.owned-name-conflict"
+    case containerOwnedUnsupported = "container.owned-unsupported"
+    case containerOwnedRequiresDAG = "container.owned-requires-dag"
     case containerPrewarmNameConflict = "container.prewarm-name-conflict"
     case containerCloseAsyncProvidersNameConflict = "container.close-async-providers-name-conflict"
     case containerReservedNamePrefix = "container.reserved-name-prefix"
@@ -152,6 +156,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case swiftUIFeatureRootHelperNameConflict = "swiftui.feature-root-helper-name-conflict"
     case swiftUIFeatureRootInvalidAlias = "swiftui.feature-root-invalid-alias"
     case swiftUIFeatureRootInvalidRoot = "swiftui.feature-root-invalid-root"
+    case swiftUIFeatureRootHostingRequiresBool = "swiftui.feature-root-hosting-requires-bool"
     case swiftUIEnvironmentBridgeUnknownMember = "swiftui.environment-bridge-unknown-member"
     case swiftUIEnvironmentBridgeDuplicateMember = "swiftui.environment-bridge-duplicate-member"
     case swiftUIEnvironmentBridgeAsyncMember = "swiftui.environment-bridge-async-member"
@@ -239,10 +244,11 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .provideUnresolvedFactoryParameter, .provideUnavailableDependencyReference, .provideUnresolvedWithDependency,
                 .containerUnknownDependency, .containerDependencyCycle, .containerMainActorConflict,
                 .containerMainActorNonisolatedMember,
-                .containerRoleTokenRequired,
+                .containerRoleTokenRequired, .containerInitializationOrderTokenRequired,
                 .containerBoolLiteralRequired,
                 .containerCustomInitUnsupported, .containerOverridesNameConflict,
                 .containerPrewarmNameConflict,
+                .containerOwnedNameConflict, .containerOwnedUnsupported, .containerOwnedRequiresDAG,
                 .containerCloseAsyncProvidersNameConflict,
                 .containerReservedNamePrefix, .containerReservedModuleName,
                 .containerDuplicateMemberName,
@@ -259,6 +265,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .provideLazyAliased, .provideProviderAliased,
                 .swiftUIFeatureRootDuplicateDefault, .swiftUIFeatureRootInvalidAlias,
                 .swiftUIFeatureRootInvalidRoot,
+                .swiftUIFeatureRootHostingRequiresBool,
                 .swiftUIFeatureRootHelperNameConflict, .swiftUIEnvironmentBridgeUnknownMember,
                 .swiftUIEnvironmentBridgeDuplicateMember, .swiftUIEnvironmentBridgeAsyncMember,
                 .swiftUIEnvironmentBridgeInvalidKeyPath,

@@ -446,7 +446,8 @@ extension ValidationCoordinatorTests {
                 dagValidationMilliseconds: 3
             ),
             reasonCodes: [.liveRunSemanticValidation, .liveRunDAGValidation],
-            issues: []
+            issues: [],
+            resultSignature: validationResultSignature(cachedResult)
         )
         let lockURL = sharedRunDirectory.appendingPathComponent("lock")
         try persistJSON(

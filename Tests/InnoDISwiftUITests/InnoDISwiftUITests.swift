@@ -357,7 +357,7 @@ fileprivate struct GeneratedRootParentContainer {
     @SubContainer(
         scope: .transient,
         with: [\Self.probe],
-        featureRoot: GeneratedRootFeatureView.self
+        featureRoots: [FeatureRoot(GeneratedRootFeatureView.self, hosted: true)]
     )
     var feature: GeneratedRootFeatureContainer
 }

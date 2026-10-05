@@ -12,6 +12,7 @@ private struct ParsedFeatureRootArgument {
     let invalidAliasText: String?
     let aliasAnchor: Syntax?
     let invalidRootAnchor: Syntax?
+    var invalidHostingAnchor: Syntax? = nil
 }
 
 func extractFeatureRootReferences(
@@ -48,6 +49,7 @@ func extractFeatureRootReferences(
                 FeatureRootMemberModel(
                     rootViewTypeName: rootViewTypeName,
                     alias: nil,
+                    hosted: false,
                     propertyName: propertyName,
                     anchorSyntax: Syntax(argument.expression)
                 )
@@ -68,6 +70,11 @@ func extractFeatureRootReferences(
                     element.expression,
                     propertyName: propertyName
                 )
+                if let anchor = parsed.invalidHostingAnchor {
+                    context.emit(SimpleDiagnostic.swiftUIFeatureRootHostingRequiresBool(), at: anchor)
+                    hadErrors = true
+                    continue
+                }
                 if let invalidRootAnchor = parsed.invalidRootAnchor {
                     context.emit(
                         SimpleDiagnostic.swiftUIFeatureRootInvalidRoot(),
@@ -157,11 +164,21 @@ private func parseFeatureRootInitializer(
 
     var rootViewTypeName: String?
     var alias: String?
+    var hosted = false
     var invalidAliasText: String?
     var aliasAnchor: Syntax?
 
     for argument in call.arguments {
         if let label = argument.label?.text {
+            if label == "hosted" {
+                guard let literal = argument.expression.as(BooleanLiteralExprSyntax.self) else {
+                    return ParsedFeatureRootArgument(
+                        root: nil, invalidAliasText: nil, aliasAnchor: nil,
+                        invalidRootAnchor: nil, invalidHostingAnchor: Syntax(argument.expression)
+                    )
+                }
+                hosted = literal.literal.text == "true"
+            }
             if label == "as" {
                 aliasAnchor = Syntax(argument.expression)
                 if let value = stringLiteralValue(argument.expression),
@@ -202,6 +219,7 @@ private func parseFeatureRootInitializer(
         root: FeatureRootMemberModel(
             rootViewTypeName: rootViewTypeName,
             alias: alias,
+            hosted: hosted,
             propertyName: propertyName,
             anchorSyntax: Syntax(expression)
         ),

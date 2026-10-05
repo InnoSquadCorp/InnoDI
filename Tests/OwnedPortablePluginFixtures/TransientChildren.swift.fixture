@@ -1,0 +1,124 @@
+import InnoDI
+
+// Intentionally non-Sendable: a synchronous child builder belongs to its
+// parent's isolation domain and must not require transferable inputs/results.
+final class ChildInput { var value = 1 }
+final class ChildStore {
+    let value: Int
+    init(_ value: Int) { self.value = value }
+}
+
+@DIContainer
+struct LocalChild {
+    @Input var input: ChildInput
+    @Provide(.shared, factory: ChildStore(0)) var store: ChildStore
+}
+
+@DIContainer
+struct AutomaticParent {
+    @Input var input: ChildInput
+    @SubContainer(scope: .transient) var child: LocalChild
+}
+
+@DIContainer
+struct WithParent {
+    @Input var input: ChildInput
+    @Input var unused: Int
+    @SubContainer(scope: .transient, with: [\Self.input]) var child: LocalChild
+}
+
+@DIContainer
+struct BindingsParent {
+    @Input var source: ChildInput
+    @SubContainer(scope: .transient, bindings: [(child: \LocalChild.input, parent: \Self.source)])
+    var child: LocalChild
+}
+
+@MainActor
+@DIContainer
+struct ActorChild {
+    @Input var input: ChildInput
+    @Provide(.shared, factory: ChildStore(0)) var store: ChildStore
+}
+
+@MainActor
+@DIContainer
+struct ActorAutomaticParent: Sendable {
+    @Input var input: ChildInput
+    @SubContainer(scope: .transient) var child: ActorChild
+}
+
+@DIContainerRole(role: ContainerRole.local, mainActor: true)
+struct ActorWithParent {
+    @Input var input: ChildInput
+    @Input var unused: Int
+    @SubContainer(scope: .transient, with: [\Self.input]) var child: ActorChild
+}
+
+@DIContainerRole(role: ContainerRole.local, mainActor: true)
+struct ActorBindingsParent {
+    @Input var source: ChildInput
+    @SubContainer(scope: .transient, bindings: [(child: \ActorChild.input, parent: \Self.source)])
+    var child: ActorChild
+}
+
+@main
+struct TransientChildCheck {
+    nonisolated static func checkOrdinary() {
+        weak var retainedInput: ChildInput?
+        do {
+            let input = ChildInput()
+            retainedInput = input
+            let automatic = AutomaticParent(input: input)
+            let selected = WithParent(input: input, unused: 9)
+            let remapped = BindingsParent(source: input)
+            for child in [automatic.child, selected.child, remapped.child] {
+                precondition(child.input === input)
+            }
+            precondition(automatic.child.store !== automatic.child.store)
+            precondition(selected.child.store !== selected.child.store)
+            precondition(remapped.child.store !== remapped.child.store)
+            let store = ChildStore(2)
+            let chained = WithParent(input: input, unused: 9) {
+                $0.childOverrides = { $0.store = store }
+            }
+            precondition(chained.child.store === store)
+            let replacement = LocalChild(input: input, store: ChildStore(3))
+            let direct = BindingsParent(source: input, child: replacement) {
+                $0.store = store
+            }
+            precondition(direct.child.store === replacement.store)
+        }
+        precondition(retainedInput == nil)
+    }
+
+    @MainActor static func main() {
+        checkOrdinary()
+        weak var retainedInput: ChildInput?
+        do {
+            let input = ChildInput()
+            retainedInput = input
+            let automatic = ActorAutomaticParent(input: input)
+            let selected = ActorWithParent(input: input, unused: 9)
+            let remapped = ActorBindingsParent(source: input)
+            for child in [automatic.child, selected.child, remapped.child] {
+                precondition(child.input === input)
+            }
+            precondition(automatic.child.store !== automatic.child.store)
+            precondition(selected.child.store !== selected.child.store)
+            precondition(remapped.child.store !== remapped.child.store)
+            let store = ChildStore(2)
+            let chained = ActorWithParent(input: input, unused: 9) {
+                $0.childOverrides = { $0.store = store }
+            }
+            precondition(chained.child.store === store)
+            let replacement = ActorChild(input: input, store: ChildStore(3))
+            let direct = ActorBindingsParent(source: input, child: replacement) {
+                $0.store = store
+            }
+            precondition(direct.child.store === replacement.store)
+        }
+        precondition(retainedInput == nil)
+        print("transient child isolation, wiring, identity, overrides and release passed")
+    }
+}

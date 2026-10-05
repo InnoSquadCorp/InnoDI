@@ -1,0 +1,23 @@
+import InnoDI
+
+@GenerateMock
+protocol NonescapingAPI {
+    func call(_ callback: () -> Void)
+}
+
+@GenerateMock
+protocol AutoclosureAPI {
+    func check(_ condition: @autoclosure () -> Bool)
+}
+
+@GenerateMock
+protocol TransferAPI {
+    func load() -> sending String
+}
+
+@GenerateMock
+protocol NoncopyableAPI {
+    func record<T: ~Copyable>(_ value: borrowing T)
+}
+
+@main struct FixtureApp { static func main() {} }

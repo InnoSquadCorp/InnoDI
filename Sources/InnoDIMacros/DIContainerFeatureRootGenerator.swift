@@ -10,27 +10,30 @@ func makeFeatureRootHelperDecls(
 
     return subContainerMembers.flatMap { member in
         member.featureRoots.flatMap { root in
-            [
+            var declarations = [
                 makeFeatureRootHelperDecl(
                     root: root,
                     subContainerName: member.name,
                     modifiers: modifiers,
                     isMainActor: isMainActor
-                ),
-                makeHostedFeatureRootHelperDecl(
+                )
+            ]
+            if root.hosted {
+                declarations.append(makeHostedFeatureRootHelperDecl(
                     root: root,
                     subContainer: member,
                     accessLevel: accessLevel
-                ),
-            ]
+                ))
+            }
+            return declarations
         }
     }
 }
 
-/// Generates the lifecycle-owned overload only when the consumer can import
-/// InnoDISwiftUI. Keeping the legacy zero-argument helper outside this block
-/// preserves non-SwiftUI and source-only macro consumers while applications
-/// can opt into route/document/window identity without a manual StateObject.
+/// Generate only on an explicit source opt-in. canImport tests module
+/// availability, not visibility in this file, and must not alter generated API
+/// as unrelated targets happen to build. The opting-in file imports SwiftUI
+/// and InnoDISwiftUI as part of its declared source dependencies.
 private func makeHostedFeatureRootHelperDecl(
     root: FeatureRootMemberModel,
     subContainer: SubContainerMemberModel,
@@ -41,7 +44,6 @@ private func makeHostedFeatureRootHelperDecl(
 
     return DeclSyntax(
         stringLiteral: """
-        #if canImport(InnoDISwiftUI) && canImport(SwiftUI)
         @_Concurrency.MainActor
         \(accessPrefix)func \(root.helperName)<Identity>(
             identity: Identity,
@@ -58,7 +60,6 @@ private func makeHostedFeatureRootHelperDecl(
                 failure: { _, _ in SwiftUI.EmptyView() }
             )
         }
-        #endif
         """
     )
 }

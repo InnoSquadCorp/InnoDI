@@ -1,0 +1,5 @@
+import InnoDI
+@DIContainer(generateOwned: true) struct Container {
+    @Provide(.shared, asyncFactory: { () async in 1 }) var value: Int
+    @Provide(.shared, factory: { (value: InnoDI.Lazy<Int>) in 2 }) var result: Int
+}

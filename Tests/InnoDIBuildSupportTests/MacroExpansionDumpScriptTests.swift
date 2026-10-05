@@ -32,6 +32,7 @@ struct MacroExpansionDumpScriptTests {
             encoding: .utf8
         )
         #expect(arguments.contains("build\n"))
+        #expect(arguments.contains("--build-system\nnative\n"))
         #expect(arguments.contains("--package-path\n"))
         #expect(arguments.contains("/\(fixture.rootURL.lastPathComponent)\n"))
         #expect(arguments.contains("--scratch-path\n"))

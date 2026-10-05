@@ -1,0 +1,31 @@
+import InnoDI
+
+struct Configuration: Sendable { let value: Int }
+struct Client: Sendable { let configuration: Configuration }
+
+@DIContainer(initializationOrder: ContainerInitializationOrder.dependency)
+struct AppContainer {
+    @Provide(.shared, Client.self, with: [\Self.configuration]) var client: Client
+    @Provide(.shared, factory: Configuration(value: 42)) var configuration: Configuration
+}
+
+@DIContainer(initializationOrder: InnoDI.ContainerInitializationOrder.dependency)
+struct AsyncContainer {
+    @Provide(.shared, initialization: .onDemand,
+             asyncFactory: { (configuration: Configuration) async throws in
+                 Client(configuration: configuration)
+             }) var client: Client
+    @Provide(.shared, initialization: .onDemand,
+             asyncFactory: { () async in Configuration(value: 42) })
+    var configuration: Configuration
+}
+
+@main struct FixtureApp {
+    static func main() async throws {
+        precondition(AppContainer().client.configuration.value == 42)
+        let container = AsyncContainer()
+        let client = try await container.client
+        precondition(client.configuration.value == 42)
+        await container.closeAsyncProviders()
+    }
+}

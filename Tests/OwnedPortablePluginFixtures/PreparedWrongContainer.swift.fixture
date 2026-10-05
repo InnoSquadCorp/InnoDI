@@ -1,0 +1,10 @@
+import InnoDI
+@DIContainer(generateOwned: true) struct First {
+    @Provide(.shared, asyncFactory: { () async in 1 }) var service: Int
+}
+@DIContainer(generateOwned: true) struct Second {
+    @Provide(.shared, asyncFactory: { () async in 2 }) var service: Int
+}
+func rejected() async throws {
+    _ = try await First.withPrepared(Second._InnoDIOwnedProvider.service) { _ in 1 }
+}

@@ -31,6 +31,12 @@ public struct AppContainer {
     // MARK: - Overrides Builder
     public struct Overrides {
         public var apiClient: APIClient? = nil
+        public mutating func set<Value>(_ keyPath: Swift.WritableKeyPath<Self, Value?>, to value: Value) {
+            self[keyPath: keyPath] = .some(value)
+        }
+        public mutating func useDefault<Value>(_ keyPath: Swift.WritableKeyPath<Self, Value?>) {
+            self[keyPath: keyPath] = .none
+        }
     }
 
     public typealias _InnoDIMountOverrides = Overrides

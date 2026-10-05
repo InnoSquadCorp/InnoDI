@@ -407,6 +407,34 @@ enum ModuleGraphProvider {
             modules.append(contentsOf: try TuistModuleGraphProvider.modules(from: manifestURL))
         }
 
+        return assembleSnapshot(modules: modules, swiftPMProducts: swiftPMProducts)
+    }
+
+    /// The coordinated root-mode pipeline must use the same captured manifest
+    /// trees as source validation, rather than discover/reopen Package.swift
+    /// or Project.swift after their signature was calculated.
+    static func snapshot(sourceSnapshot: WorkspaceSourceSnapshot) -> WorkspaceModuleGraphSnapshot {
+        var modules: [WorkspaceModuleRecord] = []
+        var products: [WorkspaceSwiftPMProductRecord] = []
+        for file in sourceSnapshot.files {
+            switch file.fileURL.lastPathComponent {
+            case "Package.swift":
+                let manifest = SwiftPMModuleGraphProvider.snapshot(from: file.fileURL, syntax: file.syntax)
+                modules.append(contentsOf: manifest.modules)
+                products.append(contentsOf: manifest.products)
+            case "Project.swift":
+                modules.append(contentsOf: TuistModuleGraphProvider.modules(from: file.fileURL, syntax: file.syntax))
+            default:
+                break
+            }
+        }
+        return assembleSnapshot(modules: modules, swiftPMProducts: products)
+    }
+
+    private static func assembleSnapshot(
+        modules: [WorkspaceModuleRecord],
+        swiftPMProducts: [WorkspaceSwiftPMProductRecord]
+    ) -> WorkspaceModuleGraphSnapshot {
         let deduplicatedModules = Dictionary(grouping: modules, by: \.moduleID)
             .compactMap { _, candidates in
                 candidates.max { lhs, rhs in

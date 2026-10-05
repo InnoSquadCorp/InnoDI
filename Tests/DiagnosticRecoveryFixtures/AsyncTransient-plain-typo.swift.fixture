@@ -1,0 +1,9 @@
+import InnoDI
+
+struct Consumer: Sendable { let request: Int }
+
+@DIContainer
+struct App {
+    @Provide(.transient, asyncFactory: { () async in 1 }) var request: Int
+    @Provide(.shared, asyncFactory: { (requests: Int) async in Consumer(request: requests) }) var consumer: Consumer
+}

@@ -36,11 +36,18 @@ package struct ValidationExecutionOutcome: Equatable, Sendable {
 /// Abstraction over the DAG validation command so tests can inject deterministic
 /// runners.
 package protocol ValidationCommandRunning: Sendable {
+    /// Shared results require a validator that consumes the supplied snapshot.
+    /// A process that rereads live paths cannot bind its result to this key.
+    func canCacheValidationResult(toolPath: String?) -> Bool
     func runValidationTool(
         toolPath: String?,
         rootPath: String,
         snapshot: WorkspaceSourceSnapshot
     ) throws -> ValidationCommandResult
+}
+
+package extension ValidationCommandRunning {
+    func canCacheValidationResult(toolPath: String?) -> Bool { true }
 }
 
 /// Shared record persisted for one live validation run keyed by the normalized
@@ -49,6 +56,22 @@ package struct SharedValidationRunRecord: Codable, Equatable, Sendable {
     package let liveRunMetrics: ValidationLiveRunMetrics
     package let reasonCodes: [ValidationReasonCode]
     package let issues: [ValidationIssue]
+    package let sourceContentSignature: String?
+    package let resultSignature: String?
+
+    package init(
+        liveRunMetrics: ValidationLiveRunMetrics,
+        reasonCodes: [ValidationReasonCode],
+        issues: [ValidationIssue],
+        sourceContentSignature: String? = nil,
+        resultSignature: String? = nil
+    ) {
+        self.liveRunMetrics = liveRunMetrics
+        self.reasonCodes = reasonCodes
+        self.issues = issues
+        self.sourceContentSignature = sourceContentSignature
+        self.resultSignature = resultSignature
+    }
 }
 
 package struct ValidationCoordinatorLockPolicy: Sendable {
@@ -275,13 +298,15 @@ package enum BootIDProvider {
     }
 }
 
+// Version 11 adds the Swift type qualifier required by generated Overrides
+// builders with slots. Unchanged consumers must not reuse pre-helper results.
 // Version 10 covers the 7.0 validator contract: canonical parent key paths,
 // asynchronous on-demand providers, qualifier shadows of on-demand storage,
 // and target-scoped semantic lookups. Version 9 preserved byte-stream hashing
 // semantics across `combine` call boundaries. Keep validator and digest
 // behavior in the cache salt so an unchanged workspace cannot reuse a result
 // produced by an older contract.
-package let sharedRunCacheVersion = 10
+package let sharedRunCacheVersion = 13
 
 package func sharedRunCacheKey(for signature: String) -> String {
     "shared-run-v\(sharedRunCacheVersion)-\(signature)"
@@ -319,6 +344,10 @@ package struct InProcessValidationCommandRunner: ValidationCommandRunning {
 /// package-internal callers that still need to exercise an external tool.
 package struct LiveValidationCommandRunner: ValidationCommandRunning {
     package init() {}
+
+    package func canCacheValidationResult(toolPath: String?) -> Bool {
+        toolPath?.isEmpty != false
+    }
 
     package func runValidationTool(
         toolPath: String?,
@@ -605,7 +634,8 @@ package enum ValidationCoordinator {
             in: stateDirectoryURL
         )
 
-        if let cachedRun = paths.loadCachedRun() {
+        if runner.canCacheValidationResult(toolPath: toolPath),
+           let cachedRun = paths.loadCachedRun(sourceContentSignature: signatureCollectionOutput.sourceContentSignature) {
             return try outcomeWriter.finalize(
                 result: cachedRun.result,
                 wasCached: true,
@@ -642,29 +672,34 @@ package enum ValidationCoordinator {
     /// run was already serialized; this lock moves the expensive signature
     /// cache warm-up into the same shape so later target invocations usually
     /// reuse content-verified cached digests instead of doing duplicate AST work.
-    private static func collectValidationSignatureWithSharedCacheLock(
+    // Internal parser injection lets lock tests observe the real collection
+    // boundary deterministically. Production callers retain the live parser.
+    static func collectValidationSignatureWithSharedCacheLock<Parser: ValidationSyntaxParsing>(
         rootPath: String,
         analysisManifest: ValidatedWorkspaceAnalysisManifest?,
         stateDirectoryURL: URL,
         stateDirectoryPath: String,
         lockPolicy: ValidationCoordinatorLockPolicy,
-        runtime: ValidationCoordinatorRuntime
+        runtime: ValidationCoordinatorRuntime,
+        parser: Parser = LiveValidationSyntaxParser()
     ) async throws -> ValidationSignatureCollectionOutput {
         func collectSignature(
             persistManifestUpdates: Bool = true,
             useManifestCache: Bool = true
         ) throws -> ValidationSignatureCollectionOutput {
+            let collector = ValidationSignatureCollector(
+                stateDirectoryPath: stateDirectoryPath,
+                parser: parser
+            )
             if let analysisManifest {
-                return try collectValidationSignatureOutput(
+                return try collector.collectOutput(
                     validated: analysisManifest,
-                    stateDirectoryPath: stateDirectoryPath,
                     persistManifestUpdates: persistManifestUpdates,
                     useManifestCache: useManifestCache
                 )
             }
-            return try collectValidationSignatureOutput(
+            return try collector.collectOutput(
                 rootPath: rootPath,
-                stateDirectoryPath: stateDirectoryPath,
                 persistManifestUpdates: persistManifestUpdates,
                 useManifestCache: useManifestCache
             )
@@ -686,6 +721,18 @@ package enum ValidationCoordinator {
         while runtime.monotonicNow() < lockAcquisitionDeadline {
             if let descriptor = try acquireLock(at: lockURL) {
                 defer { releaseLock(descriptor: descriptor, at: lockURL) }
+                // The signature lock can outlive its process. Persist the
+                // same owner evidence as the live-run lock so the next build
+                // can recover a dead holder without waiting for stale age.
+                try persistLockMetadata(
+                    ValidationCoordinatorLockMetadata(
+                        pid: runtime.currentProcessID(),
+                        createdAt: runtime.currentDate().timeIntervalSince1970,
+                        bootID: runtime.currentBootID()
+                    ),
+                    descriptor: descriptor,
+                    path: lockURL.path(percentEncoded: false)
+                )
                 return try collectSignature()
             }
 

@@ -10,6 +10,52 @@ import Testing
 @testable import InnoDIMacros
 
 extension DIContainerMacroTests {
+    @Test("Async construction starts only after detached deferred targets are bound")
+    func asyncConstructionFollowsDeferredBinding() throws {
+        let result = expandMacroSource(
+            """
+            @DIContainer
+            struct Container {
+                static func read(_ value: InnoDI.Provider<Int>) -> Int { value() }
+                @Provide(.transient) var value: Int = 42
+                @Provide(.shared, asyncFactory: { (value: InnoDI.Provider<Int>) async in
+                    Self.read(value)
+                }) var result: Int
+            }
+            """,
+            macros: Self.macros
+        )
+        #expect(result.diagnostics.isEmpty)
+        let binding = try #require(result.expansion.range(
+            of: "_innoDILazyCell_value.bindResolver(_innoDIResolver_value)"
+        ))
+        let task = try #require(result.expansion.range(of: "let _innoDITask_result:"))
+        #expect(binding.lowerBound < task.lowerBound)
+        #expect(!result.expansion.contains("@unchecked Swift.Sendable"))
+    }
+
+    @Test("Explicit MainActor preserves isolation in on-demand async captures")
+    func explicitMainActorOnDemandCaptures() {
+        let result = expandMacroSource(
+            """
+            @MainActor
+            @DIContainer
+            struct Container {
+                @Input var input: NonSendablePayload
+                @Provide(.shared, initialization: .onDemand, factory: { (input: NonSendablePayload) in input })
+                var value: NonSendablePayload
+                @Provide(.shared, initialization: .onDemand, asyncFactory: { (value: NonSendablePayload) async in value.number })
+                var result: Int
+            }
+            """,
+            macros: Self.macros
+        )
+        #expect(result.diagnostics.isEmpty)
+        #expect(result.expansion.contains("InnoDI._InnoDISharedCell<NonSendablePayload>"))
+        #expect(!result.expansion.contains("InnoDI._InnoDISendableSharedCell<NonSendablePayload>"))
+        #expect(result.expansion.contains("{ @_Concurrency.MainActor in"))
+    }
+
     @Test("Detached transient diamond expansion grows with declarations, not paths")
     func detachedDiamondExpansionIsLinear() {
         func expansion(depth: Int) -> String {

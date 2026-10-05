@@ -7,7 +7,7 @@ struct AppContainer {
 
     // MARK: - Initialization
     init(holder: Holder? = nil, service: Service? = nil, _innoDITrace: DITraceContext = .disabled) {
-        final class _InnoDIDeferredCell<T>: @unchecked Swift.Sendable {
+        final class _InnoDIDeferredCell<T> {
             private var value: T?
             private var resolver: (() -> T)?
 
@@ -66,6 +66,12 @@ struct AppContainer {
     struct Overrides {
         var holder: Holder? = nil
         var service: Service? = nil
+        mutating func set<Value>(_ keyPath: Swift.WritableKeyPath<Self, Value?>, to value: Value) {
+            self[keyPath: keyPath] = .some(value)
+        }
+        mutating func useDefault<Value>(_ keyPath: Swift.WritableKeyPath<Self, Value?>) {
+            self[keyPath: keyPath] = .none
+        }
     }
 
     typealias _InnoDIMountOverrides = Overrides

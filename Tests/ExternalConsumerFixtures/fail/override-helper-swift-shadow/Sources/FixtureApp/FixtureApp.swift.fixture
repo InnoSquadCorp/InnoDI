@@ -1,0 +1,19 @@
+import InnoDI
+import ShadowKit
+
+@DIContainer
+struct SharedContainer {
+    @Provide(factory: 1) var value: Int
+}
+
+@DIContainer(validateDAG: false)
+struct OptOutContainer {
+    @Input var value: Int
+    @Provide(factory: { (_storage_value: Int) in _storage_value })
+    var copy: Int
+}
+
+@main
+struct FixtureApp {
+    static func main() {}
+}

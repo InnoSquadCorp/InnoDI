@@ -1,0 +1,3 @@
+value of type 'Container._InnoDIPrewarmProvider' has no member 'get'
+value of type 'Container._InnoDIPrewarmProvider' has no member 'resolve'
+value of type 'Container._InnoDIPrewarmProvider' has no member 'register'

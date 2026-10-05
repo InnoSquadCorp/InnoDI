@@ -1,0 +1,45 @@
+import InnoDI
+
+public final class CallerIsolatedBox {
+    public var calls = 0
+    public init() {}
+}
+public final class CallerIsolatedFailure: Error { public init() {} }
+
+@DIContainer
+public struct CallerIsolatedServices {
+    @Input public var box: CallerIsolatedBox
+    @Provide(.transient, asyncFactory: { (box: CallerIsolatedBox) async in box.calls += 1; return box })
+    public nonisolated(nonsending) var session: CallerIsolatedBox
+    @Provide(.transient, asyncFactory: { (session: CallerIsolatedBox) async in session })
+    public nonisolated(nonsending) var chained: CallerIsolatedBox
+    @Provide(.shared, asyncFactory: { () async in 42 })
+    public nonisolated(nonsending) var answer: Int
+    @Provide(.transient, asyncFactory: { () async in { 17 } })
+    public nonisolated(nonsending) var callback: () -> Int
+    @Provide(.transient, asyncFactory: { () async throws -> Int in throw CallerIsolatedFailure() })
+    public nonisolated(nonsending) var failing: Int
+    @Provide(.transient, asyncFactory: { () async in 7 })
+    fileprivate nonisolated(nonsending) var hidden: Int
+}
+
+@MainActor
+@DIContainer
+public struct ExplicitCallerIsolatedServices {
+    @Input public var box: CallerIsolatedBox
+    @Provide(.transient, asyncFactory: { (box: CallerIsolatedBox) async in box })
+    public var session: CallerIsolatedBox
+}
+
+@DIContainerRole(role: ContainerRole.local, mainActor: true)
+public struct OptionCallerIsolatedServices {
+    @Input public var box: CallerIsolatedBox
+    @Provide(.transient, asyncFactory: { (box: CallerIsolatedBox) async in box })
+    public var session: CallerIsolatedBox
+}
+
+@DIContainer(generateOwned: true)
+public struct OwnedCallerIsolatedServices {
+    @Input public var box: CallerIsolatedBox
+    @Provide(.shared, asyncFactory: { () async in 42 }) public var answer: Int
+}

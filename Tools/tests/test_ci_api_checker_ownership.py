@@ -46,12 +46,13 @@ class APICheckerOwnershipTests(unittest.TestCase):
         self.assertNotIn('continue-on-error', policy)
         aggregate = ci.split('  ci-required:\n', 1)[1].split('  append-perf-history:\n', 1)[0]
         self.assertIn('      - policy\n', aggregate)
-        self.assertEqual(ci.count('--skip ' + repr(WRAPPER)), 3)  # fast, TSAN, ASAN
+        self.assertEqual(ci.count('--skip ' + repr(WRAPPER)), 4)  # fast, TSAN, ASAN, minimum
         self.assertEqual(ci.count('run: Tools/run-coverage-gate.sh --api-checker-in-policy'), 1)
         self.assertIn('run: Tools/run-coverage-gate.sh\n', release)
         self.assertNotIn('--api-checker-in-policy', release)
         self.assertEqual(release.count('--skip ' + repr(WRAPPER)), 2)
         minimum = ci.split('  swift-62-compatibility:\n', 1)[1].split('  xcode-27-compatibility:\n', 1)[0]
+        self.assertIn('--skip ' + repr(WRAPPER), minimum)
         self.assertIn("python3 -B -m unittest discover -s Tools/tests -p 'test_public_api*.py'", minimum)
         # Keep the default swift test subprocess contract and its actual compiler tests.
         wrapper = (ROOT / 'Tests/InnoDIBuildSupportTests/PublicAPIContractTests.swift').read_text()
