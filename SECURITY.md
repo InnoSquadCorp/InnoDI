@@ -4,7 +4,7 @@
 
 Security fixes are provided for the latest stable major release line only.
 
-Current supported line: `6.x` (the latest stable major in `RELEASING.md`).
+Current supported line: `7.x` (the latest stable major in `CHANGELOG.md`).
 
 Older tags may remain available for compatibility testing, but they should not
 be treated as security-supported releases.
