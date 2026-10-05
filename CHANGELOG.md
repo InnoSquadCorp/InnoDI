@@ -445,6 +445,13 @@ key-path method and requires the source migration listed below.
 
 ### Upgrade Actions
 
+- Check the consumer's environment and dependency configuration before
+  modifying its sources. This diagnostic command is read-only:
+
+  ```bash
+  swift run InnoDI-Doctor --root /path/to/consumer
+  ```
+
 - Replace literal key-path prewarming such as
   `try container.prewarm(\FeatureContainer.metrics)` with
   `container.prewarm(.metrics)`, and remove `try` from empty calls. Adapt
