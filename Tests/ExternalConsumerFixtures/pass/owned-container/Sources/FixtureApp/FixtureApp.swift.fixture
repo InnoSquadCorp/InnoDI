@@ -2,6 +2,8 @@ import FeatureKit
 
 @main struct FixtureApp {
     @MainActor static func main() async throws {
+        try await checkOwnedChildAccess()
+
         let owner = try await Container.makeOwned(input: 7)
         let report = try await owner.prepare(.service)
         precondition(report.isReady)

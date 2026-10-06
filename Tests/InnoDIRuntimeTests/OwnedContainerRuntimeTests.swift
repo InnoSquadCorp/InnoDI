@@ -1,3 +1,5 @@
+import Dispatch
+import Foundation
 import InnoDI
 import Testing
 
@@ -37,6 +39,35 @@ private actor OwnedAttempts {
         calls += 1
         if calls == 1 { throw Failure.firstAttempt }
         return calls
+    }
+}
+
+/// Test-only scheduling barrier. Production trace sinks must not block; here
+/// it lets close finish after construction tracing starts but before the user
+/// factory is invoked. Every wait is bounded so a regression cannot hang CI.
+private final class OwnedFactoryEntryGate: DITraceSink, Sendable {
+    let entered = DispatchSemaphore(value: 0)
+    let release = DispatchSemaphore(value: 0)
+    let finished = DispatchSemaphore(value: 0)
+
+    func record(_ event: DITraceEvent) {
+        switch event.kind {
+        case .start:
+            entered.signal()
+            #expect(release.wait(timeout: .now() + 10) == .success)
+        case .success, .failure, .cancel:
+            finished.signal()
+        default:
+            break
+        }
+    }
+
+    func wait(_ semaphore: DispatchSemaphore) async -> Bool {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global().async {
+                continuation.resume(returning: semaphore.wait(timeout: .now() + 10) == .success)
+            }
+        }
     }
 }
 
@@ -93,6 +124,71 @@ fileprivate struct OwnedBorrowingParent {
 
 @Suite("Macro-generated explicit owned lifetimes")
 struct OwnedContainerRuntimeTests {
+    @Test("Close observed before user-factory entry rejects already-cancelled work")
+    func closeBeforeFactoryEntry() async throws {
+        let probe = OwnedProbe()
+        // If the regression invokes the factory, it returns without hanging;
+        // its call count then proves that the entry guard was missing.
+        await probe.finish()
+        let gate = OwnedFactoryEntryGate()
+        let owner = try await OwnedEagerContainer.makeOwned(
+            probe: probe, _innoDITrace: DITraceContext(sink: gate)
+        )
+        defer { gate.release.signal() }
+        #expect(await gate.wait(gate.entered))
+        await owner.close()
+        #expect(await owner.status(.service).state == .closed)
+        gate.release.signal()
+        #expect(await gate.wait(gate.finished))
+        #expect(await probe.count() == 0)
+        await #expect(throws: DIAsyncScopeError.closed(providerID: "service")) {
+            _ = try await owner.container.service
+        }
+    }
+
+    @Test("Closing an idle on-demand owner never admits its factory")
+    func closeBeforeOnDemandAdmission() async throws {
+        let probe = OwnedProbe()
+        await probe.finish()
+        let owner = try await OwnedDeferredContainer.makeOwned(probe: probe)
+        await owner.close()
+        await owner.close()
+        await #expect(throws: DIAsyncScopeError.closed(providerID: "service")) {
+            _ = try await owner.container.service
+        }
+        #expect(await probe.count() == 0)
+    }
+
+    @Test("Close does not drain a factory already admitted and running")
+    func closeKeepsNonDrainingContract() async throws {
+        let probe = OwnedProbe()
+        let trace = OwnedFactoryEntryGate()
+        trace.release.signal()
+        let owner = try await OwnedEagerContainer.makeOwned(
+            probe: probe, _innoDITrace: DITraceContext(sink: trace)
+        )
+        await probe.waitForStart()
+        let timeout = Task {
+            do { try await Task.sleep(for: .seconds(10)) } catch { return }
+            Issue.record("close waited for a cancellation-ignoring factory")
+            await probe.finish()
+        }
+        defer { timeout.cancel() }
+        await owner.close()
+        timeout.cancel()
+        await timeout.value
+        #expect(await probe.count() == 1)
+        #expect(await owner.status(.service).state == .closed)
+        // The factory is still suspended until explicitly released. Its late
+        // result cannot reopen the owner or be returned by a subsequent read.
+        await probe.finish()
+        #expect(await trace.wait(trace.finished))
+        #expect(await owner.status(.service).state == .closed)
+        await #expect(throws: DIAsyncScopeError.closed(providerID: "service")) {
+            _ = try await owner.container.service
+        }
+    }
+
     @Test("Eager construction returns after admission without waiting for readiness")
     func eagerAdmission() async throws {
         let probe = OwnedProbe()
