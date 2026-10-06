@@ -186,6 +186,12 @@ Before dispatching the `Release Gate` workflow:
     - remove the `unreleased` marker next to the version in
       `Sources/InnoDI/InnoDI.docc/MigrationGuide.md` and the `미출시` marker in
       its Korean mirror; the candidate validator rejects either one
+    - align English/Korean `Overview`, `OwnedContainers`, `DIContainer`, and
+      `Provide` with the shipped API: no current-version candidate/unreleased
+      claims, and both Overviews must name the exact stable version. The
+      candidate validator checks these source articles; after publication also
+      inspect their rendered DocC data from the deployed version, not a local
+      build alone. Keep existing tags and previously published artifacts immutable.
     - for a 6.x release, record RFC 0006 as exactly `Accepted` in both the RFC
       document and RFC index, and for a 7.x release RFC 0008 and RFC 0009; the
       candidate validator rejects pending, duplicated, missing, or

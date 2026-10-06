@@ -5,8 +5,8 @@
 Opt in to a generated owner when asynchronous shared providers need explicit
 preparation, cancellation, retry, and shutdown.
 
-These APIs are included in the unreleased 7.0 candidate. Public API baseline
-review and supported Apple toolchain qualification remain pending.
+These APIs were introduced in 7.0. Use documentation tagged for the version
+installed by your consumer; changes on main may not be released yet.
 
 ## Opt In at the Declaration
 
@@ -147,6 +147,13 @@ resolved before its invocation.
   Such a factory can finish later; its result is discarded. Close does not call
   shutdown methods on returned services or revoke a value already handed out
 
+The generated construction path checks cancellation after resolving asynchronous
+dependencies and immediately before calling the user factory. This avoids entry
+when cancellation is already observable at that check. It is not an atomic
+factory-entry barrier: close can race after the check, including during an
+executor hop. Do not use `close()` as proof that no previously admitted user
+code can run after it returns, or as a substitute for application-level shutdown.
+
 ## Overrides, Copies, and Borrowed Values
 
 `makeOwned` accepts the existing input and direct value-override slots, shared
@@ -257,7 +264,7 @@ feature-root helpers, custom global actors, and
 per-member actor isolation outside a MainActor container.
 Unknown custom-actor attribute spellings may fail in generated-code compiler
 diagnostics rather than an InnoDI-specific diagnostic; custom actors are not
-supported by this candidate. Use the existing container API for unsupported shapes. See
+supported by the owned-container API. Use the existing container API for unsupported shapes. See
 <doc:DiagnosticsGuide> and <doc:AsyncPreparation>.
 
 Self inside an input type keeps its original container identity through a

@@ -358,6 +358,7 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
     private let hasOtherExplicitSwiftUIImports: Bool
     private var migratableProvideOffsets: Set<Int> = []
     private(set) var diagnostics: [MigrationDiagnostic] = []
+    private(set) var introducedNonPublicSwiftUIImport = false
     /// Rules whose rewrite changed this file, for the migration report.
     private(set) var appliedRules: Set<String> = []
 
@@ -441,7 +442,7 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
                 )
             )
         }
-        let imported = addingSwiftUIImportForInnoDISwiftUI(
+        let importMigration = planSwiftUIImportForInnoDISwiftUI(
             to: rewritten,
             access: swiftUIImportAccess,
             hasOtherExplicitSwiftUIImports: hasOtherExplicitSwiftUIImports
@@ -450,6 +451,8 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
                 code: "migrate.swiftui-import-access-ambiguous", path: self.path, message: message
             ))
         }
+        let imported = importMigration.source
+        introducedNonPublicSwiftUIImport = importMigration.introducesNonPublicAccess
         if imported.description != rewritten.description {
             appliedRules.insert(MigrationRule.swiftUIImport)
         }

@@ -16,6 +16,10 @@ validation, dependency-graph tooling, hierarchy checks, and SwiftUI helpers.
 First complete [Installation](#installation), including the required validation
 plugin. This example constructs the same service with live and test values.
 
+If the target defaults to MainActor isolation, explicitly mark the container
+`@MainActor` or `nonisolated`; the macro cannot infer that build setting. See
+[the isolation boundary](Sources/InnoDI/InnoDI.docc/DIContainer.md#targets-with-default-mainactor-isolation).
+
 <!-- innodi:compile -->
 ```swift
 import InnoDI
@@ -119,6 +123,12 @@ live for the duration of one operation.
 
 InnoDI supports Apple platforms only. CI does not build or test Linux, and
 `InnoDITesting` imports Apple's `os` module unconditionally.
+
+InnoDI 7.0.0 pins `swift-syntax` to `604.0.0`. It cannot resolve in the same
+SwiftPM graph as [Mockable 0.6.4](https://github.com/Kolos65/Mockable/blob/0.6.4/Package.swift),
+which requires `509.0.0..<604.0.0`. Check the whole consumer dependency graph
+before upgrading. Changing a lockfile or widening a range alone does not
+establish macro compatibility; resolution and actual macro consumers must both pass.
 
 The build-time validator keeps its lock and cache under SwiftPM's scratch
 directory, which must be on a local filesystem such as APFS. It refuses NFS,

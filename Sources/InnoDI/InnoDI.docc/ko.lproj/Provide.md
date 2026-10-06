@@ -146,7 +146,7 @@ MainActor 컨테이너는 actor 격리를 유지하고 MainActor에서 읽으세
 격리가 MainActor인 경우는 <doc:DIContainer>를 참고하세요. 별도 resolver
 메서드 없이 `await services.session`을 계속 사용합니다.
 
-## 타입으로 검사하는 동기 prewarm (7.0 후보)
+## 타입으로 검사하는 동기 prewarm (7.0)
 
 `initialization: .onDemand`를 사용하는 동기 `.shared` provider가 있으면
 컨테이너에 중첩 `_InnoDIPrewarmProvider: Sendable` enum이 생성됩니다. Case 이름은
@@ -171,7 +171,7 @@ container.prewarm()
 
 타입 기반 메서드는 동기이며 오류를 던지거나 값을 반환하지 않습니다. 빈 선택은
 아무 작업도 하지 않습니다. 각 선택은 인자 순서대로 해당 provider에 직접
-전달됩니다. 7.0 후보는 기존 key path overload를 대체합니다.
+전달됩니다. InnoDI 7.0은 기존 key path overload를 대체합니다.
 반복 선택과 컨테이너 복사본은 기존 shared cache를 재사용합니다. 선택한 factory가
 필요로 하지 않는 한, 선택하지 않은 provider는 생성되지 않습니다.
 
@@ -193,8 +193,8 @@ Enum과 타입 기반 메서드는 생성되는 initializer 및 `Overrides`처�
 `PrewarmProvider` alias는 생성하지 않으므로, 같은 이름의 기존 전역 또는 중첩
 payload 타입의 의미를 유지합니다. 고정 접두사 이름은 명시적 표기의 편의성과
 교환한 선택이며 모든 이름 충돌을 방지한다는 뜻은 아닙니다. Compiler-owned
-namespace에 사용자 이름을 만들지 마세요. 이 API는 미출시 7.0 후보에 포함되며,
-공개 API baseline 검토와 지원 Apple toolchain 검증이 남아 있습니다.
+namespace에 사용자 이름을 만들지 마세요. 이 API는 7.0에서 도입됐습니다.
+설치한 버전 tag의 문서를 사용하세요.
 
 ## 비동기 shared 수명
 

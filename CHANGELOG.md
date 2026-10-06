@@ -7,6 +7,40 @@ process, including how a development train becomes a stable version, lives in
 
 Latest stable public release: `7.0.0`
 
+## Unreleased
+
+### Highlights
+
+This patch work focuses on generated owned-child access, safe multi-file
+SwiftUI import migration, and release-documentation consistency. It does not
+introduce a new dependency model or widen concurrency support. Compiler and
+supported Apple consumer qualification must complete before promotion.
+
+- Preserve private child visibility without making the owned view's initializer
+  inaccessible to its factory.
+- Block mixed implicit/non-public explicit SwiftUI import plans before any file
+  is written, including conflicts introduced by the same migration run.
+  Check the final batch so peer imports upgraded by that same run do not
+  falsely block an otherwise safe migration.
+- Check observable task cancellation after dependency reads and before a user
+  owned factory is called. The admission and non-draining close contracts remain.
+- Refresh English/Korean 7.0 API documentation, describe the Mockable 0.6.4
+  dependency conflict, and add an executable prewarm/owned retry/close example.
+
+### Breaking and Behavior Changes
+
+A migration that would introduce ambiguous import access now stops for an
+explicit review of peer imports. The access-choice flag does not normalize
+all existing imports. No new Sendable conformance, actor opt-out, SwiftSyntax
+range, conditional-graph support, or strict factory-entry barrier is introduced.
+
+### Upgrade Actions
+
+Review any migration diagnostic before writing. Normalize the relevant target's
+existing SwiftUI imports explicitly and rebuild with its actual import defaults
+and warnings. Check the whole SwiftPM dependency graph before combining macro
+packages. Existing release tags and their artifacts remain unchanged.
+
 ## 7.0.0
 
 - Ordinary transient child builders retain a synchronous non-Sendable function

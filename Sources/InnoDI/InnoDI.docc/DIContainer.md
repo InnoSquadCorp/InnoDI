@@ -152,9 +152,8 @@ change close, cancellation, retry, or container-copy lifetime contracts.
 
 Existing containers need no migration. Adoption adds one argument; do not
 mechanically reorder declarations or change the default across an app without
-reviewing side effects. This API is included in the unreleased 7.0 candidate;
-public API baseline review and supported Apple toolchain qualification remain
-pending.
+reviewing side effects. This API was introduced in 7.0;
+use the documentation tagged for your installed version.
 
 ## See Also
 

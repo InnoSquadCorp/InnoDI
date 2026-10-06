@@ -1,0 +1,1 @@
+'child' is inaccessible due to 'private' protection level

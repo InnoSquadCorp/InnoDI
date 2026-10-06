@@ -40,7 +40,8 @@ let package = Package(
             ],
             sources: [
                 "App.swift",
-                "AppContainer.swift"
+                "AppContainer.swift",
+                "OwnedLifecycleExample.swift"
             ],
             plugins: [
                 .plugin(

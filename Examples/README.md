@@ -34,6 +34,12 @@ swift run InnoDI-DependencyGraph --root Examples/SampleApp --root-pruning all
 swift run InnoDI-DependencyGraph --root Examples/SampleApp --validate-dag
 ```
 
+The [owned lifecycle example](SampleApp/OwnedLifecycleExample.swift) also runs
+as part of `SampleApp` and its tests. It demonstrates typed synchronous
+`prewarm`, a deliberately failed async preparation, explicit retry/readiness,
+and `close()` on success or error. It uses local values only, with no network
+request or external account.
+
 ## SwiftUI Example
 
 Path:
