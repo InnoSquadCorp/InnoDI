@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "checked_on": "2026-10-05",
+  "library": "InnoDI",
+  "repository": "https://github.com/InnoSquadCorp/InnoDI.git",
+  "supported_version_range": ">=7.0.0 <7.1.0",
+  "supported_release_channel": "stable",
+  "version": "7.0.0",
+  "revision": "4783eee7f674f99a337768c107b7a5f640810c2a",
+  "release_url": "https://github.com/InnoSquadCorp/InnoDI/releases/tag/7.0.0",
+  "swift_tools_version": "6.2",
+  "swift_syntax": {
+    "version": "604.0.0",
+    "revision": "050f1a346fbbac0ca2cfb15a95274f7bd1cf0ccf",
+    "repository": "https://github.com/swiftlang/swift-syntax.git"
+  },
+  "declared_platform_minimums": {"iOS": "17", "macOS": "14", "watchOS": "10", "tvOS": "17", "visionOS": "1"},
+  "consumer_validation_environment": {"xcode": "27.0 (27A266a)", "swift": "6.4 (swiftlang-6.4.0.34.1)", "host": "macOS 27 arm64"},
+  "scope": "Stable 7.0.x guidance. The version, revision, toolchain and dependency pins above identify the exact validated 7.0.0 baseline, not every supported patch. Consumer applications and combined library graphs require their own validation; prereleases and versions outside 7.0.x require separate review."
+}
