@@ -852,6 +852,17 @@ Tools/generate-docc.sh
 
 Release notes and upgrade notes live in [CHANGELOG.md](CHANGELOG.md).
 
+## AI Agent Skill
+
+The [InnoDI skill](skills/innodi/SKILL.md) helps AI coding tools use the
+consumer's resolved InnoDI API. Its source, references, and exact-release
+consumer fixture are maintained in this repository alongside the library.
+See the [installation and validation guide](skills/README.md) for standalone
+Codex/Claude Code use, ownership, and the current evaluation limits.
+The skill supports stable InnoDI 7.0.x (`>=7.0.0, <7.1.0`); its exact-release
+consumer is validated on 7.0.0. Adding a Swift package dependency does not
+install the skill in an AI tool.
+
 ## Examples
 
 - [Examples/README.md](Examples/README.md)

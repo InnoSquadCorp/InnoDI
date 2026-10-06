@@ -814,6 +814,17 @@ Tools/generate-docc.sh
 
 릴리즈 노트와 업그레이드 노트는 [CHANGELOG.md](CHANGELOG.md)에 모여 있습니다.
 
+## AI 에이전트 스킬
+
+[InnoDI 스킬](skills/innodi/SKILL.md)은 AI 코딩 도구가 소비 프로젝트의 실제
+resolved InnoDI API에 맞는 코드를 작성하도록 돕습니다. 스킬 원본·참고 문서·
+정확한 릴리스에 고정한 소비 예제는 라이브러리와 함께 이 저장소에서 관리합니다.
+Codex/Claude Code 단독 설치, 관리 원칙, 현재 평가 범위는
+[설치·검증 안내](skills/README.md)를 참고하세요.
+스킬은 안정 릴리스 InnoDI 7.0.x(`>=7.0.0, <7.1.0`)를 지원하며, 정확한
+릴리스에 고정한 소비 예제는 7.0.0에서 검증했습니다. Swift 패키지 의존성을
+추가하는 것만으로 AI 도구에 스킬이 설치되지는 않습니다.
+
 ## 예제
 
 - [Examples/README.md](Examples/README.md)
