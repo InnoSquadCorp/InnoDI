@@ -5,16 +5,15 @@ section becomes the body of that version's GitHub Release. The release
 process, including how a development train becomes a stable version, lives in
 [RELEASING.md](RELEASING.md).
 
-Latest stable public release: `7.0.0`
+Latest stable public release: `7.0.1`
 
-## Unreleased
+## 7.0.1
 
 ### Highlights
 
-This patch work focuses on generated owned-child access, safe multi-file
-SwiftUI import migration, and release-documentation consistency. It does not
-introduce a new dependency model or widen concurrency support. Compiler and
-supported Apple consumer qualification must complete before promotion.
+7.0.1 fixes generated owned-child access and multi-file SwiftUI import
+migration, and clarifies the existing owned lifecycle contract. Public APIs,
+SwiftSyntax `604.0.0`, supported toolchains, and platform minimums are unchanged.
 
 - Preserve private child visibility without making the owned view's initializer
   inaccessible to its factory.
@@ -26,6 +25,9 @@ supported Apple consumer qualification must complete before promotion.
   owned factory is called. The admission and non-draining close contracts remain.
 - Refresh English/Korean 7.0 API documentation, describe the Mockable 0.6.4
   dependency conflict, and add an executable prewarm/owned retry/close example.
+- Add the canonical InnoDI agent skill and standalone consumer fixtures for
+  stable 7.0.x guidance. The recorded exact validation baseline remains 7.0.0;
+  it is not evidence that every supported patch or consumer graph was tested.
 
 ### Breaking and Behavior Changes
 
@@ -36,10 +38,40 @@ range, conditional-graph support, or strict factory-entry barrier is introduced.
 
 ### Upgrade Actions
 
-Review any migration diagnostic before writing. Normalize the relevant target's
-existing SwiftUI imports explicitly and rebuild with its actual import defaults
-and warnings. Check the whole SwiftPM dependency graph before combining macro
-packages. Existing release tags and their artifacts remain unchanged.
+- Review migration diagnostics before writing. Use a migration root for the
+  relevant target, make remaining peer SwiftUI imports' access explicit where
+  needed, and rebuild with that target's actual import defaults and warnings.
+  Peer imports upgraded by the same plan do not need a separate manual rewrite.
+- Before upgrading or combining macro packages, check the whole consumer
+  SwiftPM dependency graph. Changing a lockfile or widening a range alone does
+  not establish macro compatibility; dependency resolution and actual macro
+  consumers must both pass. InnoDI 7.0.1 retains the 7.0.0 SwiftSyntax pin, so
+  the Mockable 0.6.4 constraint conflict remains.
+- No new source migration is required for valid 7.0.0 owned-container usage.
+  Continue to check preparation readiness and explicitly close the owned scope.
+  The pre-factory cancellation check does not introduce a strict barrier for
+  every close-after-entry race.
+- Existing 7.0.0 tags and artifacts remain immutable. Skill fixture pins,
+  historical validation dates, and recorded 7.0.0 evidence retain their original
+  meaning; validate an actual 7.0.1 consumer before recording new evidence.
+
+한국어 업그레이드 안내:
+
+- 쓰기 전에 migration 진단을 검토하세요. 해당 target을 migration root로 삼고,
+  필요한 경우 남아 있는 peer SwiftUI import의 접근 수준을 명시한 뒤 실제
+  import 기본값과 warning 설정으로 다시 빌드하세요. 같은 계획에서 승격되는
+  peer import를 따로 수동 변경할 필요는 없습니다.
+- 업그레이드하거나 매크로 package를 함께 사용하기 전에 소비자 전체의 SwiftPM
+  의존성을 확인하세요. lockfile 변경이나 버전 범위 완화만으로 매크로 호환성이
+  보장되지는 않으며, 의존성 해석과 실제 매크로 사용을 모두 검증해야 합니다.
+  7.0.1은 7.0.0의 SwiftSyntax 고정을 유지하므로 Mockable 0.6.4와의 제약 충돌도
+  그대로입니다.
+- 유효한 7.0.0 owned container 사용에는 새로운 소스 migration이 필요하지
+  않습니다. 준비 상태를 확인하고 owned scope를 명시적으로 닫는 계약은 유지됩니다.
+  factory 직전 취소 검사가 모든 close-after-entry 경합을 엄격히 막는 것은 아닙니다.
+- 기존 7.0.0 tag와 artifact는 변경하지 않습니다. Skill fixture 고정 버전,
+  과거 검증일과 7.0.0 검증 기록을 유지하고, 새 근거를 기록하기 전에 실제
+  7.0.1 소비자를 별도로 검증하세요.
 
 ## 7.0.0
 

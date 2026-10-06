@@ -15,7 +15,7 @@ an `@Injected` property wrapper or a dynamic registration container; those
 patterns are useful in runtime DI tools, but InnoDI optimizes for code-review
 visibility, deterministic macro expansion, and build-time graph validation.
 
-The latest stable release is 7.0.0. This source documentation describes the
+The latest stable release is 7.0.1. This source documentation describes the
 7.0 API line; use the documentation tagged for your installed version.
 The package provides:
 

@@ -4,9 +4,9 @@
 
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
-> This page documents **InnoDI 7.0.0**. For source changes from 6.x, follow the
+> This page documents **InnoDI 7.0.1**. For source changes from 6.x, follow the
 > [migration guide](Sources/InnoDI/InnoDI.docc/MigrationGuide.md#6x--70).
-> [Versioned 7.0.0 documentation](https://github.com/InnoSquadCorp/InnoDI/blob/7.0.0/README.md).
+> [Versioned 7.0.1 documentation](https://github.com/InnoSquadCorp/InnoDI/blob/7.0.1/README.md).
 
 Macro-driven dependency injection for Swift with compile-time and build-time
 validation, dependency-graph tooling, hierarchy checks, and SwiftUI helpers.
@@ -124,11 +124,11 @@ live for the duration of one operation.
 InnoDI supports Apple platforms only. CI does not build or test Linux, and
 `InnoDITesting` imports Apple's `os` module unconditionally.
 
-InnoDI 7.0.0 pins `swift-syntax` to `604.0.0`. It cannot resolve in the same
-SwiftPM graph as [Mockable 0.6.4](https://github.com/Kolos65/Mockable/blob/0.6.4/Package.swift),
-which requires `509.0.0..<604.0.0`. Check the whole consumer dependency graph
-before upgrading. Changing a lockfile or widening a range alone does not
-establish macro compatibility; resolution and actual macro consumers must both pass.
+InnoDI 7.0.1 keeps the exact `swift-syntax` `604.0.0` pin used by 7.0.0.
+It cannot resolve in the same SwiftPM graph as
+[Mockable 0.6.4](https://github.com/Kolos65/Mockable/blob/0.6.4/Package.swift),
+which requires `509.0.0..<604.0.0`. See the
+[7.0.1 upgrade notes](CHANGELOG.md#701) for consumer validation steps.
 
 The build-time validator keeps its lock and cache under SwiftPM's scratch
 directory, which must be on a local filesystem such as APFS. It refuses NFS,
@@ -158,11 +158,11 @@ Add InnoDI to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "7.0.0")
+    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "7.0.1")
 ]
 ```
 
-The product, plugin, and API examples on this page use **InnoDI 7.0.0**.
+The product, plugin, and API examples on this page use **InnoDI 7.0.1**.
 For the source changes from 6.x, follow the
 [migration guide](Sources/InnoDI/InnoDI.docc/MigrationGuide.md#6x--70).
 
