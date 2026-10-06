@@ -10,7 +10,7 @@ nested된, 지원되는 유효한 non-generic Swift struct를 DI 컨테이너로
 안의 선언은 지원하지 않습니다. 런타임 변형보다 명시적 wiring, 결정적 검증,
 graph tooling에 초점을 둡니다.
 
-최신 안정 릴리스는 6.0.0입니다. 이 소스 문서는 미출시 7.0 후보를 설명합니다.
+최신 안정 릴리스는 7.0.0입니다. 이 소스 문서는 7.0 API를 설명합니다.
 안정 버전을 설치했다면 해당 tag의 문서를 사용하세요. 패키지는 다음을 제공합니다:
 
 - 매크로 기반 컨테이너 API 생성
@@ -20,7 +20,7 @@ graph tooling에 초점을 둡니다.
 - `@SubContainer`, 명시적 `@DIContainerRole` hierarchy role
 - `InnoDISwiftUI`의 SwiftUI helper
 
-7.0 후보는 명시적인 소유권과 소비자 계약을 추가합니다:
+InnoDI 7.0은 명시적인 소유권과 소비자 계약을 추가합니다:
 
 - `generateOwned: true`, 선택한 async 준비·취소·재시도·종료
 - 선택한 준비 상태를 확인하고 정리를 기다리는 `withPrepared`

@@ -132,4 +132,4 @@ custom lint rule) keeps the answers visible at review time. The shipped
 
 - <doc:Validation>
 - <doc:PolicyBoundaries>
-- ``DIContainer(validateDAG:)``
+- ``DIContainer(validateDAG:initializationOrder:generateOwned:)``

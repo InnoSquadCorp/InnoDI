@@ -60,6 +60,14 @@ struct OwnedContainerMacroTests {
         #expect(!text.contains("AnyHashable"))
         #expect(text.contains("dependencies: second == nil ? [\"first\"] : []"))
         #expect(text.contains("await _innoDICoordinator.close()"))
+        // Check after dependency awaits as well as after the user factory.
+        // A post-factory check alone does not prevent already-cancelled entry.
+        let cancellation = "try _Concurrency.Task.checkCancellation()"
+        let dependencyRead = try #require(text.range(of: "let _innoDIArgument_first"))
+        let remaining = text[dependencyRead.lowerBound...]
+        let guardBeforeFactory = try #require(remaining.range(of: cancellation))
+        let factoryRead = try #require(remaining.range(of: "let _innoDIValue ="))
+        #expect(guardBeforeFactory.lowerBound < factoryRead.lowerBound)
     }
 
     @Test("Tokens contain only owned async providers, with no natural type aliases")
@@ -191,6 +199,29 @@ struct OwnedContainerMacroTests {
         #expect(factory.contains(".init(value: value, _innoDITrace: _innoDITrace"))
         #expect(factory.contains("nodes: []"))
         #expect(!factory.contains("child.close"))
+    }
+
+    @Test("Owned child construction storage does not widen authored read access", arguments: [
+        "private", "fileprivate", "internal", "public"
+    ], [
+        "@DIContainer(generateOwned: true)",
+        "@MainActor @DIContainer(generateOwned: true)",
+        "@DIContainerRole(role: ContainerRole.local, mainActor: true, generateOwned: true)"
+    ])
+    func childAccess(_ access: String, _ attribute: String) throws {
+        let declarations = try owned("""
+            \(attribute) public struct Container {
+                @Input var value: Int
+                @SubContainer(scope: .shared, with: [\\Self.value]) \(access) var child: Child
+            }
+            """)
+        let view = try #require(declarations.compactMap { $0.as(StructDeclSyntax.self) }
+            .first { $0.name.text == "_InnoDIOwnedView" }).formatted().description
+        #expect(view.contains("fileprivate let _innoDIChild_child: Child"))
+        #expect(view.contains("\(access) var child: Child"))
+        #expect(!view.contains("\(access) let child: Child"))
+        let factory = try #require(declarations.last).formatted().description
+        #expect(factory.contains("_innoDIChild_child: _innoDIChild_child"))
     }
 
     @Test("Unsupported owned shapes receive anchored diagnostics", arguments: [

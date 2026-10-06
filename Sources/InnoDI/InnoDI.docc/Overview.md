@@ -15,8 +15,8 @@ an `@Injected` property wrapper or a dynamic registration container; those
 patterns are useful in runtime DI tools, but InnoDI optimizes for code-review
 visibility, deterministic macro expansion, and build-time graph validation.
 
-The latest stable release is 6.0.0. This source documentation describes the
-unreleased 7.0 candidate; use the tagged documentation for a stable installation.
+The latest stable release is 7.0.0. This source documentation describes the
+7.0 API line; use the documentation tagged for your installed version.
 The package provides:
 
 - macro-generated container APIs
@@ -26,7 +26,7 @@ The package provides:
 - `@SubContainer` and explicit `@DIContainerRole` hierarchy roles
 - SwiftUI helpers in `InnoDISwiftUI`
 
-The 7.0 candidate adds opt-in ownership and more explicit consumer contracts:
+InnoDI 7.0 adds opt-in ownership and more explicit consumer contracts:
 
 - `generateOwned: true`, selected async preparation, cancellation, retry and close
 - `withPrepared`, which checks selected readiness and awaits cleanup

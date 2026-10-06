@@ -1,0 +1,95 @@
+import InnoDI
+
+@DIContainer
+public struct AccessChild {
+    @Input public var seed: Int
+    @Provide(.shared, factory: { (seed: Int) in seed + 1 }) public var number: Int
+}
+
+@DIContainer(generateOwned: true)
+public struct OrdinaryAccessParent {
+    @Input public var seed: Int
+    @SubContainer(scope: .shared, with: [\Self.seed])
+    private var privateChild: AccessChild
+    @SubContainer(scope: .shared, with: [\Self.seed])
+    fileprivate var fileprivateChild: AccessChild
+    @SubContainer(scope: .shared, with: [\Self.seed])
+    internal var internalChild: AccessChild
+    @SubContainer(scope: .shared, with: [\Self.seed])
+    public var publicChild: AccessChild
+}
+
+@MainActor
+@DIContainer(generateOwned: true)
+public struct ExplicitAccessParent {
+    @Input public var seed: Int
+    @SubContainer(scope: .shared, with: [\Self.seed])
+    private var privateChild: AccessChild
+    @SubContainer(scope: .shared, with: [\Self.seed])
+    fileprivate var fileprivateChild: AccessChild
+    @SubContainer(scope: .shared, with: [\Self.seed])
+    internal var internalChild: AccessChild
+    @SubContainer(scope: .shared, with: [\Self.seed])
+    public var publicChild: AccessChild
+}
+
+@DIContainerRole(role: ContainerRole.local, mainActor: true, generateOwned: true)
+public struct RoleAccessParent {
+    @Input public var seed: Int
+    @SubContainer(scope: .shared, with: [\Self.seed])
+    private var privateChild: AccessChild
+    @SubContainer(scope: .shared, with: [\Self.seed])
+    fileprivate var fileprivateChild: AccessChild
+    @SubContainer(scope: .shared, with: [\Self.seed])
+    internal var internalChild: AccessChild
+    @SubContainer(scope: .shared, with: [\Self.seed])
+    public var publicChild: AccessChild
+}
+
+// All four access levels must construct across the actual macro/module boundary.
+// The private member must remain hidden; construction must not need to expose it.
+@MainActor
+public func checkOwnedChildAccess() async throws {
+    do {
+        let owner = try await OrdinaryAccessParent.makeOwned(seed: 7)
+        precondition(owner.container.fileprivateChild.number == 8)
+        precondition(owner.container.internalChild.number == 8)
+        precondition(owner.container.publicChild.number == 8)
+        await owner.close()
+        let replacement = AccessChild(seed: 20)
+        let direct = try await OrdinaryAccessParent.makeOwned(seed: 7, privateChild: replacement, publicChild: replacement)
+        precondition(direct.container.publicChild.number == 21)
+        await direct.close()
+        let overridden = try await OrdinaryAccessParent.makeOwned(seed: 7, privateChildOverrides: { $0.number = 30 }, publicChildOverrides: { $0.number = 31 })
+        precondition(overridden.container.publicChild.number == 31)
+        await overridden.close()
+    }
+    do {
+        let owner = try await ExplicitAccessParent.makeOwned(seed: 7)
+        precondition(owner.container.fileprivateChild.number == 8)
+        precondition(owner.container.internalChild.number == 8)
+        precondition(owner.container.publicChild.number == 8)
+        await owner.close()
+        let replacement = AccessChild(seed: 20)
+        let direct = try await ExplicitAccessParent.makeOwned(seed: 7, privateChild: replacement, publicChild: replacement)
+        precondition(direct.container.publicChild.number == 21)
+        await direct.close()
+        let overridden = try await ExplicitAccessParent.makeOwned(seed: 7, privateChildOverrides: { $0.number = 30 }, publicChildOverrides: { $0.number = 31 })
+        precondition(overridden.container.publicChild.number == 31)
+        await overridden.close()
+    }
+    do {
+        let owner = try await RoleAccessParent.makeOwned(seed: 7)
+        precondition(owner.container.fileprivateChild.number == 8)
+        precondition(owner.container.internalChild.number == 8)
+        precondition(owner.container.publicChild.number == 8)
+        await owner.close()
+        let replacement = AccessChild(seed: 20)
+        let direct = try await RoleAccessParent.makeOwned(seed: 7, privateChild: replacement, publicChild: replacement)
+        precondition(direct.container.publicChild.number == 21)
+        await direct.close()
+        let overridden = try await RoleAccessParent.makeOwned(seed: 7, privateChildOverrides: { $0.number = 30 }, publicChildOverrides: { $0.number = 31 })
+        precondition(overridden.container.publicChild.number == 31)
+        await overridden.close()
+    }
+}

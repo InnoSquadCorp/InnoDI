@@ -1,0 +1,16 @@
+import InnoDI
+
+@DIContainer
+struct Child {
+    @Input var seed: Int
+}
+
+@DIContainer(generateOwned: true)
+struct Parent {
+    @Input var seed: Int
+    @SubContainer(scope: .shared, with: [\Self.seed]) private var child: Child
+}
+
+func invalid(_ view: Parent._InnoDIOwnedView) {
+    _ = view.child
+}

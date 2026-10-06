@@ -901,6 +901,20 @@ private struct ReleaseCandidateScriptFixture {
                 body: "## 4.x → \(Self.majorMinor(version))\n"
             )
             let requiredRFCs = Self.requiredRFCs(forMajor: version.split(separator: ".").first.map(String.init))
+            for locale in ["", "ko.lproj/"] {
+                for article in ["Overview", "OwnedContainers", "DIContainer", "Provide"] {
+                    let body = article == "Overview"
+                        ? (locale.isEmpty
+                            ? "The latest stable release is \(version).\n"
+                            : "최신 안정 릴리스는 \(version)입니다.\n")
+                        : "Released API documentation for \(version).\n"
+                    try Self.writeMigrationGuide(
+                        at: rootURL,
+                        named: "Sources/InnoDI/InnoDI.docc/\(locale)\(article).md",
+                        body: body
+                    )
+                }
+            }
             if !requiredRFCs.isEmpty {
                 try Self.writeRFCs(
                     at: rootURL,

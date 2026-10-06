@@ -277,7 +277,12 @@ private func makeOwnedView(
         let type = ownedType(child.type).trimmedDescription
         let childAccess = child.bindingSyntax.parent?.as(PatternBindingListSyntax.self)?.parent?
             .as(VariableDeclSyntax.self).map { declarationAccessLevel(for: $0.modifiers) } ?? nil
-        declarations.append("\(childAccess.map { "\($0) " } ?? "")let \(child.name): \(type)")
+        // A private stored child would make the synthesized view initializer
+        // private to the nested type, so the outer makeOwned could not call it.
+        // Keep construction storage file-local and mirror only the authored
+        // read access, just as provider members do above.
+        declarations.append("fileprivate let _innoDIChild_\(child.name): \(type)")
+        declarations.append("\(childAccess.map { "\($0) " } ?? "")var \(child.name): \(type) { _innoDIChild_\(child.name) }")
     }
     return DeclSyntax(stringLiteral: """
         \(ownedActor(model))\(access)struct \(ownedViewTypeName) {
@@ -532,6 +537,7 @@ private func makeOwnedFactory(
                 InnoDI.DIAsyncScope(providerID: "\(raw: member.name)", admission: _innoDIAdmission) { \(raw: actor)
                     try await _innoDITraceOwner.withResolution(member: "\(raw: member.name)") {
                         \(dependencyBody)
+                        try _Concurrency.Task.checkCancellation()
                         let _innoDIValue = \(awaitFactory)
                         try _Concurrency.Task.checkCancellation()
                         return _innoDIValue
@@ -586,7 +592,7 @@ private func makeOwnedFactory(
             viewArguments.append("_innoDIValue_\(member.name): \(expressions[member.name]!.trimmedDescription)")
         }
     }
-    viewArguments += model.subContainerMembers.map { "\($0.name): _innoDIChild_\($0.name)" }
+    viewArguments += model.subContainerMembers.map { "_innoDIChild_\($0.name): _innoDIChild_\($0.name)" }
     let starts = plan.asyncShared.filter { $0.initialization == .eager }
         .map { "_ = try await _innoDIScope_\($0.name).start()" }.joined(separator: "\n")
     statements.append("""

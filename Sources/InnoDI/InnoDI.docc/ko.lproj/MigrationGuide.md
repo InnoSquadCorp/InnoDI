@@ -128,6 +128,11 @@ import 기본값과 경고 설정으로 빌드하세요. 변환은 다시 실행
 `--swiftui-import-access internal`로 다시 실행하세요. 기존의 더 높은 접근
 수준은 유지합니다. 소스 변환 성공이 컴파일러의 타입·접근 검사를 대신하지는
 않습니다.
+새로운 명시적 `internal`/`package` import를 선택하기 전에 같은 타깃의 다른
+파일에 있는 암시적 SwiftUI import도 접근 수준을 명시하세요. flag는 그 peer
+import를 고치지 않습니다. 같은 실행에서 새로 생기는 import끼리의 충돌도
+쓰기 전에 검사하며, 충돌 시 일부 파일만 기록하지 않습니다. 진단을 피하려고
+모든 import를 public으로 올리지 말고 타깃 경계와 import 기본값을 검토하세요.
 
 ### Feature-root hosting 명시
 

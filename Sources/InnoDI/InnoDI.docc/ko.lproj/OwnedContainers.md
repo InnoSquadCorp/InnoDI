@@ -5,8 +5,8 @@
 비동기 shared provider의 준비, 취소, 재시도, 종료를 명시적으로 관리할 때
 생성되는 owner를 opt-in으로 사용합니다.
 
-이 API는 미출시 7.0 후보에 포함되며, 공개 API baseline 검토와 지원 Apple
-toolchain 검증이 남아 있습니다.
+이 API는 7.0에서 도입됐습니다. 설치한 버전 tag의 문서를 사용하세요.
+main의 변경은 아직 릴리스되지 않았을 수 있습니다.
 
 ## 선언에서 Opt In
 
@@ -134,6 +134,12 @@ effect 계약은 바뀌지 않으며, dependency argument를 먼저 읽은 뒤 �
   않습니다. 나중에 끝난 factory의 결과는 버립니다. 반환된 서비스의 shutdown
   메서드를 호출하거나 이미 전달한 값을 회수하지 않습니다
 
+생성된 경로는 비동기 의존성을 구한 뒤, 사용자 factory를 호출하기 직전에 취소를
+확인합니다. 그 검사 시점에 이미 관측할 수 있는 취소는 factory 진입을 막습니다.
+이 검사는 원자적인 factory 진입 barrier가 아닙니다. 검사 이후 executor 전환
+중에도 close와 경합할 수 있습니다. `close()` 반환을 이미 허용된 사용자 코드가
+더 이상 실행되지 않는다는 증거나, 앱 수준 shutdown의 대체 수단으로 사용하지 마세요.
+
 ## Override, 복사본, 빌린 값
 
 `makeOwned`는 기존 input과 직접 value override 인자, shared child override,
@@ -234,7 +240,7 @@ Owned 생성에는 `validateDAG: true`가 필요합니다. Input, eager/on-deman
 collection/multibinding provider, transient child, feature-root helper, custom global actor, MainActor
 컨테이너 밖의 member별 actor 격리는 지원하지 않습니다. 알 수 없는 custom-actor
 attribute 이름은 InnoDI 전용 진단 대신 생성 코드의 compiler 진단으로 실패할 수
-있으며, 이 후보의 지원 범위가 아닙니다. 지원하지 않는 형태에는 기존
+있으며, owned-container API의 지원 범위가 아닙니다. 지원하지 않는 형태에는 기존
 컨테이너 API를 사용하세요.
 <doc:DiagnosticsGuide>와 <doc:AsyncPreparation>도 참고하세요.
 

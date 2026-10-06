@@ -96,6 +96,8 @@ public struct InnoDIMigrator {
         let hasExplicitSwiftUIImports = parsedSources.contains {
             containsExplicitSwiftUIImport(in: $0.syntax)
         }
+        var outputHasImplicitSwiftUIImport = false
+        var introducedNonPublicSwiftUIImportPaths: [String] = []
         for parsed in parsedSources {
             let attributeContext = unqualifiedInnoDIAttributeContext(
                 in: parsed.syntax,
@@ -109,6 +111,11 @@ public struct InnoDIMigrator {
                 hasOtherExplicitSwiftUIImports: hasExplicitSwiftUIImports
             )
             let rewritten = rewriter.rewrite(parsed.syntax)
+            outputHasImplicitSwiftUIImport = outputHasImplicitSwiftUIImport
+                || containsImplicitSwiftUIImport(in: rewritten)
+            if rewriter.introducedNonPublicSwiftUIImport {
+                introducedNonPublicSwiftUIImportPaths.append(parsed.path)
+            }
             let migratedSource = rewritten.description
             diagnostics.append(contentsOf: rewriter.diagnostics)
             if migratedSource != parsed.source, migratedSourceHasSyntaxErrors(migratedSource) {
@@ -131,6 +138,20 @@ public struct InnoDIMigrator {
                         rules: rewriter.appliedRules.sorted()
                     )
                 )
+            }
+        }
+
+        // Validate peers only after every file has been rewritten: an implicit
+        // import in the original tree may be upgraded by this same plan. Track
+        // actual insertions/upgrades even in files that already had another
+        // non-public import, and reject conflicts before permitting any write.
+        if outputHasImplicitSwiftUIImport {
+            for path in introducedNonPublicSwiftUIImportPaths {
+                diagnostics.append(MigrationDiagnostic(
+                    code: "migrate.swiftui-import-access-ambiguous",
+                    path: path,
+                    message: mixedSwiftUIImportAccessMessage
+                ))
             }
         }
 

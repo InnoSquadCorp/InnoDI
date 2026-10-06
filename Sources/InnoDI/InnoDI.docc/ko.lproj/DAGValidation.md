@@ -124,4 +124,4 @@ diff에 `validateDAG: false`가 보이면 flag 하나를 바꾼 것으로 넘기
 
 - <doc:Validation>
 - <doc:PolicyBoundaries>
-- ``DIContainer(validateDAG:)``
+- ``DIContainer(validateDAG:initializationOrder:generateOwned:)``
