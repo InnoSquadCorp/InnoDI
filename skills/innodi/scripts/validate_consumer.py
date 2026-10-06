@@ -50,6 +50,9 @@ def main():
     try:
         check(sys.platform == "darwin", "This fixture requires an Apple Swift development host")
         support = json.loads((skill / "references/support.json").read_text())
+        evidence["supported_version_range"] = support["supported_version_range"]
+        evidence["supported_release_channel"] = support["supported_release_channel"]
+        evidence["validation_scope"] = "exact_baseline"
         evidence["swift"] = command("swift-version", ["swift", "--version"])
         evidence["xcode"] = command("xcode-version", ["xcodebuild", "-version"])
         source = skill / "assets/consumer"

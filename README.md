@@ -859,7 +859,8 @@ consumer's resolved InnoDI API. Its source, references, and exact-release
 consumer fixture are maintained in this repository alongside the library.
 See the [installation and validation guide](skills/README.md) for standalone
 Codex/Claude Code use, ownership, and the current evaluation limits.
-The pilot targets InnoDI 7.0.0; adding a Swift package dependency does not
+The skill supports stable InnoDI 7.0.x (`>=7.0.0, <7.1.0`); its exact-release
+consumer is validated on 7.0.0. Adding a Swift package dependency does not
 install the skill in an AI tool.
 
 ## Examples

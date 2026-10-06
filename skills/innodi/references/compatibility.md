@@ -1,6 +1,8 @@
 # Version and toolchain boundary
 
-The [support record](support.json) pins public InnoDI 7.0.0 at `4783eee7f674f99a337768c107b7a5f640810c2a`. Its manifest requires SwiftSyntax **exact 604.0.0** and Swift tools 6.2; the consumer validation uses Xcode 27 / Swift 6.4. Deployment floors are iOS 17, macOS 14, watchOS 10, tvOS 17, and visionOS 1. Linux and older Apple toolchains are not validated by this skill.
+The [support record](support.json) supports stable InnoDI **7.0.x** (`>=7.0.0, <7.1.0`) and separately pins the validated baseline to public **7.0.0** at `4783eee7f674f99a337768c107b7a5f640810c2a`. The record's `version`, `revision`, toolchain and dependency fields describe that baseline. Its manifest requires SwiftSyntax **exact 604.0.0** and Swift tools 6.2; the consumer validation uses Xcode 27 / Swift 6.4. Deployment floors are iOS 17, macOS 14, watchOS 10, tvOS 17, and visionOS 1. Linux and older Apple toolchains are not validated by this skill.
+
+Use the guidance for another stable 7.0.x patch without treating it as unsupported merely because the fixture is pinned to 7.0.0. Check that patch's release notes and resolved manifest for relevant behavior, dependency, toolchain, or platform changes; build/test the actual consumer. The baseline's exact SwiftSyntax constraint and toolchain result are not automatically evidence for every patch. Prereleases and versions outside 7.0.x need separate source/documentation review.
 
 Check actual resolved dependencies before making compatibility claims. Existing application constraints take priority over the fixture's choice. Inspect local edits/overrides as well as `Package.resolved`, because a lock file alone does not prove the compiler used the remote release.
 

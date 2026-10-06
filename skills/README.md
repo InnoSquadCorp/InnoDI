@@ -2,9 +2,11 @@
 
 The canonical [InnoDI skill](innodi/SKILL.md) lives in this repository. It helps
 an AI coding tool implement, test, diagnose, or migrate a consumer using its
-actual resolved InnoDI version. The bundled references and consumer target
-public **7.0.0**, revision `4783eee7f674f99a337768c107b7a5f640810c2a`;
-they do not establish support for every 7.x version or unreleased `main`.
+actual resolved InnoDI version. The skill supports stable **7.0.x** releases
+(`>=7.0.0, <7.1.0`). The bundled references and exact-release consumer use
+public **7.0.0**, revision `4783eee7f674f99a337768c107b7a5f640810c2a`, as
+the validated baseline. This does not claim tests passed on every supported
+patch; prereleases, 7.1.0 and later, and unreleased `main` require separate review.
 
 ## Ownership and distribution
 
@@ -16,8 +18,10 @@ they do not establish support for every 7.x version or unreleased `main`.
   authoring sources.
 - A distribution snapshot must record the source repository, skill path,
   exact source commit and content identity. It must separately record the
-  supported library release and revision from
-  [support.json](innodi/references/support.json).
+  supported stable version range and the exact validated library release and
+  revision from [support.json](innodi/references/support.json). Its `version`
+  and `revision` fields retain the exact baseline identity; they do not limit
+  the guidance to that one patch.
 - Skill documentation fixes can ship independently of library releases.
   Pin the skill's source commit rather than assuming its source must exist
   in the library's release tag. Preserve previously released snapshots.
@@ -68,12 +72,21 @@ as errors. It retains command logs and `evidence.json` under that directory.
 Cold caches require network access. It neither installs a skill nor modifies
 the consuming application's dependency graph.
 
+The evidence records the supported range separately from `dependencies` and
+labels the run's `validation_scope` as `exact_baseline`. Keep the exact fixture
+pin, checkout checks, and historical evidence when expanding guidance to a
+patch series. After a new 7.0.x release, validate that published version before
+recording it as another tested release. An unpublished candidate's SHA check
+is candidate evidence until its public tag and revision are verified.
+
 The ten tests cover construction, value/optional overrides, typed prewarm,
 owned readiness, retry, reader cancellation, close, and preflight failure.
 A SwiftUI boundary is compiled but no device lifecycle is exercised.
-The checked-in [consumer evidence](validation/consumer-evidence.json) records
-the exact fixture hashes and toolchain. This external release consumer does
-not test changes to the library's working-tree implementation.
+The historical [consumer evidence](validation/consumer-evidence.json) is
+preserved. The [support-policy consumer evidence](validation/support-policy-evidence.json)
+records a fresh 7.0.0 baseline run with the supported range reported separately.
+Both record exact fixture hashes and toolchains. This external release
+consumer does not test changes to the library's working-tree implementation.
 
 ## AI evaluation boundary
 
@@ -85,8 +98,8 @@ the plugin installation, not a new evaluation of these standalone paths.
 Claude registered the plugin skill but its first AI request failed with
 OAuth 401 before using model tokens, so Claude behavior remains unqualified.
 
-The skill instructions, references, script, and consumer were transferred
-without behavioral changes; only the redistribution notice was updated to
-reflect ownership here. Re-run host evaluations when behavior or discovery
-metadata changes. Full repeated bilingual evaluation, 6.x migration execution,
-SwiftUI device behavior, and combined-library resolution remain unverified.
+These historical host results predate the 7.0.x support policy. They do not
+qualify the updated version-selection guidance or demonstrate tests on later
+patches. Re-run host evaluations when behavior or discovery metadata changes.
+Full repeated bilingual evaluation, 6.x migration execution, SwiftUI device
+behavior, and combined-library resolution remain unverified.

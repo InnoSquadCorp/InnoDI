@@ -1,6 +1,6 @@
-# Async lifetime in 7.0.0
+# Async lifetime in 7.0.x
 
-Choose lifetime based on who starts, awaits, retries, and ends the work. Keep plain containers when their existing contract fits; owned construction is opt-in.
+Choose lifetime based on who starts, awaits, retries, and ends the work. Keep plain containers when their existing contract fits; owned construction is opt-in. These patterns use the validated 7.0.0 baseline; for another stable 7.0.x patch, check relevant lifecycle fixes in its release notes and test the affected consumer behavior.
 
 | Situation | API / consequence |
 |---|---|
@@ -33,4 +33,4 @@ Owned construction requires DAG validation. It supports synchronous shared/trans
 
 The [consumer tests](../assets/consumer/Tests/InnoDISkillExampleTests/ConsumerTests.swift) demonstrate readiness, retry, cancellation, close, overrides, and preflight failure with deterministic actors. They do not test every lifecycle race or all supported shapes.
 
-Source: exact [OwnedContainers contract](https://github.com/InnoSquadCorp/InnoDI/blob/4783eee7f674f99a337768c107b7a5f640810c2a/Sources/InnoDI/InnoDI.docc/OwnedContainers.md). Its introductory candidate-status text is stale relative to the published [7.0.0 release](https://github.com/InnoSquadCorp/InnoDI/releases/tag/7.0.0); the support baseline is that release's revision.
+Source: exact [OwnedContainers contract](https://github.com/InnoSquadCorp/InnoDI/blob/4783eee7f674f99a337768c107b7a5f640810c2a/Sources/InnoDI/InnoDI.docc/OwnedContainers.md). Its introductory candidate-status text is stale relative to the published [7.0.0 release](https://github.com/InnoSquadCorp/InnoDI/releases/tag/7.0.0); the validated baseline is that release's revision.

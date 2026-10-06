@@ -5,15 +5,15 @@ description: Implement, test, diagnose, or migrate Swift dependency injection wi
 
 # InnoDI
 
-Help the consumer use its resolved InnoDI API correctly. This skill's examples target public **7.0.0**, not arbitrary `main` or every 7.x release. It works without another InnoSquad skill or an MCP server.
+Help the consumer use its resolved InnoDI API correctly. This skill supports stable **7.0.x** releases (`>=7.0.0, <7.1.0`). Its exact-release example and recorded validation baseline remain **7.0.0**; support for the patch series is not a claim that every patch was tested. It works without another InnoSquad skill or an MCP server.
 
 ## Establish the version before editing
 
 Read the consumer's package declaration and applicable `Package.resolved`; identify the actual resolved version, revision, target, deployment floor, and Swift/Xcode version. A declared version range alone is not the installed version. For a local/path dependency, inspect that checkout and identify it as a local dependency.
 
-- For 7.0.0, use [support.json](references/support.json) and the bundled references below.
-- For another version, inspect its resolved source or exact release documentation before borrowing these examples. Do not silently upgrade, downgrade, or substitute a path dependency.
-- For new adoption, 7.0.0 is the verified baseline here. Check the project's toolchain and other macro dependencies first; read [compatibility.md](references/compatibility.md) when resolving or changing dependencies.
+- For stable 7.0.x, use [support.json](references/support.json) and the bundled references below. On a patch newer than the validated baseline, check its release notes and resolved manifest for relevant fixes and dependency/toolchain changes, then validate the affected consumer target. Do not downgrade just to match the example's pin.
+- For versions outside 7.0.x, prereleases, or unreleased `main`, inspect the resolved source or exact release documentation before borrowing these examples. Do not silently upgrade, downgrade, or substitute a path dependency.
+- For new adoption, check the latest published stable 7.0.x release and the project's toolchain and other macro dependencies first; read [compatibility.md](references/compatibility.md) when resolving or changing dependencies. The example's exact 7.0.0 pin is a reproducible baseline, not a requirement to select that patch.
 - If the dependency cannot be resolved or inspected, state the API/version uncertainty. A successful bundled fixture does not validate the user's application.
 
 ## Choose the relevant workflow
@@ -46,6 +46,6 @@ For this skill's own reusable example, run Python 3 and Swift on an Apple develo
 python3 scripts/validate_consumer.py --scratch-path /tmp/innodi-skill-validation
 ```
 
-Run from this skill directory, or use the script's absolute path. The script builds the bundled consumer, verifies its remote exact pins and actual checkout revisions, and records logs plus JSON evidence outside the skill. It does not modify the user's dependency graph. First use downloads dependencies and can take several minutes.
+Run from this skill directory, or use the script's absolute path. The script builds the bundled consumer, verifies its remote exact pins and actual checkout revisions, and records logs plus JSON evidence outside the skill. It tests the recorded baseline, not every supported 7.0.x patch, and does not modify the user's dependency graph. First use downloads dependencies and can take several minutes.
 
 State the resolved version, changed behavior, and actual validation result. Distinguish static guidance, compiled examples, runtime tests, and untested host/platform behavior. Do not claim plugin installation, AI selection quality, or release readiness from a Swift test pass.

@@ -1,14 +1,14 @@
-# Implementing a 7.0.0 consumer
+# Implementing a 7.0.x consumer
 
 ## Package and target setup
 
-Use the [complete Package.swift](../assets/consumer/Package.swift) as a small, exact-version example. The consumer target links `InnoDI`, optionally `InnoDISwiftUI`, and attaches `.plugin(name: "InnoDIDAGValidationPlugin", package: "InnoDI")`. Test/preview support can link `InnoDITesting` where needed. Attaching the plugin to the package but not the declaring target is insufficient; standalone `@DIEnvironmentBridge` targets also need it.
+Use the [complete Package.swift](../assets/consumer/Package.swift) as a small example pinned to the validated 7.0.0 baseline. Stable 7.0.x consumers can use these patterns; keep their resolved patch and check its relevant release changes rather than copying the fixture's pin into an existing application. The consumer target links `InnoDI`, optionally `InnoDISwiftUI`, and attaches `.plugin(name: "InnoDIDAGValidationPlugin", package: "InnoDI")`. Test/preview support can link `InnoDITesting` where needed. Attaching the plugin to the package but not the declaring target is insufficient; standalone `@DIEnvironmentBridge` targets also need it.
 
 The tools-version is 6.2, but the example was tested with Swift 6.4 / Xcode 27. Do not promise every Swift 6.2 toolchain works with SwiftSyntax 604. See [compatibility.md](compatibility.md).
 
 ## Declaration decisions
 
-| Need | 7.0.0 shape and constraint |
+| Need | Shape and constraint from the 7.0.0 baseline |
 |---|---|
 | Simple container | `@DIContainer` on a struct; exactly one container macro |
 | Explicit role or MainActor shorthand | `@DIContainerRole(role: ContainerRole.local, mainActor: true)`; `component` and `root` roles are available for hierarchy |
