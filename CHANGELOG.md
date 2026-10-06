@@ -20,6 +20,8 @@ supported Apple consumer qualification must complete before promotion.
   inaccessible to its factory.
 - Block mixed implicit/non-public explicit SwiftUI import plans before any file
   is written, including conflicts introduced by the same migration run.
+  Check the final batch so peer imports upgraded by that same run do not
+  falsely block an otherwise safe migration.
 - Check observable task cancellation after dependency reads and before a user
   owned factory is called. The admission and non-draining close contracts remain.
 - Refresh English/Korean 7.0 API documentation, describe the Mockable 0.6.4

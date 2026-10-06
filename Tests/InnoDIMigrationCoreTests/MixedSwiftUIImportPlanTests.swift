@@ -63,6 +63,60 @@ struct MixedSwiftUIImportPlanTests {
         #expect(second.changes.isEmpty)
     }
 
+    @Test("Peers upgraded in the same batch permit writing in either file order", arguments: [false, true])
+    func upgradedPeersPermitWriteAndRemainIdempotent(_ bothHaveImplicitImports: Bool) throws {
+        for peerFirst in [false, true] {
+            let anchorPath = peerFirst ? "ZAnchor.swift" : "AAnchor.swift"
+            let peerPath = peerFirst ? "APeer.swift" : "ZPeer.swift"
+            let anchor = bothHaveImplicitImports
+                ? "package import InnoDISwiftUI\nimport SwiftUI\n"
+                : "internal import InnoDISwiftUI\n"
+            let root = try makeTree([
+                anchorPath: anchor,
+                peerPath: "package import InnoDISwiftUI\nimport SwiftUI\n",
+            ])
+            defer { try? FileManager.default.removeItem(at: root) }
+            let migrator = InnoDIMigrator(swiftUIImportAccess: .package)
+            let first = try migrator.run(root: root, mode: .write)
+            #expect(first.canWrite)
+            #expect(first.diagnostics.isEmpty)
+            #expect(first.changes.map(\.path) == [anchorPath, peerPath].sorted())
+            let expectedAnchor = bothHaveImplicitImports
+                ? "package import InnoDISwiftUI\npackage import SwiftUI\n"
+                : "internal import InnoDISwiftUI\npackage import SwiftUI\n"
+            #expect(try String(contentsOf: root.appendingPathComponent(anchorPath), encoding: .utf8)
+                == expectedAnchor)
+            #expect(try String(contentsOf: root.appendingPathComponent(peerPath), encoding: .utf8)
+                == "package import InnoDISwiftUI\npackage import SwiftUI\n")
+            let second = try migrator.run(root: root, mode: .write)
+            #expect(second.canWrite)
+            #expect(second.changes.isEmpty)
+            #expect(second.recoveryPaths.isEmpty)
+        }
+    }
+
+    @Test("Existing non-public imports do not hide newly inserted or upgraded access", arguments: [
+        "#if FEATURE\ninternal import SwiftUI\n#endif\ninternal import InnoDISwiftUI\n",
+        "package import InnoDISwiftUI\ninternal import SwiftUI\n",
+    ])
+    func existingNonPublicImportDoesNotHideConflict(_ anchor: String) throws {
+        let files = [
+            "Anchor.swift": anchor,
+            "Peer.swift": "import SwiftUI\n",
+            "Legacy.swift": "import InnoDI\n@DIContainer struct Legacy { @Provide(.input) var number: Int }\n",
+        ]
+        let root = try makeTree(files)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let plan = try InnoDIMigrator(swiftUIImportAccess: .package).run(root: root, mode: .write)
+        #expect(!plan.canWrite)
+        #expect(plan.diagnostics.contains {
+            $0.code == "migrate.swiftui-import-access-ambiguous" && $0.path == "Anchor.swift"
+        })
+        for (name, source) in files {
+            #expect(try String(contentsOf: root.appendingPathComponent(name), encoding: .utf8) == source)
+        }
+    }
+
     @Test("An explicitly chosen public import does not need to narrow an implicit peer")
     func publicChoiceIsNotNarrowed() throws {
         let root = try makeTree([
@@ -80,13 +134,40 @@ struct MixedSwiftUIImportPlanTests {
         "#if FEATURE\nimport SwiftUI\n#endif\n",
     ])
     func partialPeersRemainConservative(_ peer: String) throws {
-        let root = try makeTree([
+        let files = [
             "Anchor.swift": "internal import InnoDISwiftUI\n",
             "Peer.swift": peer,
-        ])
+            "Legacy.swift": "import InnoDI\n@DIContainer struct Legacy { @Provide(.input) var number: Int }\n",
+        ]
+        let root = try makeTree(files)
         defer { try? FileManager.default.removeItem(at: root) }
-        let plan = try InnoDIMigrator(swiftUIImportAccess: .internal).plan(root: root)
+        let plan = try InnoDIMigrator(swiftUIImportAccess: .internal).run(root: root, mode: .write)
         #expect(!plan.canWrite)
+        #expect(plan.diagnostics.contains { $0.code == "migrate.swiftui-import-access-ambiguous" })
+        for (name, source) in files {
+            #expect(try String(contentsOf: root.appendingPathComponent(name), encoding: .utf8) == source)
+        }
+    }
+
+    @Test("Scoped and conditional implicit imports remaining in the same file still block writing", arguments: [
+        "import struct SwiftUI.Text\n",
+        "#if FEATURE\nimport SwiftUI\n#endif\n",
+    ])
+    func remainingSameFileImportsBlockWrite(_ remaining: String) throws {
+        let files = [
+            "Anchor.swift": "package import InnoDISwiftUI\nimport SwiftUI\n" + remaining,
+            "Peer.swift": "package import InnoDISwiftUI\nimport SwiftUI\n",
+        ]
+        let root = try makeTree(files)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let plan = try InnoDIMigrator(swiftUIImportAccess: .package).run(root: root, mode: .write)
+        #expect(!plan.canWrite)
+        #expect(plan.diagnostics.contains {
+            $0.code == "migrate.swiftui-import-access-ambiguous" && $0.path == "Anchor.swift"
+        })
+        for (name, source) in files {
+            #expect(try String(contentsOf: root.appendingPathComponent(name), encoding: .utf8) == source)
+        }
     }
 
     @Test("An implicit import upgraded in the same file is not counted as a remaining peer")

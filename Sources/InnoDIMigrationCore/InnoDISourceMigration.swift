@@ -356,9 +356,9 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
     private let attributeContext: UnqualifiedInnoDIAttributeContext
     private let swiftUIImportAccess: MigrationSwiftUIImportAccess?
     private let hasOtherExplicitSwiftUIImports: Bool
-    private let hasOtherImplicitSwiftUIImports: Bool
     private var migratableProvideOffsets: Set<Int> = []
     private(set) var diagnostics: [MigrationDiagnostic] = []
+    private(set) var introducedNonPublicSwiftUIImport = false
     /// Rules whose rewrite changed this file, for the migration report.
     private(set) var appliedRules: Set<String> = []
 
@@ -366,14 +366,12 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
         path: String,
         attributeContext: UnqualifiedInnoDIAttributeContext,
         swiftUIImportAccess: MigrationSwiftUIImportAccess? = nil,
-        hasOtherExplicitSwiftUIImports: Bool = false,
-        hasOtherImplicitSwiftUIImports: Bool = false
+        hasOtherExplicitSwiftUIImports: Bool = false
     ) {
         self.path = path
         self.attributeContext = attributeContext
         self.swiftUIImportAccess = swiftUIImportAccess
         self.hasOtherExplicitSwiftUIImports = hasOtherExplicitSwiftUIImports
-        self.hasOtherImplicitSwiftUIImports = hasOtherImplicitSwiftUIImports
         super.init(viewMode: .sourceAccurate)
     }
 
@@ -444,16 +442,17 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
                 )
             )
         }
-        let imported = addingSwiftUIImportForInnoDISwiftUI(
+        let importMigration = planSwiftUIImportForInnoDISwiftUI(
             to: rewritten,
             access: swiftUIImportAccess,
-            hasOtherExplicitSwiftUIImports: hasOtherExplicitSwiftUIImports,
-            hasOtherImplicitSwiftUIImports: hasOtherImplicitSwiftUIImports
+            hasOtherExplicitSwiftUIImports: hasOtherExplicitSwiftUIImports
         ) { message in
             self.diagnostics.append(MigrationDiagnostic(
                 code: "migrate.swiftui-import-access-ambiguous", path: self.path, message: message
             ))
         }
+        let imported = importMigration.source
+        introducedNonPublicSwiftUIImport = importMigration.introducesNonPublicAccess
         if imported.description != rewritten.description {
             appliedRules.insert(MigrationRule.swiftUIImport)
         }

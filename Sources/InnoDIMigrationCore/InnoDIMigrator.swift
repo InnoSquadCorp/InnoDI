@@ -96,9 +96,6 @@ public struct InnoDIMigrator {
         let hasExplicitSwiftUIImports = parsedSources.contains {
             containsExplicitSwiftUIImport(in: $0.syntax)
         }
-        let implicitSwiftUIImportPaths = Set(parsedSources.filter {
-            containsImplicitSwiftUIImport(in: $0.syntax)
-        }.map(\.path))
         var outputHasImplicitSwiftUIImport = false
         var introducedNonPublicSwiftUIImportPaths: [String] = []
         for parsed in parsedSources {
@@ -111,15 +108,12 @@ public struct InnoDIMigrator {
                 path: parsed.path,
                 attributeContext: attributeContext,
                 swiftUIImportAccess: swiftUIImportAccess,
-                hasOtherExplicitSwiftUIImports: hasExplicitSwiftUIImports,
-                hasOtherImplicitSwiftUIImports: implicitSwiftUIImportPaths.count
-                    > (implicitSwiftUIImportPaths.contains(parsed.path) ? 1 : 0)
+                hasOtherExplicitSwiftUIImports: hasExplicitSwiftUIImports
             )
             let rewritten = rewriter.rewrite(parsed.syntax)
             outputHasImplicitSwiftUIImport = outputHasImplicitSwiftUIImport
                 || containsImplicitSwiftUIImport(in: rewritten)
-            if containsNonPublicExplicitSwiftUIImport(in: rewritten),
-               !containsNonPublicExplicitSwiftUIImport(in: parsed.syntax) {
+            if rewriter.introducedNonPublicSwiftUIImport {
                 introducedNonPublicSwiftUIImportPaths.append(parsed.path)
             }
             let migratedSource = rewritten.description
@@ -147,9 +141,10 @@ public struct InnoDIMigrator {
             }
         }
 
-        // Two files can introduce the conflicting imports in the same plan,
-        // even when neither spelling existed in the original source tree.
-        // Validate their combined proposed output before permitting any write.
+        // Validate peers only after every file has been rewritten: an implicit
+        // import in the original tree may be upgraded by this same plan. Track
+        // actual insertions/upgrades even in files that already had another
+        // non-public import, and reject conflicts before permitting any write.
         if outputHasImplicitSwiftUIImport {
             for path in introducedNonPublicSwiftUIImportPaths {
                 diagnostics.append(MigrationDiagnostic(
