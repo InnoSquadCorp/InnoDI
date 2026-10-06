@@ -16,6 +16,10 @@ SwiftUI helper를 함께 제공하는 Swift용 매크로 기반 DI 프레임워�
 먼저 [설치](#설치) 단계에 따라 package를 추가하고 validation plugin을
 연결하세요. 아래 예제는 같은 서비스를 테스트용 값으로 교체하는 과정까지 보여줍니다.
 
+target의 기본 격리가 MainActor라면 컨테이너에 `@MainActor` 또는 `nonisolated`를
+명시하세요. 매크로는 이 빌드 설정을 추론할 수 없습니다.
+[격리 경계 안내](Sources/InnoDI/InnoDI.docc/ko.lproj/DIContainer.md#기본-격리가-mainactor인-타깃)를 참고하세요.
+
 <!-- innodi:compile -->
 ```swift
 import InnoDI
@@ -118,6 +122,13 @@ override가 필요할 때 꺼냅니다.
 
 InnoDI는 Apple 플랫폼만 지원합니다. CI는 Linux를 빌드하거나 테스트하지 않으며,
 `InnoDITesting`은 Apple `os` 모듈을 조건 없이 import합니다.
+
+InnoDI 7.0.0은 `swift-syntax`를 `604.0.0`으로 고정합니다.
+`509.0.0..<604.0.0`을 요구하는
+[Mockable 0.6.4](https://github.com/Kolos65/Mockable/blob/0.6.4/Package.swift)와는
+같은 SwiftPM graph에서 해석할 수 없습니다. 업그레이드 전에 소비자 전체의
+의존성을 확인하세요. lockfile 변경이나 버전 범위 완화만으로 매크로 호환성이
+보장되지는 않으며, 의존성 해석과 실제 매크로 사용을 모두 검증해야 합니다.
 
 빌드 시점 validator는 lock과 cache를 SwiftPM scratch 디렉터리 아래에 두며, 이
 디렉터리는 APFS 같은 로컬 파일시스템에 있어야 합니다. NFS, SMB, WebDAV, FUSE

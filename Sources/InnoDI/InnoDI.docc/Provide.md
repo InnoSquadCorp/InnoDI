@@ -157,7 +157,7 @@ do not add this opt-out to a `mainActor: true` provider. See <doc:DIContainer>
 for targets using default MainActor isolation. No extra resolver method is
 needed, and `await services.session` remains the public read syntax.
 
-## Typed Synchronous Prewarming (7.0 Candidate)
+## Typed Synchronous Prewarming (7.0)
 
 A container with synchronous `.shared` providers using
 `initialization: .onDemand` generates a nested `_InnoDIPrewarmProvider: Sendable` enum.
@@ -182,7 +182,7 @@ container.prewarm()
 
 The typed method is synchronous, nonthrowing, and returns no value. An empty
 selection does nothing. Each selection dispatches directly to its provider in
-argument order. The 7.0 candidate replaces the key-path overload.
+argument order. InnoDI 7.0 replaces the key-path overload.
 Repeated selections and container copies reuse the existing shared cache.
 Unselected providers stay lazy unless a selected factory needs them.
 
@@ -206,8 +206,7 @@ No `PrewarmProvider` alias is generated, so ordinary global or nested payload
 types with that name keep their meaning. The fixed prefixed spelling is an
 explicit usability tradeoff, not a claim of universally collision-proof naming;
 do not author names in the compiler-owned namespace. This API is included in
-the unreleased 7.0 candidate; public API baseline review and supported Apple
-toolchain qualification remain pending.
+7.0; use the documentation tagged for your installed version.
 
 ## Asynchronous Shared Lifetime
 

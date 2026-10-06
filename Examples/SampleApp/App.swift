@@ -14,7 +14,10 @@ struct App {
 
 @main
 struct SampleAppMain {
-    static func main() {
+    static func main() async throws {
         App().run()
+        let outcome = try await runOwnedLifecycleExample()
+        precondition(outcome == StartupOutcome(session: "ready", attempts: 2, closed: true))
+        print("Prepared, retried, and closed the owned startup services")
     }
 }

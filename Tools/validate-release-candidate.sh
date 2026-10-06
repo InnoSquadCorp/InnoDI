@@ -413,4 +413,31 @@ if awk -v version="$MAJOR_MINOR_VERSION" '
     fail "Sources/InnoDI/InnoDI.docc/ko.lproj/MigrationGuide.md still describes $MAJOR_MINOR_VERSION as 미출시"
 fi
 
+# BEGIN current API documentation release checks
+# Check the articles that describe the shipped surface, not only MigrationGuide.
+# Frozen translations and historical plans are deliberately outside this gate.
+for locale in "" "ko.lproj/"; do
+    for article in Overview OwnedContainers DIContainer Provide; do
+        relative="Sources/InnoDI/InnoDI.docc/${locale}${article}.md"
+        article_file="$ROOT_DIR/$relative"
+        [[ -f "$article_file" ]] || fail "missing current API documentation: $relative"
+        if awk -v version="$MAJOR_MINOR_VERSION" '
+            BEGIN { RS = "" }
+            index($0, version) > 0 && (tolower($0) ~ /unreleased|candidate/ || $0 ~ /미출시|후보/) {
+                found = 1
+            }
+            END { exit(found ? 0 : 1) }
+        ' "$article_file"; then
+            fail "$relative still describes $MAJOR_MINOR_VERSION as an unreleased candidate"
+        fi
+    done
+done
+grep -Fq "The latest stable release is $VERSION." \
+    "$ROOT_DIR/Sources/InnoDI/InnoDI.docc/Overview.md" || \
+    fail "English Overview must identify $VERSION as the latest stable release"
+grep -Fq "최신 안정 릴리스는 ${VERSION}입니다." \
+    "$ROOT_DIR/Sources/InnoDI/InnoDI.docc/ko.lproj/Overview.md" || \
+    fail "Korean Overview must identify $VERSION as the latest stable release"
+# END current API documentation release checks
+
 echo "Release candidate metadata validated: version=$VERSION commit=$COMMIT_SHA root=$ROOT_DIR"
