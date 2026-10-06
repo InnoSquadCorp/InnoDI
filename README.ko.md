@@ -4,9 +4,9 @@
 
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
-> 이 페이지는 **InnoDI 7.0.0** 문서입니다. 6.x에서 필요한 소스 변경은
+> 이 페이지는 **InnoDI 7.0.1** 문서입니다. 6.x에서 필요한 소스 변경은
 > [마이그레이션 가이드](Sources/InnoDI/InnoDI.docc/ko.lproj/MigrationGuide.md#6x--70)를 따르세요.
-> [버전 고정 7.0.0 문서](https://github.com/InnoSquadCorp/InnoDI/blob/7.0.0/README.ko.md).
+> [버전 고정 7.0.1 문서](https://github.com/InnoSquadCorp/InnoDI/blob/7.0.1/README.ko.md).
 
 컴파일 타임과 빌드 타임 검증, dependency graph 도구, hierarchy 검증,
 SwiftUI helper를 함께 제공하는 Swift용 매크로 기반 DI 프레임워크입니다.
@@ -123,12 +123,11 @@ override가 필요할 때 꺼냅니다.
 InnoDI는 Apple 플랫폼만 지원합니다. CI는 Linux를 빌드하거나 테스트하지 않으며,
 `InnoDITesting`은 Apple `os` 모듈을 조건 없이 import합니다.
 
-InnoDI 7.0.0은 `swift-syntax`를 `604.0.0`으로 고정합니다.
+InnoDI 7.0.1은 7.0.0에서 사용한 `swift-syntax`의 `604.0.0` 고정을 유지합니다.
 `509.0.0..<604.0.0`을 요구하는
 [Mockable 0.6.4](https://github.com/Kolos65/Mockable/blob/0.6.4/Package.swift)와는
-같은 SwiftPM graph에서 해석할 수 없습니다. 업그레이드 전에 소비자 전체의
-의존성을 확인하세요. lockfile 변경이나 버전 범위 완화만으로 매크로 호환성이
-보장되지는 않으며, 의존성 해석과 실제 매크로 사용을 모두 검증해야 합니다.
+같은 SwiftPM graph에서 해석할 수 없습니다. 소비자 검증 절차는
+[7.0.1 업그레이드 노트](CHANGELOG.md#701)를 참고하세요.
 
 빌드 시점 validator는 lock과 cache를 SwiftPM scratch 디렉터리 아래에 두며, 이
 디렉터리는 APFS 같은 로컬 파일시스템에 있어야 합니다. NFS, SMB, WebDAV, FUSE
@@ -156,11 +155,11 @@ tvOS, visionOS 앱에 InnoDI를 임베드하면 SwiftPM이 매니페스트를 �
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "7.0.0")
+    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "7.0.1")
 ]
 ```
 
-이하 product·plugin·API 예제는 모두 **InnoDI 7.0.0**을 기준으로 합니다.
+이하 product·plugin·API 예제는 모두 **InnoDI 7.0.1**을 기준으로 합니다.
 6.x에서 필요한 소스 변경은
 [마이그레이션 가이드](Sources/InnoDI/InnoDI.docc/ko.lproj/MigrationGuide.md#6x--70)를 따르세요.
 
