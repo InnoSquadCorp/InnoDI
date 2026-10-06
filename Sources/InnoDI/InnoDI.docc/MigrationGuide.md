@@ -130,6 +130,12 @@ For mixed access within one target, first add explicit full `package`/`public`
 SwiftUI imports in the files whose API needs them, then rerun with
 `--swiftui-import-access internal` for the remaining files. Their existing
 higher-access imports are retained.
+Also normalize existing implicit SwiftUI imports in peer files before choosing
+new explicit `internal` or `package` imports. The flag does not rewrite those
+peer imports. A mixed implicit/non-public explicit plan is blocked, including
+when the conflicting imports would both be introduced in the same run. No
+partial writes occur; review target boundaries and import defaults rather than
+promoting every import to public to bypass the diagnostic.
 The rule remains idempotent; a successful source rewrite is not a substitute
 for the compiler's type and access checks.
 

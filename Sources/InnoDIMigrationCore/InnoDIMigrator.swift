@@ -96,6 +96,11 @@ public struct InnoDIMigrator {
         let hasExplicitSwiftUIImports = parsedSources.contains {
             containsExplicitSwiftUIImport(in: $0.syntax)
         }
+        let implicitSwiftUIImportPaths = Set(parsedSources.filter {
+            containsImplicitSwiftUIImport(in: $0.syntax)
+        }.map(\.path))
+        var outputHasImplicitSwiftUIImport = false
+        var introducedNonPublicSwiftUIImportPaths: [String] = []
         for parsed in parsedSources {
             let attributeContext = unqualifiedInnoDIAttributeContext(
                 in: parsed.syntax,
@@ -106,9 +111,17 @@ public struct InnoDIMigrator {
                 path: parsed.path,
                 attributeContext: attributeContext,
                 swiftUIImportAccess: swiftUIImportAccess,
-                hasOtherExplicitSwiftUIImports: hasExplicitSwiftUIImports
+                hasOtherExplicitSwiftUIImports: hasExplicitSwiftUIImports,
+                hasOtherImplicitSwiftUIImports: implicitSwiftUIImportPaths.count
+                    > (implicitSwiftUIImportPaths.contains(parsed.path) ? 1 : 0)
             )
             let rewritten = rewriter.rewrite(parsed.syntax)
+            outputHasImplicitSwiftUIImport = outputHasImplicitSwiftUIImport
+                || containsImplicitSwiftUIImport(in: rewritten)
+            if containsNonPublicExplicitSwiftUIImport(in: rewritten),
+               !containsNonPublicExplicitSwiftUIImport(in: parsed.syntax) {
+                introducedNonPublicSwiftUIImportPaths.append(parsed.path)
+            }
             let migratedSource = rewritten.description
             diagnostics.append(contentsOf: rewriter.diagnostics)
             if migratedSource != parsed.source, migratedSourceHasSyntaxErrors(migratedSource) {
@@ -131,6 +144,19 @@ public struct InnoDIMigrator {
                         rules: rewriter.appliedRules.sorted()
                     )
                 )
+            }
+        }
+
+        // Two files can introduce the conflicting imports in the same plan,
+        // even when neither spelling existed in the original source tree.
+        // Validate their combined proposed output before permitting any write.
+        if outputHasImplicitSwiftUIImport {
+            for path in introducedNonPublicSwiftUIImportPaths {
+                diagnostics.append(MigrationDiagnostic(
+                    code: "migrate.swiftui-import-access-ambiguous",
+                    path: path,
+                    message: mixedSwiftUIImportAccessMessage
+                ))
             }
         }
 

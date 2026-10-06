@@ -22,6 +22,20 @@ func containsExplicitSwiftUIImport(in source: SourceFileSyntax) -> Bool {
     return collector.hasExplicitSwiftUIImport
 }
 
+func containsImplicitSwiftUIImport(in source: SourceFileSyntax) -> Bool {
+    let collector = ImportScopeCollector(viewMode: .sourceAccurate)
+    collector.walk(source)
+    return collector.hasImplicitSwiftUIImport
+}
+
+func containsNonPublicExplicitSwiftUIImport(in source: SourceFileSyntax) -> Bool {
+    let collector = ImportScopeCollector(viewMode: .sourceAccurate)
+    collector.walk(source)
+    return collector.hasNonPublicExplicitSwiftUIImport
+}
+
+let mixedSwiftUIImportAccessMessage = "Cannot add a non-public explicit SwiftUI import while another SwiftUI import has implicit access. The --swiftui-import-access choice only controls rewritten imports; it does not normalize imports in peer files. Review the consumer's target and import-default settings, spell the existing SwiftUI imports' access explicitly, and rerun. Use a narrower migration root for unrelated targets. No files were written."
+
 /// InnoDI 7.0 stops re-exporting SwiftUI from `InnoDISwiftUI`.
 ///
 /// A file that imports `InnoDISwiftUI` saw every SwiftUI name through it, at
@@ -41,6 +55,7 @@ func addingSwiftUIImportForInnoDISwiftUI(
     to source: SourceFileSyntax,
     access: MigrationSwiftUIImportAccess? = nil,
     hasOtherExplicitSwiftUIImports: Bool = false,
+    hasOtherImplicitSwiftUIImports: Bool = false,
     onAmbiguousAccess: ((String) -> Void)? = nil
 ) -> SourceFileSyntax {
     let collector = ImportScopeCollector(viewMode: .sourceAccurate)
@@ -88,11 +103,26 @@ func addingSwiftUIImportForInnoDISwiftUI(
     let newline: TriviaPiece = source.description.contains("\r\n")
         ? .carriageReturnLineFeeds(1)
         : .newlines(1)
-    return SwiftUIImportRewriter(
+    let rewritten = SwiftUIImportRewriter(
         insertions: insertions,
         upgrades: upgrades,
         newline: newline
     ).rewrite(source).cast(SourceFileSyntax.self)
+    // Choosing the new import's access does not normalize a peer file's
+    // implicit import. A newly explicit non-public access can make that peer
+    // ambiguous under the consumer's import-default settings. Inspect the
+    // output, not just the input: an implicit import upgraded in this same file
+    // is no longer a conflict, while scoped/conditional peer imports still are.
+    let introducesNonPublicAccess = (Array(insertions.values) + Array(upgrades.values))
+        .contains { visibility in
+            visibility.accessRank.map { $0 < 4 } ?? false
+        }
+    if introducesNonPublicAccess,
+       hasOtherImplicitSwiftUIImports || containsImplicitSwiftUIImport(in: rewritten) {
+        onAmbiguousAccess?(mixedSwiftUIImportAccessMessage)
+        return source
+    }
+    return rewritten
 }
 
 /// The SwiftUI visibility an import grants: whether clients see it, and the
@@ -171,6 +201,8 @@ private struct ImportScope {
 private final class ImportScopeCollector: SyntaxVisitor {
     private(set) var scopes: [ImportScope] = []
     private(set) var hasExplicitSwiftUIImport = false
+    private(set) var hasImplicitSwiftUIImport = false
+    private(set) var hasNonPublicExplicitSwiftUIImport = false
     private var stack: [Int] = []
 
     func chain(of id: Int) -> [Int] {
@@ -206,6 +238,12 @@ private final class ImportScopeCollector: SyntaxVisitor {
         )
         if path.first == "SwiftUI", record.visibility.accessRank != nil {
             hasExplicitSwiftUIImport = true
+            if let rank = record.visibility.accessRank, rank < 4 {
+                hasNonPublicExplicitSwiftUIImport = true
+            }
+        }
+        if path.first == "SwiftUI", record.visibility.accessRank == nil {
+            hasImplicitSwiftUIImport = true
         }
         if path.first == "InnoDISwiftUI" {
             scopes[index].innoDISwiftUIImports.append(record)

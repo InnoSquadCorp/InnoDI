@@ -356,6 +356,7 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
     private let attributeContext: UnqualifiedInnoDIAttributeContext
     private let swiftUIImportAccess: MigrationSwiftUIImportAccess?
     private let hasOtherExplicitSwiftUIImports: Bool
+    private let hasOtherImplicitSwiftUIImports: Bool
     private var migratableProvideOffsets: Set<Int> = []
     private(set) var diagnostics: [MigrationDiagnostic] = []
     /// Rules whose rewrite changed this file, for the migration report.
@@ -365,12 +366,14 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
         path: String,
         attributeContext: UnqualifiedInnoDIAttributeContext,
         swiftUIImportAccess: MigrationSwiftUIImportAccess? = nil,
-        hasOtherExplicitSwiftUIImports: Bool = false
+        hasOtherExplicitSwiftUIImports: Bool = false,
+        hasOtherImplicitSwiftUIImports: Bool = false
     ) {
         self.path = path
         self.attributeContext = attributeContext
         self.swiftUIImportAccess = swiftUIImportAccess
         self.hasOtherExplicitSwiftUIImports = hasOtherExplicitSwiftUIImports
+        self.hasOtherImplicitSwiftUIImports = hasOtherImplicitSwiftUIImports
         super.init(viewMode: .sourceAccurate)
     }
 
@@ -444,7 +447,8 @@ final class InnoDISourceMigrationRewriter: SyntaxRewriter {
         let imported = addingSwiftUIImportForInnoDISwiftUI(
             to: rewritten,
             access: swiftUIImportAccess,
-            hasOtherExplicitSwiftUIImports: hasOtherExplicitSwiftUIImports
+            hasOtherExplicitSwiftUIImports: hasOtherExplicitSwiftUIImports,
+            hasOtherImplicitSwiftUIImports: hasOtherImplicitSwiftUIImports
         ) { message in
             self.diagnostics.append(MigrationDiagnostic(
                 code: "migrate.swiftui-import-access-ambiguous", path: self.path, message: message

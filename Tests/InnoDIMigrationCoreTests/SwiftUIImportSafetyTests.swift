@@ -171,6 +171,39 @@ struct SwiftUIImportSafetyTests {
         }
     }
 
+    @Test("Normalized mixed-file imports compile before and after re-export removal in both default modes")
+    func normalizedMixedFileImportsCompile() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("InnoDI-MixedImportCompiler-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let swiftUI = root.appendingPathComponent("SwiftUI.swift")
+        let anchor = root.appendingPathComponent("InnoDISwiftUI.swift")
+        let consumer = root.appendingPathComponent("Consumer.swift")
+        let peer = root.appendingPathComponent("Peer.swift")
+        try "public struct ImportValue { public init() {} }\n".write(to: swiftUI, atomically: true, encoding: .utf8)
+        let source = "internal import InnoDISwiftUI\nfunc own() -> AnchorValue { .init() }\nfunc make() -> ImportValue { .init() }\n"
+        let normalizedPeer = "internal import SwiftUI\nfunc peer() -> ImportValue { .init() }\n"
+        let flags = ["-swift-version", "6", "-module-cache-path", root.appendingPathComponent("cache").path]
+        for internalDefault in [false, true] {
+            let mode = flags + (internalDefault ? ["-enable-upcoming-feature", "InternalImportsByDefault"] : [])
+            try runCompiler(mode + ["-emit-module", "-module-name", "SwiftUI", swiftUI.path,
+                                    "-emit-module-path", root.appendingPathComponent("SwiftUI.swiftmodule").path], root: root)
+            for migratedVersion in [false, true] {
+                let reexport = migratedVersion ? "" : "@_exported public import SwiftUI\n"
+                try (reexport + "public struct AnchorValue { public init() {} }\n")
+                    .write(to: anchor, atomically: true, encoding: .utf8)
+                try runCompiler(mode + ["-emit-module", "-module-name", "InnoDISwiftUI", "-I", root.path, anchor.path,
+                                        "-emit-module-path", root.appendingPathComponent("InnoDISwiftUI.swiftmodule").path], root: root)
+                let text = migratedVersion ? migrated(source, access: .internal) : source
+                try text.write(to: consumer, atomically: true, encoding: .utf8)
+                try normalizedPeer.write(to: peer, atomically: true, encoding: .utf8)
+                try runCompiler(mode + ["-warnings-as-errors", "-typecheck", "-module-name", "Consumer", "-I", root.path,
+                                        consumer.path, peer.path], root: root)
+            }
+        }
+    }
+
     private func runCompiler(_ arguments: [String], root: URL) throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
