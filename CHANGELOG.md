@@ -38,6 +38,14 @@ range, conditional-graph support, or strict factory-entry barrier is introduced.
 
 ### Upgrade Actions
 
+Inspect the consumer before changing its sources with these read-only commands:
+
+```bash
+swift run InnoDI-Doctor --root /path/to/consumer
+swift run InnoDI-Migrate --root /path/to/consumer --check
+swift run InnoDI-Migrate --root /path/to/consumer --report
+```
+
 - Review migration diagnostics before writing. Use a migration root for the
   relevant target, make remaining peer SwiftUI imports' access explicit where
   needed, and rebuild with that target's actual import defaults and warnings.
@@ -57,6 +65,8 @@ range, conditional-graph support, or strict factory-entry barrier is introduced.
 
 한국어 업그레이드 안내:
 
+- 소비자 소스를 변경하기 전에 위의 읽기 전용 Doctor, Migrate `--check`,
+  `--report` 명령으로 현재 상태와 변경 계획을 확인하세요.
 - 쓰기 전에 migration 진단을 검토하세요. 해당 target을 migration root로 삼고,
   필요한 경우 남아 있는 peer SwiftUI import의 접근 수준을 명시한 뒤 실제
   import 기본값과 warning 설정으로 다시 빌드하세요. 같은 계획에서 승격되는
