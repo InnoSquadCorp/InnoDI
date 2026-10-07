@@ -94,12 +94,19 @@ class CleanupExecutorTests(unittest.TestCase):
   api=m.API('Org/Repo','test-token')
   with self.assertRaises(ValueError):api.request('POST','repos/Org/Other/actions/runs/1/cancel')
   with self.assertRaises(ValueError):api.request('POST','repos/Org/Repo/actions/runs/1/rerun')
- def test_workflow_privileged_source_and_default_dry_run_contract(self):
+ def test_workflow_privileged_source_and_default_on_contract(self):
   root=Path(__file__).resolve().parents[2];text=(root/'.github/workflows/merged-pr-cleanup.yml').read_text()
   self.assertIn('pull_request_target:',text);self.assertIn('types: [closed]',text);self.assertIn('ref: ${{ github.workflow_sha }}',text)
   self.assertIn('persist-credentials: false',text);self.assertIn('cancel-in-progress: false',text);self.assertIn('INNO_MERGED_PR_CLEANUP',text)
   self.assertNotIn('pull_request.head.ref',text);self.assertNotIn('pull_request.head.sha',text);self.assertNotIn('contents: write',text)
   inspect=text.split('  inspect:\n',1)[1].split('  cleanup:\n',1)[0];apply=text.split('  cleanup:\n',1)[1]
-  self.assertIn('actions: read',inspect);self.assertNotIn('actions: write',inspect);self.assertIn("vars.INNO_MERGED_PR_CLEANUP != 'enabled'",inspect)
-  self.assertIn('actions: write',apply);self.assertIn("vars.INNO_MERGED_PR_CLEANUP == 'enabled'",apply)
+  self.assertIn('actions: read',inspect);self.assertNotIn('actions: write',inspect);self.assertIn("!(vars.INNO_MERGED_PR_CLEANUP == '' || vars.INNO_MERGED_PR_CLEANUP == 'enabled')",inspect)
+  self.assertIn('actions: write',apply);self.assertIn("(vars.INNO_MERGED_PR_CLEANUP == '' || vars.INNO_MERGED_PR_CLEANUP == 'enabled')",apply)
+ def test_cleanup_default_on_and_disable_are_complementary(self):
+  from test_ci_event_routing import expression_value
+  on="(vars.INNO_MERGED_PR_CLEANUP == '' || vars.INNO_MERGED_PR_CLEANUP == 'enabled')"
+  for value,expected in [('',True),('enabled',True),('ENABLED',True),('disabled',False),('unknown',False)]:
+   env={'vars.INNO_MERGED_PR_CLEANUP':value}
+   self.assertEqual(bool(expression_value(on,env)),expected)
+   self.assertEqual(bool(expression_value('!'+on,env)),not expected)
 if __name__=='__main__':unittest.main()
