@@ -55,6 +55,7 @@ ALLOWED_STEP_SKIP = {("docc / docc", "Upload GitHub Pages Artifact"),
                      ("remote-consumer / Exact-SHA macro and plugin consumer", "Confirm the revision is the published main tip")}
 
 ALLOWED_STEP_SKIP.update({('CI Required', 'Verify prior validation for metadata')})
+ALLOWED_STEP_SKIP.add(('CI and public operations policy', 'Validate prose-only documentation'))
 
 
 class Rejected(ValueError):

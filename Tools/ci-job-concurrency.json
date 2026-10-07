@@ -1,0 +1,141 @@
+{
+  "schema": 1,
+  "feature": "INNO_JOB_CANCELLATION",
+  "scripts": "Tools",
+  "metadata": "(github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base)))",
+  "workflows": {
+    ".github/workflows/macro-tests.yml": {
+      "original_concurrency": {
+        "group": "macro-tests-${{ github.ref }}",
+        "cancel-in-progress": "${{ !(github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base))) }}",
+        "queue": "${{ (github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base))) && 'max' || 'single' }}"
+      },
+      "jobs": {
+        "policy": {
+          "axes": [],
+          "matrix": {},
+          "product_flags": [],
+          "product_key": "needs.ci-plan.outputs.product-key"
+        },
+        "documentation-contracts": {
+          "axes": [],
+          "matrix": {},
+          "product_flags": [],
+          "product_key": "needs.ci-plan.outputs.product-key"
+        },
+        "fast-tests": {
+          "axes": [],
+          "matrix": {},
+          "product_flags": [],
+          "product_key": "needs.ci-plan.outputs.product-key"
+        },
+        "macro-tests": {
+          "axes": [],
+          "matrix": {},
+          "product_flags": [],
+          "product_key": "needs.ci-plan.outputs.product-key"
+        },
+        "consumer-contracts": {
+          "axes": [],
+          "matrix": {},
+          "product_flags": [],
+          "product_key": "needs.ci-plan.outputs.product-key"
+        },
+        "sanitizers": {
+          "axes": [],
+          "matrix": {},
+          "product_flags": [],
+          "product_key": "needs.ci-plan.outputs.product-key"
+        },
+        "swift-62-compatibility": {
+          "axes": [],
+          "matrix": {},
+          "product_flags": [],
+          "product_key": "needs.ci-plan.outputs.product-key"
+        },
+        "xcode-27-compatibility": {
+          "axes": [],
+          "matrix": {},
+          "product_flags": [],
+          "product_key": "needs.ci-plan.outputs.product-key"
+        },
+        "apple-platform-builds": {
+          "axes": [],
+          "matrix": {},
+          "product_flags": [],
+          "product_key": "needs.ci-plan.outputs.product-key"
+        },
+        "path-identity": {
+          "axes": [],
+          "matrix": {},
+          "product_flags": [],
+          "product_key": "needs.ci-plan.outputs.product-key"
+        }
+      },
+      "excluded_jobs": {
+        "ci-plan": "planner/final aggregate or metadata observer",
+        "examples": "reusable call may own child aggregates/writers; caller cancellation left unchanged",
+        "docc": "reusable call may own child aggregates/writers; caller cancellation left unchanged",
+        "remote-consumer": "reusable call may own child aggregates/writers; caller cancellation left unchanged",
+        "ci-required": "planner/final aggregate or metadata observer",
+        "append-perf-history": "planner/final aggregate or metadata observer"
+      },
+      "metadata_gates": {
+        "ci-required": {
+          "timeout": 5,
+          "command": "python3 -B Tools/verify-ci-metadata.py --check 'CI Required'"
+        }
+      },
+      "excluded_concurrency": {
+        "ci-plan": null,
+        "examples": null,
+        "docc": null,
+        "remote-consumer": null,
+        "ci-required": null,
+        "append-perf-history": {
+          "group": "perf-history",
+          "cancel-in-progress": false
+        }
+      }
+    },
+    ".github/workflows/examples.yml": {
+      "original_concurrency": null,
+      "jobs": {
+        "sample-app": {
+          "axes": [],
+          "matrix": {},
+          "product_flags": [
+            "INNODI_PRODUCT_CI"
+          ],
+          "product_key": "inputs.product-key"
+        },
+        "swiftui-example": {
+          "axes": [],
+          "matrix": {},
+          "product_flags": [
+            "INNODI_PRODUCT_CI"
+          ],
+          "product_key": "inputs.product-key"
+        },
+        "preview-injection-example": {
+          "axes": [],
+          "matrix": {},
+          "product_flags": [
+            "INNODI_PRODUCT_CI"
+          ],
+          "product_key": "inputs.product-key"
+        }
+      },
+      "excluded_jobs": {
+        "examples-required": "final aggregate excluded"
+      },
+      "metadata_gates": {},
+      "excluded_concurrency": {
+        "examples-required": null
+      }
+    }
+  },
+  "lane_labels": [
+    "release-validation"
+  ]
+}

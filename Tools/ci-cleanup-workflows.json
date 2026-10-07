@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "repository": "InnoSquadCorp/InnoDI",
+  "status": "reviewed-local-proposal-not-active",
+  "merged_pr_pull_request_workflow_allowlist": [
+    ".github/workflows/macro-tests.yml"
+  ],
+  "always_preserved_workflows": [
+    ".github/workflows/cold-build-benchmark.yml",
+    ".github/workflows/dependabot-auto-merge.yml",
+    ".github/workflows/dependabot-ready.yml",
+    ".github/workflows/dependabot-review-notice.yml",
+    ".github/workflows/docc-validation.yml",
+    ".github/workflows/docs.yml",
+    ".github/workflows/examples.yml",
+    ".github/workflows/perf-history.yml",
+    ".github/workflows/release.yml",
+    ".github/workflows/remote-consumer-smoke.yml",
+    ".github/workflows/runtime-trace-diagnostics.yml"
+  ],
+  "event_filter": "pull_request only; never select by SHA alone",
+  "permission_activation": "requires separately authorized trusted handler"
+}

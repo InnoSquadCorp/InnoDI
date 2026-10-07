@@ -51,6 +51,7 @@ PROOF_FIELDS = {"schema", "repository_id", "main", "base", "head", "merge", "tre
                 "pr", "run", "attempt", "workflow", "suite", "reused_jobs"}
 
 STEP_SKIPS.update({('CI Required', 'Verify prior validation for metadata')})
+STEP_SKIPS.add(('CI and public operations policy', 'Validate prose-only documentation'))
 
 
 class Rejected(ValueError):

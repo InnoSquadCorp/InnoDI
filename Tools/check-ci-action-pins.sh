@@ -120,7 +120,9 @@ for workflow_path in workflow_files:
         )
 
     expected_job_permissions: dict[str, dict[str, str]] = {}
-    if workflow_path.name == "docs.yml":
+    if workflow_path.name == "merged-pr-cleanup.yml":
+        expected_job_permissions = {"inspect": {"contents": "read", "actions": "read", "pull-requests": "read"}, "cleanup": {"contents": "read", "actions": "write", "pull-requests": "read"}}
+    elif workflow_path.name == "docs.yml":
         expected_job_permissions = {
             "deploy-pages": {"pages": "write", "id-token": "write"},
             "docc": {"actions": "read", "contents": "read"},

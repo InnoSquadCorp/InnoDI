@@ -1,0 +1,857 @@
+{
+  "schema": 1,
+  "manifest_sha256": "2cca3eab3ad411cb0d37e562a5f09f2542ff05ef7f3416a7071c65aa276fabcb",
+  "targets": {
+    "InnoDICore": {
+      "inputs": [
+        "Sources/InnoDICore/"
+      ],
+      "kind": "regular",
+      "dependencies": []
+    },
+    "InnoDIWorkspaceAnalysis": {
+      "inputs": [
+        "Sources/InnoDIWorkspaceAnalysis/"
+      ],
+      "kind": "regular",
+      "dependencies": []
+    },
+    "InnoDITestSupport": {
+      "inputs": [
+        "Tests/TestSupport/"
+      ],
+      "kind": "regular",
+      "dependencies": []
+    },
+    "InnoDI": {
+      "inputs": [
+        "Sources/InnoDI/"
+      ],
+      "kind": "regular",
+      "dependencies": [
+        "InnoDIMacros"
+      ]
+    },
+    "InnoDISwiftUI": {
+      "inputs": [
+        "Sources/InnoDISwiftUI/"
+      ],
+      "kind": "regular",
+      "dependencies": [
+        "InnoDI"
+      ]
+    },
+    "InnoDITesting": {
+      "inputs": [
+        "Sources/InnoDITesting/"
+      ],
+      "kind": "regular",
+      "dependencies": [
+        "InnoDI"
+      ]
+    },
+    "InnoDIBuildSupport": {
+      "inputs": [
+        "Sources/InnoDIBuildSupport/"
+      ],
+      "kind": "regular",
+      "dependencies": [
+        "InnoDICore",
+        "InnoDIDependencyGraphCore",
+        "InnoDIWorkspaceAnalysis"
+      ]
+    },
+    "InnoDIDependencyGraphCore": {
+      "inputs": [
+        "Sources/InnoDIDependencyGraphCore/"
+      ],
+      "kind": "regular",
+      "dependencies": [
+        "InnoDICore",
+        "InnoDIWorkspaceAnalysis"
+      ]
+    },
+    "InnoDIDependencyGraphCLI": {
+      "inputs": [
+        "Sources/InnoDIDependencyGraphCLI/"
+      ],
+      "kind": "regular",
+      "dependencies": [
+        "InnoDIBuildSupport",
+        "InnoDICore",
+        "InnoDIDependencyGraphCore",
+        "InnoDIWorkspaceAnalysis"
+      ]
+    },
+    "InnoDIMigrationCore": {
+      "inputs": [
+        "Sources/InnoDIMigrationCore/"
+      ],
+      "kind": "regular",
+      "dependencies": [
+        "InnoDICore"
+      ]
+    },
+    "InnoDIDoctorCore": {
+      "inputs": [
+        "Sources/InnoDIDoctorCore/"
+      ],
+      "kind": "regular",
+      "dependencies": [
+        "InnoDIDependencyGraphCore",
+        "InnoDIMigrationCore",
+        "InnoDIWorkspaceAnalysis"
+      ]
+    },
+    "InnoDI-DependencyGraph": {
+      "inputs": [
+        "Sources/InnoDI-DependencyGraph/"
+      ],
+      "kind": "executable",
+      "dependencies": [
+        "InnoDIDependencyGraphCLI"
+      ]
+    },
+    "InnoDI-Migrate": {
+      "inputs": [
+        "Sources/InnoDI-Migrate/"
+      ],
+      "kind": "executable",
+      "dependencies": [
+        "InnoDIMigrationCore"
+      ]
+    },
+    "InnoDI-Doctor": {
+      "inputs": [
+        "Sources/InnoDI-Doctor/"
+      ],
+      "kind": "executable",
+      "dependencies": [
+        "InnoDIDoctorCore"
+      ]
+    },
+    "InnoDI-DAGValidationCoordinator": {
+      "inputs": [
+        "Sources/InnoDI-DAGValidationCoordinator/"
+      ],
+      "kind": "executable",
+      "dependencies": [
+        "InnoDIBuildSupport"
+      ]
+    },
+    "InnoDI-DeferredAliasScan": {
+      "inputs": [
+        "Sources/InnoDI-DeferredAliasScan/"
+      ],
+      "kind": "executable",
+      "dependencies": [
+        "InnoDIWorkspaceAnalysis"
+      ]
+    },
+    "InnoDIDAGValidationPlugin": {
+      "inputs": [
+        "Plugins/InnoDIDAGValidationPlugin/"
+      ],
+      "kind": "plugin",
+      "dependencies": [
+        "InnoDI-DAGValidationCoordinator"
+      ]
+    },
+    "InnoDIMacros": {
+      "inputs": [
+        "Sources/InnoDIMacros/"
+      ],
+      "kind": "macro",
+      "dependencies": [
+        "InnoDICore"
+      ]
+    },
+    "InnoDICoreTests": {
+      "inputs": [
+        "Tests/InnoDICoreTests/"
+      ],
+      "kind": "test",
+      "dependencies": [
+        "InnoDICore",
+        "InnoDITestSupport"
+      ]
+    },
+    "InnoDIMacrosTests": {
+      "inputs": [
+        "Tests/InnoDIMacrosTests/"
+      ],
+      "kind": "test",
+      "dependencies": [
+        "InnoDIDependencyGraphCore",
+        "InnoDIMacros",
+        "InnoDITestSupport",
+        "InnoDIWorkspaceAnalysis"
+      ]
+    },
+    "InnoDIDependencyGraphCLITests": {
+      "inputs": [
+        "Tests/InnoDIDependencyGraphCLITests/"
+      ],
+      "kind": "test",
+      "dependencies": [
+        "InnoDI-DependencyGraph",
+        "InnoDIBuildSupport",
+        "InnoDIDependencyGraphCLI",
+        "InnoDIDependencyGraphCore",
+        "InnoDITestSupport",
+        "InnoDIWorkspaceAnalysis"
+      ]
+    },
+    "InnoDIMigrationCoreTests": {
+      "inputs": [
+        "Tests/InnoDIMigrationCoreTests/"
+      ],
+      "kind": "test",
+      "dependencies": [
+        "InnoDI-Migrate",
+        "InnoDIMigrationCore",
+        "InnoDITestSupport"
+      ]
+    },
+    "InnoDIDoctorCoreTests": {
+      "inputs": [
+        "Tests/InnoDIDoctorCoreTests/"
+      ],
+      "kind": "test",
+      "dependencies": [
+        "InnoDIDoctorCore"
+      ]
+    },
+    "InnoDIBuildSupportTests": {
+      "inputs": [
+        "Tests/InnoDIBuildSupportTests/"
+      ],
+      "kind": "test",
+      "dependencies": [
+        "InnoDIBuildSupport",
+        "InnoDICore",
+        "InnoDITestSupport",
+        "InnoDIWorkspaceAnalysis"
+      ]
+    },
+    "InnoDIRuntimeTests": {
+      "inputs": [
+        "Tests/InnoDIRuntimeTests/"
+      ],
+      "kind": "test",
+      "dependencies": [
+        "InnoDI"
+      ]
+    },
+    "InnoDISwiftUITests": {
+      "inputs": [
+        "Tests/InnoDISwiftUITests/"
+      ],
+      "kind": "test",
+      "dependencies": [
+        "InnoDISwiftUI"
+      ]
+    },
+    "InnoDITestingTests": {
+      "inputs": [
+        "Tests/InnoDITestingTests/"
+      ],
+      "kind": "test",
+      "dependencies": [
+        "InnoDITesting"
+      ]
+    }
+  },
+  "products": {
+    "InnoDI": [
+      "InnoDI"
+    ],
+    "InnoDISwiftUI": [
+      "InnoDISwiftUI"
+    ],
+    "InnoDITesting": [
+      "InnoDITesting"
+    ],
+    "InnoDI-DependencyGraph": [
+      "InnoDI-DependencyGraph"
+    ],
+    "InnoDI-Migrate": [
+      "InnoDI-Migrate"
+    ],
+    "InnoDI-Doctor": [
+      "InnoDI-Doctor"
+    ],
+    "InnoDIDAGValidationPlugin": [
+      "InnoDIDAGValidationPlugin"
+    ]
+  },
+  "full_targets": [
+    "InnoDICore",
+    "InnoDIWorkspaceAnalysis",
+    "InnoDITestSupport",
+    "InnoDIBuildSupport",
+    "InnoDIDAGValidationPlugin",
+    "InnoDIMacros"
+  ],
+  "consumers": {
+    "Examples/PreviewInjectionExample": {
+      "path": "Examples/PreviewInjectionExample",
+      "products": [
+        "InnoDIDAGValidationPlugin",
+        "InnoDISwiftUI"
+      ]
+    },
+    "Examples/SampleApp": {
+      "path": "Examples/SampleApp",
+      "products": [
+        "InnoDI",
+        "InnoDIDAGValidationPlugin"
+      ]
+    },
+    "Examples/SwiftUIExample": {
+      "path": "Examples/SwiftUIExample",
+      "products": [
+        "InnoDIDAGValidationPlugin",
+        "InnoDISwiftUI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/accessor-local-container-plugin": {
+      "path": "Tests/ExternalConsumerFixtures/fail/accessor-local-container-plugin",
+      "products": [
+        "InnoDI",
+        "InnoDIDAGValidationPlugin"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/assisted-factory-invalid-key-path": {
+      "path": "Tests/ExternalConsumerFixtures/fail/assisted-factory-invalid-key-path",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/async-ondemand-provider-contract": {
+      "path": "Tests/ExternalConsumerFixtures/fail/async-ondemand-provider-contract",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/conditional-feature-root-helper-collision": {
+      "path": "Tests/ExternalConsumerFixtures/fail/conditional-feature-root-helper-collision",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/conditional-subcontainer": {
+      "path": "Tests/ExternalConsumerFixtures/fail/conditional-subcontainer",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/deferred-ownership-cycle": {
+      "path": "Tests/ExternalConsumerFixtures/fail/deferred-ownership-cycle",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/dependency-ordered-cycle": {
+      "path": "Tests/ExternalConsumerFixtures/fail/dependency-ordered-cycle",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/dependency-ordered-effect": {
+      "path": "Tests/ExternalConsumerFixtures/fail/dependency-ordered-effect",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/duplicate-provider-identities": {
+      "path": "Tests/ExternalConsumerFixtures/fail/duplicate-provider-identities",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/dynamic-provide-scope": {
+      "path": "Tests/ExternalConsumerFixtures/fail/dynamic-provide-scope",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/environment-bridge-codegen-collisions": {
+      "path": "Tests/ExternalConsumerFixtures/fail/environment-bridge-codegen-collisions",
+      "products": [
+        "InnoDISwiftUI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/environment-bridge-enclosing-qualifier-shadows": {
+      "path": "Tests/ExternalConsumerFixtures/fail/environment-bridge-enclosing-qualifier-shadows",
+      "products": [
+        "InnoDISwiftUI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/environment-bridge-extension-context": {
+      "path": "Tests/ExternalConsumerFixtures/fail/environment-bridge-extension-context",
+      "products": [
+        "InnoDISwiftUI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/environment-bridge-generic-qualifier-shadows": {
+      "path": "Tests/ExternalConsumerFixtures/fail/environment-bridge-generic-qualifier-shadows",
+      "products": [
+        "InnoDISwiftUI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/environment-bridge-qualifier-shadows": {
+      "path": "Tests/ExternalConsumerFixtures/fail/environment-bridge-qualifier-shadows",
+      "products": [
+        "InnoDISwiftUI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/escaped-component-target": {
+      "path": "Tests/ExternalConsumerFixtures/fail/escaped-component-target",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/feature-root-invalid-subcontainer-shape": {
+      "path": "Tests/ExternalConsumerFixtures/fail/feature-root-invalid-subcontainer-shape",
+      "products": [
+        "InnoDISwiftUI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/full-source-qualifier-plugin": {
+      "path": "Tests/ExternalConsumerFixtures/fail/full-source-qualifier-plugin",
+      "products": [
+        "InnoDIDAGValidationPlugin",
+        "InnoDISwiftUI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/generate-mock-recording-lifetimes": {
+      "path": "Tests/ExternalConsumerFixtures/fail/generate-mock-recording-lifetimes",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/generate-mock-unsupported-matrix": {
+      "path": "Tests/ExternalConsumerFixtures/fail/generate-mock-unsupported-matrix",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/generated-enclosing-qualifier-shadows": {
+      "path": "Tests/ExternalConsumerFixtures/fail/generated-enclosing-qualifier-shadows",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/generated-qualifier-shadows": {
+      "path": "Tests/ExternalConsumerFixtures/fail/generated-qualifier-shadows",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/generated-qualifier-usage-sensitive-collisions": {
+      "path": "Tests/ExternalConsumerFixtures/fail/generated-qualifier-usage-sensitive-collisions",
+      "products": [
+        "InnoDI",
+        "InnoDIDAGValidationPlugin"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/generated-reserved-member-shadows": {
+      "path": "Tests/ExternalConsumerFixtures/fail/generated-reserved-member-shadows",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/generated-support-recovery": {
+      "path": "Tests/ExternalConsumerFixtures/fail/generated-support-recovery",
+      "products": [
+        "InnoDISwiftUI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/generated-symbol-collisions": {
+      "path": "Tests/ExternalConsumerFixtures/fail/generated-symbol-collisions",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/incompatible-provider-effects": {
+      "path": "Tests/ExternalConsumerFixtures/fail/incompatible-provider-effects",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/innodi-swiftui-does-not-reexport-swiftui": {
+      "path": "Tests/ExternalConsumerFixtures/fail/innodi-swiftui-does-not-reexport-swiftui",
+      "products": [
+        "InnoDI",
+        "InnoDISwiftUI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/mainactor-component-off-actor": {
+      "path": "Tests/ExternalConsumerFixtures/fail/mainactor-component-off-actor",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/named-parent-key-path-roots": {
+      "path": "Tests/ExternalConsumerFixtures/fail/named-parent-key-path-roots",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/override-helper-swift-shadow": {
+      "path": "Tests/ExternalConsumerFixtures/fail/override-helper-swift-shadow",
+      "products": [
+        "InnoDI",
+        "InnoDIDAGValidationPlugin"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/owned-name-collision": {
+      "path": "Tests/ExternalConsumerFixtures/fail/owned-name-collision",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/owned-private-child": {
+      "path": "Tests/ExternalConsumerFixtures/fail/owned-private-child",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/owned-requires-dag": {
+      "path": "Tests/ExternalConsumerFixtures/fail/owned-requires-dag",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/owned-selection-not-resolver": {
+      "path": "Tests/ExternalConsumerFixtures/fail/owned-selection-not-resolver",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/owned-sync-selection": {
+      "path": "Tests/ExternalConsumerFixtures/fail/owned-sync-selection",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/owned-type-name-collision": {
+      "path": "Tests/ExternalConsumerFixtures/fail/owned-type-name-collision",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/owned-unsupported": {
+      "path": "Tests/ExternalConsumerFixtures/fail/owned-unsupported",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/owned-wrong-container": {
+      "path": "Tests/ExternalConsumerFixtures/fail/owned-wrong-container",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/owned-wrong-executor": {
+      "path": "Tests/ExternalConsumerFixtures/fail/owned-wrong-executor",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/private-container-access": {
+      "path": "Tests/ExternalConsumerFixtures/fail/private-container-access",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/provide-direct-member-contract": {
+      "path": "Tests/ExternalConsumerFixtures/fail/provide-direct-member-contract",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/same-file-extension-custom-init-plugin": {
+      "path": "Tests/ExternalConsumerFixtures/fail/same-file-extension-custom-init-plugin",
+      "products": [
+        "InnoDI",
+        "InnoDIDAGValidationPlugin"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/shared-factory-required": {
+      "path": "Tests/ExternalConsumerFixtures/fail/shared-factory-required",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/subcontainer-binding-order": {
+      "path": "Tests/ExternalConsumerFixtures/fail/subcontainer-binding-order",
+      "products": [
+        "InnoDI",
+        "InnoDIDAGValidationPlugin"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/subcontainer-hidden-accessor-manual-attachment": {
+      "path": "Tests/ExternalConsumerFixtures/fail/subcontainer-hidden-accessor-manual-attachment",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/subcontainer-overrides-conflict": {
+      "path": "Tests/ExternalConsumerFixtures/fail/subcontainer-overrides-conflict",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/subcontainer-validator-recovery": {
+      "path": "Tests/ExternalConsumerFixtures/fail/subcontainer-validator-recovery",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/transient-incompatible-provider-effects": {
+      "path": "Tests/ExternalConsumerFixtures/fail/transient-incompatible-provider-effects",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/typed-prewarm-name-collision": {
+      "path": "Tests/ExternalConsumerFixtures/fail/typed-prewarm-name-collision",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/typed-prewarm-selection-only": {
+      "path": "Tests/ExternalConsumerFixtures/fail/typed-prewarm-selection-only",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/typed-prewarm-unsupported": {
+      "path": "Tests/ExternalConsumerFixtures/fail/typed-prewarm-unsupported",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/typed-prewarm-wrong-container": {
+      "path": "Tests/ExternalConsumerFixtures/fail/typed-prewarm-wrong-container",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/typed-prewarm-wrong-executor": {
+      "path": "Tests/ExternalConsumerFixtures/fail/typed-prewarm-wrong-executor",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/unmanaged-container-state": {
+      "path": "Tests/ExternalConsumerFixtures/fail/unmanaged-container-state",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/fail/unsupported-container-declarations": {
+      "path": "Tests/ExternalConsumerFixtures/fail/unsupported-container-declarations",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/pass/assisted-factory-cross-module": {
+      "path": "Tests/ExternalConsumerFixtures/pass/assisted-factory-cross-module",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/pass/assisted-factory-same-target": {
+      "path": "Tests/ExternalConsumerFixtures/pass/assisted-factory-same-target",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/pass/async-effect-chain": {
+      "path": "Tests/ExternalConsumerFixtures/pass/async-effect-chain",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/pass/basic-container": {
+      "path": "Tests/ExternalConsumerFixtures/pass/basic-container",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/pass/caller-isolated-async": {
+      "path": "Tests/ExternalConsumerFixtures/pass/caller-isolated-async",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/pass/clang-plugin-target": {
+      "path": "Tests/ExternalConsumerFixtures/pass/clang-plugin-target",
+      "products": [
+        "InnoDI",
+        "InnoDIDAGValidationPlugin"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/pass/collection-cross-module": {
+      "path": "Tests/ExternalConsumerFixtures/pass/collection-cross-module",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/pass/dependency-ordered-container": {
+      "path": "Tests/ExternalConsumerFixtures/pass/dependency-ordered-container",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/pass/effect-override-preflight": {
+      "path": "Tests/ExternalConsumerFixtures/pass/effect-override-preflight",
+      "products": [
+        "InnoDI",
+        "InnoDITesting"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/pass/empty-override-swift-shadow": {
+      "path": "Tests/ExternalConsumerFixtures/pass/empty-override-swift-shadow",
+      "products": [
+        "InnoDI",
+        "InnoDIDAGValidationPlugin"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/pass/environment-bridge-target-name-shadow": {
+      "path": "Tests/ExternalConsumerFixtures/pass/environment-bridge-target-name-shadow",
+      "products": [
+        "InnoDI",
+        "InnoDISwiftUI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/pass/explicit-default-actor": {
+      "path": "Tests/ExternalConsumerFixtures/pass/explicit-default-actor",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/pass/factory-subcontainer-order": {
+      "path": "Tests/ExternalConsumerFixtures/pass/factory-subcontainer-order",
+      "products": [
+        "InnoDI",
+        "InnoDIDAGValidationPlugin"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/pass/feature-root-import-boundary": {
+      "path": "Tests/ExternalConsumerFixtures/pass/feature-root-import-boundary",
+      "products": [
+        "InnoDI",
+        "InnoDISwiftUI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/pass/generate-mock-default-actor": {
+      "path": "Tests/ExternalConsumerFixtures/pass/generate-mock-default-actor",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/pass/generate-mock-module-shadow": {
+      "path": "Tests/ExternalConsumerFixtures/pass/generate-mock-module-shadow",
+      "products": [
+        "InnoDI",
+        "InnoDITesting"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/pass/generate-mock-recording-contracts": {
+      "path": "Tests/ExternalConsumerFixtures/pass/generate-mock-recording-contracts",
+      "products": [
+        "InnoDI",
+        "InnoDITesting"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/pass/generated-identifier-hygiene": {
+      "path": "Tests/ExternalConsumerFixtures/pass/generated-identifier-hygiene",
+      "products": [
+        "InnoDI",
+        "InnoDISwiftUI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/pass/generated-qualifier-usage-sensitive-shadows": {
+      "path": "Tests/ExternalConsumerFixtures/pass/generated-qualifier-usage-sensitive-shadows",
+      "products": [
+        "InnoDI",
+        "InnoDIDAGValidationPlugin"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/pass/hierarchy-marker-shadow": {
+      "path": "Tests/ExternalConsumerFixtures/pass/hierarchy-marker-shadow",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/pass/multibinding-public": {
+      "path": "Tests/ExternalConsumerFixtures/pass/multibinding-public",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/pass/owned-container": {
+      "path": "Tests/ExternalConsumerFixtures/pass/owned-container",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/pass/owned-overrides-deferred": {
+      "path": "Tests/ExternalConsumerFixtures/pass/owned-overrides-deferred",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/pass/plugin-deferred-wrappers-repeated-names": {
+      "path": "Tests/ExternalConsumerFixtures/pass/plugin-deferred-wrappers-repeated-names",
+      "products": [
+        "InnoDI",
+        "InnoDIDAGValidationPlugin"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/pass/public-di-component": {
+      "path": "Tests/ExternalConsumerFixtures/pass/public-di-component",
+      "products": [
+        "InnoDI",
+        "InnoDISwiftUI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/pass/subcontainer-mount-recovery": {
+      "path": "Tests/ExternalConsumerFixtures/pass/subcontainer-mount-recovery",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/pass/typed-prewarm-container": {
+      "path": "Tests/ExternalConsumerFixtures/pass/typed-prewarm-container",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/ExternalConsumerFixtures/signature/stale-concrete-argument": {
+      "path": "Tests/ExternalConsumerFixtures/signature/stale-concrete-argument",
+      "products": [
+        "InnoDI"
+      ]
+    },
+    "Tests/RemoteConsumerSmoke": {
+      "path": "Tests/RemoteConsumerSmoke",
+      "products": [
+        "InnoDI",
+        "InnoDIDAGValidationPlugin"
+      ]
+    },
+    "skills/innodi/assets/consumer": {
+      "path": "skills/innodi/assets/consumer",
+      "products": [
+        "InnoDI",
+        "InnoDIDAGValidationPlugin",
+        "InnoDISwiftUI"
+      ]
+    }
+  }
+}
