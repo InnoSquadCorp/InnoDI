@@ -8,7 +8,11 @@ GRAPH=json.loads((SCRIPTS/'ci-product-graph.json').read_text());DI='InnoDI' in G
 class ProductExecutionTests(unittest.TestCase):
  def setUp(self):
   temp=tempfile.TemporaryDirectory();self.addCleanup(temp.cleanup);self.root=Path(temp.name);self.envgit={**os.environ,'GIT_AUTHOR_NAME':'Test','GIT_COMMITTER_NAME':'Test','GIT_AUTHOR_EMAIL':'test@example.invalid','GIT_COMMITTER_EMAIL':'test@example.invalid'}
-  self.git('init','-q','-b','main');(self.root/SCRIPTS.name).mkdir();shutil.copyfile(SCRIPTS/'ci-product-graph.json',self.root/SCRIPTS.name/'ci-product-graph.json');shutil.copyfile(ROOT/'Package.swift',self.root/'Package.swift');(self.root/'Package.resolved').write_text('{}');self.base=self.commit()
+  self.git('init','-q','-b','main');(self.root/SCRIPTS.name).mkdir();shutil.copyfile(SCRIPTS/'ci-product-graph.json',self.root/SCRIPTS.name/'ci-product-graph.json');shutil.copyfile(ROOT/'Package.swift',self.root/'Package.swift');(self.root/'Package.resolved').write_text(json.dumps({'version':3,'pins':[{'identity':'swift-syntax','state':{'revision':'a'*40,'version':'604.0.0'}}]}));
+  if DI:
+   for unit in ('SampleApp','SwiftUIExample','PreviewInjectionExample'):
+    folder=self.root/'Examples'/unit;folder.mkdir(parents=True);shutil.copyfile(self.root/'Package.resolved',folder/'Package.resolved')
+  self.base=self.commit()
   path=self.root/'Sources'/TARGET/'Change.swift';path.parent.mkdir(parents=True);path.write_text('struct Change {}');self.head=self.commit();self.event={'action':'synchronize','pull_request':{'base':{'sha':self.base},'head':{'sha':self.head},'user':{'login':'user'},'labels':[]}};self.path=self.root/'event.json';self.path.write_text(json.dumps(self.event));self.env={'PRODUCT_SCOPE_ENABLED':'true','GITHUB_EVENT_NAME':'pull_request','GITHUB_SHA':self.head,'GITHUB_EVENT_PATH':str(self.path)};self.calls=[]
  def git(self,*args):return subprocess.check_output(['git','-C',str(self.root),'-c','commit.gpgsign=false',*args],env=self.envgit,text=True).strip()
  def commit(self):self.git('add','-A');self.git('commit','-qm','fixture');return self.git('rev-parse','HEAD')
@@ -60,6 +64,15 @@ class ProductExecutionTests(unittest.TestCase):
   self.assertEqual(x.admit(self.root,self.env,self.dump)['mode'],'full');injected.unlink()
   self.git('rm','--cached','Package.resolved');self.git('commit','-qm','untrack lock');head=self.git('rev-parse','HEAD');self.event['pull_request']['head']['sha']=head;self.path.write_text(json.dumps(self.event));self.env['GITHUB_SHA']=head
   self.assertEqual(x.admit(self.root,self.env,self.dump)['mode'],'full')
+ def test_consumer_lock_drift_or_missing_pin_forces_full(self):
+  if not DI:return
+  lock=self.root/'Examples/SampleApp/Package.resolved';lock.write_text(json.dumps({'version':3,'pins':[{'identity':'swift-syntax','state':{'revision':'b'*40,'version':'604.0.0'}}]}));head=self.commit();self.event['pull_request']['base']['sha']=head
+  self.base=head;self.git('checkout','-q','--', 'Sources/'+TARGET+'/Change.swift');(self.root/'Sources'/TARGET/'Change.swift').write_text('struct Next {}');head=self.commit();self.event['pull_request']['head']['sha']=head;self.path.write_text(json.dumps(self.event));self.env['GITHUB_SHA']=head
+  self.assertEqual(x.admit(self.root,self.env,self.dump)['mode'],'full')
+ def test_selected_consumer_uses_force_resolved_versions(self):
+  if not DI:return
+  recipe=x.recipe(self.root,{'mode':'scoped','products':['InnoDISwiftUI']},'di-example','SwiftUIExample','macOS',self.root/'tmp')
+  self.assertTrue(all('--force-resolved-versions' in command for command in recipe['commands']))
  def test_unsupported_units_never_execute(self):
   with self.assertRaises(ValueError):x.recipe(self.root,{},'unknown','bad','macOS',self.root/'tmp')
 if __name__=='__main__':unittest.main()

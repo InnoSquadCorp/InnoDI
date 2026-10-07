@@ -89,6 +89,7 @@ jobs:
         id: plan
         env:
           CI_REUSE: ${{ steps.reuse.outputs.proof }}
+          PRODUCT_SCOPE_ENABLED: ${{ (vars.INNODI_PRODUCT_CI == '' || vars.INNODI_PRODUCT_CI == 'true') && 'true' || 'false' }}
         run: |
           python3 Tools/ci-policy.py plan --event "$GITHUB_EVENT_PATH" --output build/ci-plan.json
           python3 -B Tools/ci_product_key.py --event "$GITHUB_EVENT_PATH"
@@ -191,8 +192,8 @@ jobs:
 
   fast-tests:
     concurrency:
-      group: scoped-job-v1-${{ github.repository }}-${{ github.workflow }}-macro-tests.yml-fast-tests-pr-${{ github.event.pull_request.number }}-base-${{ github.event.pull_request.base.ref }}-${{ contains(github.event.pull_request.labels.*.name, 'release-validation') && 'release-validation' || 'no-release-validation' }}-${{ ((vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base))))) && 'active' || format('off-{0}-{1}', github.run_id, github.run_attempt) }}
-      cancel-in-progress: ${{ (vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base)))) }}
+      group: scoped-job-v1-${{ github.repository }}-${{ github.workflow }}-macro-tests.yml-fast-tests-pr-${{ github.event.pull_request.number }}-base-${{ github.event.pull_request.base.ref }}-${{ contains(github.event.pull_request.labels.*.name, 'release-validation') && 'release-validation' || 'no-release-validation' }}-${{ ((vars.INNODI_PRODUCT_CI == '' || vars.INNODI_PRODUCT_CI == 'true')) && needs.ci-plan.outputs.product-key || 'full-package' }}-${{ ((vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base)))) && (!((vars.INNODI_PRODUCT_CI == '' || vars.INNODI_PRODUCT_CI == 'true')) || needs.ci-plan.outputs.product-key != '')) && 'active' || format('off-{0}-{1}', github.run_id, github.run_attempt) }}
+      cancel-in-progress: ${{ (vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base)))) && (!((vars.INNODI_PRODUCT_CI == '' || vars.INNODI_PRODUCT_CI == 'true')) || needs.ci-plan.outputs.product-key != '') }}
     name: Fast PR contracts
     needs: ci-plan
     if: needs.ci-plan.outputs.fast-tests == 'true'
@@ -203,6 +204,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: Select Xcode 26.6
         uses: ./.github/actions/select-xcode
         with:
@@ -224,6 +226,10 @@ jobs:
           DEPENDENCY_CACHE_HIT: ${{ steps.dependency-cache.outputs.cache-hit }}
         run: python3 -B Tools/ci-cache.py restored
       - name: Run in-process test contracts
+        env:
+          CI_PLAN: ${{ needs.ci-plan.outputs.plan }}
+          PRODUCT_SCOPE_ENABLED: ${{ (vars.INNODI_PRODUCT_CI == '' || vars.INNODI_PRODUCT_CI == 'true') && 'true' || 'false' }}
+          SCOPED_PRODUCT: ${{ fromJSON(needs.ci-plan.outputs.plan).product_test_scope.product || '' }}
         # Consumer, strict-concurrency, one migration smoke, and the unique
         # binding fix-it consumer contracts spawn clean SwiftPM builds. The
         # fix-it build alone compiles SwiftSyntax from source with one job. They
@@ -235,17 +241,21 @@ jobs:
         # process fixtures cannot starve another test's async deadline; tasks
         # and contention assertions inside each test remain concurrent.
         run: |
-          set -o pipefail
+          set -euo pipefail
           mkdir -p build
-          swift test \
-            --no-parallel \
-            -Xswiftc -strict-concurrency=complete \
-            -Xswiftc -warnings-as-errors \
-            --skip 'InnoDIBuildSupportTests.PublicAPIContractTests/compilerDefaultArgumentContract' \
-            --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)' \
-            --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer' \
-            --skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs' \
-            2>&1 | tee build/fast-pr-test-output.log
+          if [[ -n "$SCOPED_PRODUCT" ]]; then
+            python3 -B Tools/run_ci_product_tests.py test 2>&1 | tee build/fast-pr-test-output.log
+          else
+            swift test \
+              --no-parallel \
+              -Xswiftc -strict-concurrency=complete \
+              -Xswiftc -warnings-as-errors \
+              --skip 'InnoDIBuildSupportTests.PublicAPIContractTests/compilerDefaultArgumentContract' \
+              --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)' \
+              --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer' \
+              --skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs' \
+              2>&1 | tee build/fast-pr-test-output.log
+          fi
       - name: Summarize test suite durations
         if: ${{ always() && hashFiles('build/fast-pr-test-output.log') != '' }}
         run: |
@@ -257,8 +267,17 @@ jobs:
           Tools/check-ci-validation-opt-out.sh
           Tools/check-ci-action-pins.sh
       - name: Validate public API and Global DAG
+        env:
+          CI_PLAN: ${{ needs.ci-plan.outputs.plan }}
+          PRODUCT_SCOPE_ENABLED: ${{ (vars.INNODI_PRODUCT_CI == '' || vars.INNODI_PRODUCT_CI == 'true') && 'true' || 'false' }}
+          SCOPED_PRODUCT: ${{ fromJSON(needs.ci-plan.outputs.plan).product_test_scope.product || '' }}
         run: |
-          Tools/check-public-api.py
+          set -euo pipefail
+          if [[ -n "$SCOPED_PRODUCT" ]]; then
+            python3 -B Tools/run_ci_product_tests.py api
+          else
+            Tools/check-public-api.py
+          fi
           swift run InnoDI-DependencyGraph --root . --validate-dag
       - name: Report Build-Validation Escape Hatches
         env:
@@ -285,6 +304,19 @@ jobs:
           name: deferred-aliases-report-fast-pr
           path: build/deferred-aliases.json
           if-no-files-found: error
+      - name: Upload scoped product test evidence
+        if: ${{ always() && fromJSON(needs.ci-plan.outputs.plan).product_test_scope.product != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: scoped-product-tests-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            build/ci-product-test-receipt.json
+            build/ci-product-api-result.json
+            build/ci-product-api-evidence
+            build/ci-product-build-evidence
+            build/fast-pr-test-output.log
+          if-no-files-found: error
+          retention-days: 7
       - name: Report cache and validation observations
         if: ${{ always() && steps.cache-inputs.outcome == 'success' }}
         run: python3 -B Tools/ci-cache.py report
@@ -366,6 +398,26 @@ jobs:
           name: public-api-current-${{ github.sha }}
           path: build/public-api-current.json
           if-no-files-found: error
+      - name: Qualify isolated product test packages
+        id: qualify-product-tests
+        if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]' && !contains(github.event.pull_request.labels.*.name, 'release-validation') && (hashFiles('Tools/CIProductTests/InnoDISwiftUI/qualification.json') == '' || hashFiles('Tools/CIProductTests/InnoDITesting/qualification.json') == '')
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/ci-test-qualification"
+          mkdir -p "$evidence"
+          xcrun swift test --skip-build --list-tests --no-parallel -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors > "$evidence/full-list.txt"
+          python3 -B Tools/collect_ci_resolution_evidence.py --unit SampleApp --include-product-tests --output "$evidence/resolution"
+          python3 -B Tools/ci_product_tests.py inspect --root . --output "$evidence/manifests"
+          python3 -B Tools/ci_product_tests.py qualify --root . --product InnoDISwiftUI --full-list "$evidence/full-list.txt" --full-api-contract build/public-api-current.json --output "$evidence/InnoDISwiftUI-qualification.json"
+          python3 -B Tools/ci_product_tests.py qualify --root . --product InnoDITesting --full-list "$evidence/full-list.txt" --full-api-contract build/public-api-current.json --output "$evidence/InnoDITesting-qualification.json"
+      - name: Upload product test qualification evidence
+        if: ${{ always() && (steps.qualify-product-tests.outcome == 'success' || steps.qualify-product-tests.outcome == 'failure') }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-test-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ci-test-qualification
+          if-no-files-found: warn
+          retention-days: 7
       - name: Validate Global DAG
         run: swift run InnoDI-DependencyGraph --root . --validate-dag
       - name: Report Build-Validation Escape Hatches
@@ -833,6 +885,7 @@ jobs:
       - name: Require every planned result
         if: ${{ !(github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base))) }}
         env:
+          PRODUCT_SCOPE_ENABLED: ${{ (vars.INNODI_PRODUCT_CI == '' || vars.INNODI_PRODUCT_CI == 'true') && 'true' || 'false' }}
           CI_PLAN: ${{ needs.ci-plan.outputs.plan }}
           CI_NEEDS: ${{ toJSON(needs) }}
           CI_REUSE: ${{ needs.ci-plan.outputs.reuse-proof }}

@@ -196,9 +196,37 @@ def make_plan(event_name, event, paths):
             "changes": reasons}
 
 
+def product_scope_module():
+    spec = importlib.util.spec_from_file_location("product_test_scope", Path(__file__).with_name("ci_product_test_scope.py"))
+    value = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(value)
+    return value
+
+
+def apply_product_tests(plan, root, event, paths):
+    if plan.get("prose_only") or plan["lane"] != "fast" or plan["jobs"]["macro-tests"]:
+        return plan
+    proof = product_scope_module().prove(root, event, os.environ)
+    if proof is None:
+        return plan
+    scope = product_scope_module()
+    scope.validate(proof, paths)
+    return {**plan, "product_test_scope": proof,
+            "jobs": {job: job in scope.required_jobs(proof["product"]) for job in JOBS},
+            "examples_full": proof["product"] == "InnoDISwiftUI"}
+
+
 def validate_plan(plan):
-    if not isinstance(plan, dict) or (set(plan) - {"prose_only"}) != {"schema", "lane", "jobs", "examples_full", "changes"}:
+    if not isinstance(plan, dict) or (set(plan) - {"prose_only", "product_test_scope"}) != {"schema", "lane", "jobs", "examples_full", "changes"}:
         raise ValueError("missing or unknown plan fields")
+    product = plan.get("product_test_scope")
+    if "product_test_scope" in plan:
+        if "prose_only" in plan or plan.get("lane") != "fast" or not isinstance(plan.get("changes"), list):
+            raise ValueError("invalid product-only PR lane")
+        scope = product_scope_module()
+        scope.validate(product, [change.get("path") for change in plan["changes"] if isinstance(change, dict)])
+        if plan.get("jobs") != {job: job in scope.required_jobs(product["product"]) for job in JOBS}:
+            raise ValueError("product lane suppresses required scoped/shared contracts")
     prose = plan.get("prose_only")
     if "prose_only" in plan:
         if not isinstance(plan.get("changes"), list):
@@ -227,12 +255,14 @@ def validate_plan(plan):
         impact, reason = path_impact(change["path"])
         if plan["jobs"]["macro-tests"]:
             impact = impact - {"fast-tests"}
-        if change["reason"] != reason or (not prose and any(not plan["jobs"][j] for j in impact)):
+        if change["reason"] != reason or (not prose and not product and any(not plan["jobs"][j] for j in impact)):
             raise ValueError("plan suppresses changed-path requirements")
     examples_full = plan["lane"] != "fast" or plan["jobs"]["macro-tests"] or any(
         c["reason"] in ("example", "workflow:examples.yml", "unknown path (full fallback)") for c in plan["changes"])
     if prose:
         examples_full = False
+    if product:
+        examples_full = product["product"] == "InnoDISwiftUI"
     if plan["examples_full"] != examples_full:
         raise ValueError("plan suppresses extended example requirements")
 
@@ -243,6 +273,10 @@ def evaluate(plan, needs, proof=None, root=None, event=None):
         if root is None or not isinstance(event, dict):
             raise ValueError("prose-only result requires immutable Git revalidation")
         prose_module().revalidate(root, event, plan["prose_only"], [change["path"] for change in plan["changes"]])
+    if "product_test_scope" in plan:
+        if root is None or not isinstance(event, dict):
+            raise ValueError("product-only result requires exact Git/qualification revalidation")
+        product_scope_module().revalidate(root, event, os.environ, plan["product_test_scope"], [change["path"] for change in plan["changes"]])
     reused = reused_jobs(plan, proof or {})
     if not isinstance(needs, dict) or set(needs) != set(JOBS) | {"ci-plan"}:
         raise ValueError("missing or unexpected CI result")
@@ -284,6 +318,7 @@ def main():
                     print(f"Changed-file evidence unavailable; selecting full validation: {error}", file=sys.stderr)
                     paths = ["__diff_unavailable_full_fallback__"]
             plan = apply_prose(make_plan(event_name, event, paths), args.root, event, paths)
+            plan = apply_product_tests(plan, args.root, event, paths)
             validate_plan(plan)
             proof = json.loads(args.reuse_proof_json)
             reused = reused_jobs(plan, proof)
@@ -311,7 +346,7 @@ def main():
                 # Lost/raced proof is an aggregate failure, never a green skip.
                 reuse.revalidate(proof, event, os.environ)
             plan = json.loads(args.plan_json)
-            event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text()) if "prose_only" in plan else None
+            event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text()) if "prose_only" in plan or "product_test_scope" in plan else None
             evaluate(plan, json.loads(args.needs_json), proof, Path("."), event)
             print("CI Required: every contract has fresh success or revalidated exact-tree PR evidence; no unexplained skips.")
         else:

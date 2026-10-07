@@ -40,3 +40,19 @@ Examples to inspect:
 5. Measure runner queue time separately from actual execution; no speed or cost reduction is claimed.
 
 The existing Ruby 3.3.8 runtime under flow-review-tools/bin can run Ruby-dependent policy tests when added to PATH. Compiler-free tests and YAML checks do not substitute for Apple or hosted validation.
+
+## Real resolution bootstrap
+
+Existing Apple example jobs collect root and example locks with real `xcrun swift package resolve` while a required lock is absent. No new runner job or permission is added. Artifacts include the immutable candidate, run/attempt, Xcode/Swift version, exact committed manifest bytes, live dump-package digest, and unchanged generated lock bytes. Resolver failures remain failures and retain their diagnostic output. Each manifest is checked against the candidate commit and all manifests/locks are rechecked after the final resolution. Once root and that consumer's lock are tracked, the bootstrap is skipped.
+
+These artifacts are resolution evidence only. They must be verified against the exact trusted run and candidate before copying the generated lock files into the PR; no pins or originHash are handwritten. Cross-toolchain dumps/pins and the actual scoped tests still require validation. Native Apple test-package qualification is a separate step and does not grant success from lock generation alone.
+
+## Qualified leaf test execution
+
+`ci_product_test_scope.py` can admit exactly one source-only InnoDISwiftUI or InnoDITesting change after committed real-toolchain qualification exists. CI Plan and CI Required independently recompute the exact Git/qualification proof. The existing fast-tests job then executes the standalone test consumer with a fresh scratch directory and verifies native build descriptions plus actual compiled first-party modules. A test filter is not used as a compilation boundary. The selected API gate uses the unchanged semantic normalizer and is admitted only after equivalence with the full compiler contract and baseline has been proven on the same toolchain.
+
+Testing-only changes can omit example and documentation jobs because those consumers depend on InnoDI/SwiftUI. SwiftUI changes select both relevant SwiftUI examples (with exact matching tracked root/example dependency pins and force-resolved execution) while retaining documentation checks. All unknown/shared/mixed/test/manifest/toolchain or unqualified inputs keep the original jobs; bot, main, merge queue, release, coverage and compatibility contracts remain full. A changed or missing runtime proof fails the selected job and cannot bless skipped gates.
+
+Global DAG/alias validators and policy/compiler self-tests remain explicit shared checks. These may build validator tools or small probe modules; this is not a claim that every compiler invocation belongs solely to the edited shipping product. Other product test packages, especially CLI/Migrate/Doctor with internal modules and path-sensitive fixtures, remain full until separately proven.
+
+Qualification bootstrap runs in the existing Xcode 26.6 full-contract job only after full coverage and API validation succeed. It captures full/scoped discovery, actually executes strict scoped tests in fresh scratch directories, verifies first-party compile closure and selected/full API equivalence, and uploads raw evidence. No qualification file is synthesized in this VM. Until generated locks and successful qualification artifacts are verified and committed, the original full fast-test path remains active. If an existing qualification becomes stale, remove/replace that qualification in the reviewed change to request bootstrap again; stale proof never authorizes narrowing.

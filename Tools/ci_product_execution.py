@@ -54,6 +54,28 @@ def identity(root):
     return sha
 
 
+
+def require_consumer_locks(root):
+    paths = ['Package.resolved'] + ['Examples/'+unit+'/Package.resolved' for unit in ('SampleApp','SwiftUIExample','PreviewInjectionExample')]
+    expected = None
+    for relative in paths:
+        git(root, 'ls-files', '--error-unmatch', relative)
+        lock = json.loads((root/relative).read_text())
+        if not isinstance(lock,dict):
+            raise ValueError('invalid dependency lock object')
+        pins = lock.get('pins')
+        if lock.get('version') not in (2,3) or not isinstance(pins,list) or not pins:
+            raise ValueError('missing generated dependency pins')
+        if any(not isinstance(pin,dict) or not isinstance(pin.get('identity'),str) or not isinstance(pin.get('state'),dict) or not isinstance(pin['state'].get('revision'),str) or not SHA.fullmatch(pin['state']['revision']) for pin in pins):
+            raise ValueError('dependency pins are not exact revisions')
+        normalized = sorted(pins, key=lambda pin:pin['identity'])
+        if len({pin['identity'] for pin in pins}) != len(pins):
+            raise ValueError('duplicate dependency identity')
+        if expected is not None and normalized != expected:
+            raise ValueError('root and consumer dependency pins differ')
+        expected = normalized
+
+
 def admit(root, env, check_output=subprocess.check_output):
     root = Path(root).resolve()
     sha = identity(root)
@@ -71,7 +93,7 @@ def admit(root, env, check_output=subprocess.check_output):
         if not isinstance(labels, list) or any(not isinstance(x, dict) or not isinstance(x.get('name'), str) for x in labels):
             raise ValueError('invalid PR labels')
         author = pr['user']['login']
-        if not isinstance(author, str) or not author or author == 'dependabot[bot]' or any(x['name'].lower() == 'release-validation' for x in labels):
+        if not isinstance(author, str) or not author or author.lower().endswith('[bot]') or pr['user'].get('type') not in (None, 'User') or any(x['name'].lower() == 'release-validation' for x in labels):
             raise ValueError('bot/release validation stays full')
         if event['action'] == 'edited' and not event.get('changes', {}).get('base'):
             raise ValueError('metadata event cannot select build scope')
@@ -104,6 +126,8 @@ def admit(root, env, check_output=subprocess.check_output):
         if not (root/'Package.resolved').is_file():
             raise ValueError('missing committed dependency lock')
         git(root,'ls-files','--error-unmatch','Package.resolved')
+        if 'InnoDI' in graph['products']:
+            require_consumer_locks(root)
         # SwiftPM itself verifies the reviewed map before any narrow execution.
         # dump-package does not build/test, and no manifest is modified.
         dump = json.loads(check_output(['xcrun', 'swift', 'package', '--package-path', str(root), 'dump-package'], text=True))
@@ -133,8 +157,9 @@ def recipe(root, admission, kind, unit, platform, temporary):
     if admission['mode'] == 'scoped' and not set(admission['products']) & examples[unit]:
         return {'decision':'skip-unaffected','commands':[],'cwd':directory}
     flags=['-Xswiftc','-strict-concurrency=complete','-Xswiftc','-warnings-as-errors']
-    commands=[['swift','build',*flags],['swift','test',*flags]]
-    if unit=='SampleApp': commands.append(['swift','run','--skip-build','SampleApp'])
+    resolved=['--force-resolved-versions'] if admission['mode']=='scoped' else []
+    commands=[['swift','build',*resolved,*flags],['swift','test',*resolved,*flags]]
+    if unit=='SampleApp': commands.append(['swift','run',*resolved,'--skip-build','SampleApp'])
     return {'decision':'run-full' if admission['mode']=='full' else 'run-selected-consumer','commands':commands,'cwd':directory}
 
 

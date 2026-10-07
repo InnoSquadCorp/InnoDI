@@ -1,5 +1,5 @@
 {
-  "source": "PR44 run36664785864; immutable successful job/step inventory, plus verified-dispatch origin guard; mandatory isolated primary prebuilt step; InnoDI 7.0 train additions derived from macro-tests.yml: the consumer-contracts job, dependency and consumer cache restores, suite-duration summaries, and compiler canaries (the Swift 6.2 canary runs on manual dispatch only, so pull requests skip it); the representative example and the exact-SHA consumer verify the Xcode 27 primary consumer toolchain; CI cache/full-lane dedup proposal: planned workflow inventory, hosted execution still required; Fast PR contracts is skipped only when exhaustive contracts run; fingerprint and reuse observations added without changing validation steps; native parallel/prose preparation inventory: child step REST shape requires hosted validation before rollout",
+  "source": "PR44 run36664785864; immutable successful job/step inventory, plus verified-dispatch origin guard; mandatory isolated primary prebuilt step; InnoDI 7.0 train additions derived from macro-tests.yml: the consumer-contracts job, dependency and consumer cache restores, suite-duration summaries, and compiler canaries (the Swift 6.2 canary runs on manual dispatch only, so pull requests skip it); the representative example and the exact-SHA consumer verify the Xcode 27 primary consumer toolchain; CI cache/full-lane dedup proposal: planned workflow inventory, hosted execution still required; Fast PR contracts is skipped only when exhaustive contracts run; fingerprint and reuse observations added without changing validation steps; native parallel/prose preparation inventory: child step REST shape requires hosted validation before rollout; optional real-toolchain resolution/test qualification diagnostics are skipped for bot/release/main and do not replace original required steps",
   "jobs": {
     "CI Plan": [
       {
@@ -186,6 +186,14 @@
       {
         "name": "Upload current public API contract",
         "conclusion": "success"
+      },
+      {
+        "name": "Qualify isolated product test packages",
+        "conclusion": "skipped"
+      },
+      {
+        "name": "Upload product test qualification evidence",
+        "conclusion": "skipped"
       },
       {
         "name": "Validate Global DAG",
@@ -382,6 +390,14 @@
         "conclusion": "success"
       },
       {
+        "name": "Collect real SwiftPM resolution evidence (SampleApp)",
+        "conclusion": "skipped"
+      },
+      {
+        "name": "Upload real resolution evidence (SampleApp)",
+        "conclusion": "skipped"
+      },
+      {
         "name": "Build and Test SampleApp",
         "conclusion": "success"
       },
@@ -400,6 +416,14 @@
         "conclusion": "success"
       },
       {
+        "name": "Collect real SwiftPM resolution evidence (PreviewInjectionExample)",
+        "conclusion": "skipped"
+      },
+      {
+        "name": "Upload real resolution evidence (PreviewInjectionExample)",
+        "conclusion": "skipped"
+      },
+      {
         "name": "Build and Test PreviewInjectionExample",
         "conclusion": "success"
       }
@@ -412,6 +436,14 @@
       {
         "name": "Select Xcode 26.6",
         "conclusion": "success"
+      },
+      {
+        "name": "Collect real SwiftPM resolution evidence (SwiftUIExample)",
+        "conclusion": "skipped"
+      },
+      {
+        "name": "Upload real resolution evidence (SwiftUIExample)",
+        "conclusion": "skipped"
       },
       {
         "name": "Build and Test SwiftUIExample",
