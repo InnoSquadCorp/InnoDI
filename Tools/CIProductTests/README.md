@@ -75,6 +75,14 @@ manifests and locks, helpers, original API checker/baseline, and every test-sour
 inputs requires a fresh qualification. Changes to the tested product's Swift
 implementation may reuse the qualification and run all qualified tests again.
 
+The qualification also binds exact Xcode version/build, macOS SDK version/build,
+macOS product version, and runner architecture. Those identities are captured
+before and after qualification and must remain equal. The record contains no
+runner-specific absolute paths. Runtime `prepare()` recaptures them and rejects
+any difference or unknown output. Static validation checks the complete
+versioned record without invoking Apple tools. A hosted runner image update
+therefore requires fresh qualification even if `swift --version` is unchanged.
+
 ## Execution adapter contract
 
 `ci_product_tests.prepare(root, product, temporary, check_output=...)` returns

@@ -69,11 +69,27 @@ class ProductConsumerTests(unittest.TestCase):
         full["targets"].append({"name": "OtherTests", "type": "test"})
         return {"root_dump": full, "consumer_dump": scoped}
 
+    def environment(self):
+        return {"schema": 1, "xcode_version": "26.6", "xcode_build": "17F64",
+                "sdk_version": "26.5", "sdk_build": "25F42", "macos_version": "26.5.1",
+                "architecture": "arm64"}
+
+    def tool_output(self, command):
+        values = {
+            ("xcrun", "swift", "--version"): "Apple Swift version 6.3\nTarget: arm64-apple-macosx26.0",
+            ("xcodebuild", "-version"): "Xcode 26.6\nBuild version 17F64\n",
+            ("xcrun", "--sdk", "macosx", "--show-sdk-version"): "26.5\n",
+            ("xcrun", "--sdk", "macosx", "--show-sdk-build-version"): "25F42\n",
+            ("sw_vers", "-productVersion"): "26.5.1\n",
+            ("uname", "-m"): "arm64\n",
+        }
+        return values[tuple(command)]
+
     def qualify(self, full_list=None, scoped_list=None, run=lambda *a, **k: None):
         full_list = full_list or self.target + ".Suite/example()\nOtherTests.Suite/other()\n"
         scoped_list = scoped_list or self.target + ".Suite/example()\n"
         def output(command, **kwargs):
-            return "Apple Swift version 6.3\nTarget: arm64-apple-macosx26.0" if command[-1] == "--version" else scoped_list
+            return scoped_list if "--list-tests" in command else self.tool_output(command)
         with patch.object(runner, "inspect", return_value=self.inspected()), \
              patch.object(runner, "verify_build_closure", return_value=self.build_proof()), \
              patch.object(runner.api, "verify", return_value=self.api_proof()):
@@ -195,7 +211,49 @@ class ProductConsumerTests(unittest.TestCase):
         lock["pins"][0]["state"]["revision"] = "b" * 40
         lock_path.write_text(json.dumps(lock))
         with self.assertRaisesRegex(ValueError, "pins differ"):
-            runner.fingerprint(self.root, self.product, "Swift")
+            runner.fingerprint(self.root, self.product, "Swift", self.environment())
+
+    def test_toolchain_environment_captures_exact_versions_without_runner_paths(self):
+        calls = []
+        def output(command, **kwargs):
+            calls.append(command)
+            return self.tool_output(command)
+        environment = runner.toolchain_environment(output)
+        self.assertEqual(environment, self.environment())
+        self.assertEqual(len(calls), 5)
+        self.assertNotIn("/", json.dumps(environment))
+
+    def test_missing_unknown_or_malformed_environment_cannot_qualify(self):
+        cases = [None, {}, {**self.environment(), "schema": True}, {**self.environment(), "schema": 2},
+                 {**self.environment(), "architecture": "aarch64"},
+                 {**self.environment(), "sdk_build": "/Applications/Xcode.app"},
+                 {**self.environment(), "macos_version": "unknown"},
+                 {**self.environment(), "extra": "unreviewed"}]
+        for environment in cases:
+            with self.subTest(environment=environment), self.assertRaises(ValueError):
+                runner.validate_toolchain_environment(environment)
+        with self.assertRaisesRegex(ValueError, "xcodebuild"):
+            runner.toolchain_environment(lambda *a, **k: "Xcode version unavailable")
+
+    def test_environment_change_during_qualification_never_produces_success(self):
+        changed = {**self.environment(), "sdk_build": "25F43"}
+        with patch.object(runner, "toolchain_environment", side_effect=[self.environment(), changed]):
+            with self.assertRaisesRegex(ValueError, "changed during qualification"):
+                self.qualify()
+
+    def test_changed_runtime_environment_requires_requalification(self):
+        (self.package / "qualification.json").write_text(json.dumps(self.qualify()))
+        changes = {"xcode_version": "26.7", "xcode_build": "17F65", "sdk_version": "26.6",
+                   "sdk_build": "25F43", "macos_version": "26.5.2", "architecture": "x86_64"}
+        def output(command, **kwargs):
+            return "tracked" if command[0] == "git" else self.tool_output(command)
+        for field, value in changes.items():
+            with self.subTest(field=field), \
+                 patch.object(runner, "toolchain_environment", return_value={**self.environment(), field: value}), \
+                 patch.object(runner, "inspect") as inspected:
+                with self.assertRaisesRegex(ValueError, "Xcode/SDK/macOS/architecture"):
+                    runner.prepare(self.root, self.product, check_output=output)
+                inspected.assert_not_called()
 
     def test_qualification_runs_real_test_command_before_discovery(self):
         calls = []
@@ -270,9 +328,9 @@ class ProductConsumerTests(unittest.TestCase):
             runner.prepare(self.root, self.product, check_output=untracked)
 
     def test_changed_source_invalidates_qualification(self):
-        original = runner.fingerprint(self.root, self.product, "Swift")
+        original = runner.fingerprint(self.root, self.product, "Swift", self.environment())
         (self.source / "Example.swift").write_text("import Testing\n@Test func newTest() {}\n")
-        self.assertNotEqual(original, runner.fingerprint(self.root, self.product, "Swift"))
+        self.assertNotEqual(original, runner.fingerprint(self.root, self.product, "Swift", self.environment()))
 
     def test_prepare_requires_current_executed_qualification_and_live_semantics(self):
         proof = self.qualify()
@@ -281,7 +339,7 @@ class ProductConsumerTests(unittest.TestCase):
         calls = []
         def output(command, **kwargs):
             calls.append(command)
-            return "Apple Swift version 6.3\nTarget: arm64-apple-macosx26.0" if command[-1] == "--version" else "tracked"
+            return "tracked" if command[0] == "git" else self.tool_output(command)
         with patch.object(runner, "inspect", return_value=self.inspected()) as inspected:
             result = runner.prepare(self.root, self.product, check_output=output)
             inspected.assert_called_once()

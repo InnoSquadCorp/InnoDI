@@ -30,6 +30,39 @@ def digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def validate_toolchain_environment(value):
+    fields = {"schema", "xcode_version", "xcode_build", "sdk_version", "sdk_build",
+              "macos_version", "architecture"}
+    if not isinstance(value, dict) or set(value) != fields or type(value["schema"]) is not int or value["schema"] != 1:
+        raise ValueError("missing or unknown qualified toolchain environment schema")
+    for field in ("xcode_version", "sdk_version", "macos_version"):
+        if not isinstance(value[field], str) or not re.fullmatch(r"[0-9]+\.[0-9]+(?:\.[0-9]+){0,2}", value[field]):
+            raise ValueError("invalid qualified toolchain environment " + field)
+    for field in ("xcode_build", "sdk_build"):
+        if not isinstance(value[field], str) or not re.fullmatch(r"[0-9]+[A-Za-z][0-9]+[A-Za-z]?", value[field]):
+            raise ValueError("invalid qualified toolchain environment " + field)
+    if value["architecture"] not in ("arm64", "x86_64"):
+        raise ValueError("unsupported qualified runner architecture")
+    return value
+
+
+def toolchain_environment(check_output=subprocess.check_output):
+    """Capture semantic identities only; no machine-specific absolute paths."""
+    def output(command):
+        return check_output(command, text=True).strip()
+    xcode = output(["xcodebuild", "-version"])
+    match = re.fullmatch(r"Xcode ([^\n]+)\nBuild version ([^\n]+)", xcode)
+    if not match:
+        raise ValueError("unrecognized xcodebuild version output")
+    return validate_toolchain_environment({
+        "schema": 1, "xcode_version": match[1], "xcode_build": match[2],
+        "sdk_version": output(["xcrun", "--sdk", "macosx", "--show-sdk-version"]),
+        "sdk_build": output(["xcrun", "--sdk", "macosx", "--show-sdk-build-version"]),
+        "macos_version": output(["sw_vers", "-productVersion"]),
+        "architecture": output(["uname", "-m"]),
+    })
+
+
 def package_path(root, product):
     if product not in PRODUCTS:
         raise ValueError("product has no qualified standalone test package: " + product)
@@ -161,7 +194,8 @@ def locked_pins(path):
     return sorted(pins, key=lambda pin: pin["identity"])
 
 
-def fingerprint(root, product, toolchain):
+def fingerprint(root, product, toolchain, environment=None):
+    validate_toolchain_environment(environment)
     root = Path(root).resolve()
     package = package_path(root, product)
     if locked_pins(root / "Package.resolved") != locked_pins(package / "Package.resolved"):
@@ -171,7 +205,8 @@ def fingerprint(root, product, toolchain):
              root / "Tools/ci_product_api.py", root / "Tools/check-public-api.py",
              root / "Tools/public-api-baseline.json"]
     return {"product": product, "test_target": PRODUCTS[product], "platform": "macOS",
-            "toolchain": toolchain.strip(), "source_inventory": source_inventory(root, product),
+            "toolchain": toolchain.strip(), "toolchain_environment": dict(environment),
+            "source_inventory": source_inventory(root, product),
             "files": {path.relative_to(root).as_posix(): digest(path) for path in paths}}
 
 
@@ -275,6 +310,11 @@ def qualify(root, product, full_list, check_output=subprocess.check_output, run=
             evidence_dir=None, full_api_contract=None):
     if full_api_contract is None:
         raise ValueError("qualification requires the successful full-package API contract")
+    version = check_output([*SWIFT, "--version"], text=True).strip()
+    environment = toolchain_environment(check_output)
+    if evidence_dir is not None:
+        Path(evidence_dir).mkdir(parents=True, exist_ok=True)
+        (Path(evidence_dir) / "toolchain-before.json").write_text(json.dumps(environment, indent=2, sort_keys=True) + "\n")
     inspected = inspect(root, product, check_output)
     # Generate qualification only after a real compile AND successful execution.
     # Discovery on its own is insufficient evidence that this package works.
@@ -300,8 +340,13 @@ def qualify(root, product, full_list, check_output=subprocess.check_output, run=
         raise ValueError("full and scoped discovered test identities differ")
     if any(values for name, values in scoped.items() if name != target):
         raise ValueError("scoped discovery includes unrelated test targets")
-    version = check_output([*SWIFT, "--version"], text=True)
-    return {"schema": 1, "contract": fingerprint(root, product, version),
+    final_version = check_output([*SWIFT, "--version"], text=True).strip()
+    final_environment = toolchain_environment(check_output)
+    if evidence_dir is not None:
+        (Path(evidence_dir) / "toolchain-after.json").write_text(json.dumps(final_environment, indent=2, sort_keys=True) + "\n")
+    if final_version != version or final_environment != environment:
+        raise ValueError("compiler/toolchain environment changed during qualification")
+    return {"schema": 1, "contract": fingerprint(root, product, version, environment),
             "execution": {"result": "success", "flags": TEST_FLAGS},
             "build_closure": build_closure,
             "public_api": public_api,
@@ -328,9 +373,11 @@ def verify_qualification(root, product, check_output=subprocess.check_output):
         check_output(["git", "-C", str(root), "ls-files", "--error-unmatch", str(path.relative_to(root))], text=True)
     qualification = json.loads(qualification_path.read_text())
     version = qualification.get("contract", {}).get("toolchain")
+    environment = qualification.get("contract", {}).get("toolchain_environment")
     if not isinstance(version, str) or not version.strip():
         raise ValueError("qualification has no recorded toolchain")
-    if qualification.get("schema") != 1 or qualification.get("contract") != fingerprint(root, product, version):
+    validate_toolchain_environment(environment)
+    if qualification.get("schema") != 1 or qualification.get("contract") != fingerprint(root, product, version, environment):
         raise ValueError("missing or stale real-toolchain test qualification")
     if qualification.get("execution") != {"result": "success", "flags": TEST_FLAGS}:
         raise ValueError("qualification has no successful strict test execution")
@@ -352,7 +399,8 @@ def verify_qualification(root, product, check_output=subprocess.check_output):
        public_api.get("normalized_sha256") != api.graph_digest(baseline):
         raise ValueError("qualification has no equivalent selected public API verification")
     return {"product": product, "test_target": PRODUCTS[product],
-            "qualification_sha256": digest(qualification_path), "toolchain": version}
+            "qualification_sha256": digest(qualification_path), "toolchain": version,
+            "toolchain_environment": dict(environment)}
 
 
 def prepare(root, product, temporary=None, check_output=subprocess.check_output):
@@ -363,6 +411,8 @@ def prepare(root, product, temporary=None, check_output=subprocess.check_output)
     version = check_output([*SWIFT, "--version"], text=True).strip()
     if proof["toolchain"] != version:
         raise ValueError("current Swift toolchain differs from qualified toolchain")
+    if proof["toolchain_environment"] != toolchain_environment(check_output):
+        raise ValueError("current Xcode/SDK/macOS/architecture differs from qualified environment")
     inspected = inspect(root, product, check_output)
     if expected_modules(product, inspected) != reviewed_modules(product):
         raise ValueError("live product compilation closure changed")
