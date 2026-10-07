@@ -843,3 +843,9 @@ Codex/Claude Code 단독 설치, 관리 원칙, 현재 평가 범위는
 - [Sources/InnoDIExamples/main.swift](Sources/InnoDIExamples/main.swift)
 - [InnoSample](https://github.com/InnoSquadCorp/InnoSample): InnoDI를 InnoFlow,
   InnoNetwork, InnoRouter와 함께 쓰는 멀티 모듈 Tuist 앱
+
+## 후원
+
+[GitHub Sponsors](https://github.com/sponsors/InnoSquadCorp) 또는
+[Patreon](https://www.patreon.com/15188938/join)를 통해
+InnoDI 개발을 후원할 수 있습니다.
