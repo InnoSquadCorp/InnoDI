@@ -172,7 +172,7 @@ class ExhaustiveSupersetTests(unittest.TestCase):
         infrastructure = {'Checkout', 'Select Xcode 26.6', 'Fingerprint exact cache inputs',
                           'Restore SwiftPM dependency cache', 'Observe restored cache products',
                           'Report cache and validation observations', 'Summarize test suite durations',
-                          'Upload Escape Hatch Report', 'Upload Deferred-Wrapper Alias Report', 'Upload scoped product test evidence'}
+                          'Upload Escape Hatch Report', 'Upload Deferred-Wrapper Alias Report', 'Upload scoped product test evidence', 'Qualify isolated product test packages', 'Upload product test qualification evidence'}
         self.assertEqual(steps - infrastructure, {'Run in-process test contracts',
             'Validate macro synthesis and CI policy', 'Validate public API and Global DAG',
             'Report Build-Validation Escape Hatches', 'Report Deferred-Wrapper Alias Findings'})
@@ -183,7 +183,7 @@ class ExhaustiveSupersetTests(unittest.TestCase):
             'Validate public API and Global DAG': [
                 'set -euo pipefail', 'if [[ -n "$SCOPED_PRODUCT" ]]; then',
                 'python3 -B Tools/run_ci_product_tests.py api', 'else',
-                'Tools/check-public-api.py', 'fi', 'swift run InnoDI-DependencyGraph --root . --validate-dag'],
+                'Tools/check-public-api.py --current-output build/public-api-current.json', 'fi', 'swift run InnoDI-DependencyGraph --root . --validate-dag'],
             'Report Build-Validation Escape Hatches': [
                 '{', 'Tools/report-validate-dag-escape-hatches.sh', '} >> "$GITHUB_STEP_SUMMARY"'],
             'Report Deferred-Wrapper Alias Findings': [

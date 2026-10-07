@@ -44,6 +44,7 @@ jobs:
       checks: read
     outputs:
       product-key: ${{ steps.plan.outputs.product-key }}
+      qualification-refresh: ${{ steps.plan.outputs.qualification-refresh }}
       post_merge: ${{ steps.origin.outputs.post_merge }}
       reuse-proof: ${{ steps.reuse.outputs.proof }}
       plan: ${{ steps.plan.outputs.plan }}
@@ -276,9 +277,21 @@ jobs:
           if [[ -n "$SCOPED_PRODUCT" ]]; then
             python3 -B Tools/run_ci_product_tests.py api
           else
-            Tools/check-public-api.py
+            Tools/check-public-api.py --current-output build/public-api-current.json
           fi
           swift run InnoDI-DependencyGraph --root . --validate-dag
+      - name: Qualify isolated product test packages
+        id: qualify-product-tests
+        if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]' && !contains(github.event.pull_request.labels.*.name, 'release-validation') && (needs.ci-plan.outputs.qualification-refresh == 'true' || hashFiles('Tools/CIProductTests/InnoDISwiftUI/qualification.json') == '' || hashFiles('Tools/CIProductTests/InnoDITesting/qualification.json') == '')
+        run: bash Tools/qualify-ci-product-tests.sh
+      - name: Upload product test qualification evidence
+        if: ${{ always() && (steps.qualify-product-tests.outcome == 'success' || steps.qualify-product-tests.outcome == 'failure') }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-test-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ci-test-qualification
+          if-no-files-found: warn
+          retention-days: 7
       - name: Report Build-Validation Escape Hatches
         env:
           INNODI_ESCAPE_HATCH_JSON: build/escape-hatch-report.json
@@ -400,16 +413,8 @@ jobs:
           if-no-files-found: error
       - name: Qualify isolated product test packages
         id: qualify-product-tests
-        if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]' && !contains(github.event.pull_request.labels.*.name, 'release-validation') && (hashFiles('Tools/CIProductTests/InnoDISwiftUI/qualification.json') == '' || hashFiles('Tools/CIProductTests/InnoDITesting/qualification.json') == '')
-        run: |
-          set -euo pipefail
-          evidence="$RUNNER_TEMP/ci-test-qualification"
-          mkdir -p "$evidence"
-          xcrun swift test --skip-build --list-tests --no-parallel -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors > "$evidence/full-list.txt"
-          python3 -B Tools/collect_ci_resolution_evidence.py --unit SampleApp --include-product-tests --output "$evidence/resolution"
-          python3 -B Tools/ci_product_tests.py inspect --root . --output "$evidence/manifests"
-          python3 -B Tools/ci_product_tests.py qualify --root . --product InnoDISwiftUI --full-list "$evidence/full-list.txt" --full-api-contract build/public-api-current.json --output "$evidence/InnoDISwiftUI-qualification.json"
-          python3 -B Tools/ci_product_tests.py qualify --root . --product InnoDITesting --full-list "$evidence/full-list.txt" --full-api-contract build/public-api-current.json --output "$evidence/InnoDITesting-qualification.json"
+        if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]' && !contains(github.event.pull_request.labels.*.name, 'release-validation') && (needs.ci-plan.outputs.qualification-refresh == 'true' || hashFiles('Tools/CIProductTests/InnoDISwiftUI/qualification.json') == '' || hashFiles('Tools/CIProductTests/InnoDITesting/qualification.json') == '')
+        run: bash Tools/qualify-ci-product-tests.sh
       - name: Upload product test qualification evidence
         if: ${{ always() && (steps.qualify-product-tests.outcome == 'success' || steps.qualify-product-tests.outcome == 'failure') }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

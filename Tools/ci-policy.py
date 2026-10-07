@@ -216,6 +216,14 @@ def apply_product_tests(plan, root, event, paths):
             "examples_full": proof["product"] == "InnoDISwiftUI"}
 
 
+def qualification_refresh_needed(plan):
+    exact = {"Package.swift", "Package.resolved", "Tools/ci_product_tests.py",
+             "Tools/ci_product_api.py", "Tools/check-public-api.py", "Tools/public-api-baseline.json",
+             "__diff_unavailable_full_fallback__"}
+    prefixes = ("Tools/CIProductTests/", "Tests/InnoDISwiftUITests/", "Tests/InnoDITestingTests/")
+    return any(change["path"] in exact or change["path"].startswith(prefixes) for change in plan["changes"])
+
+
 def validate_plan(plan):
     if not isinstance(plan, dict) or (set(plan) - {"prose_only", "product_test_scope"}) != {"schema", "lane", "jobs", "examples_full", "changes"}:
         raise ValueError("missing or unknown plan fields")
@@ -330,6 +338,7 @@ def main():
             if "GITHUB_OUTPUT" in os.environ:
                 with open(os.environ["GITHUB_OUTPUT"], "a") as stream:
                     stream.write("plan=" + payload + "\n")
+                    stream.write("qualification-refresh=" + str(qualification_refresh_needed(plan)).lower() + "\n")
                     for job, selected in plan["jobs"].items():
                         # Keep jobs[] as the complete logical contract; only
                         # physical execution is suppressed by explicit proof.

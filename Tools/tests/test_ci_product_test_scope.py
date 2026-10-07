@@ -79,6 +79,12 @@ class ProductScopeTests(unittest.TestCase):
   self.assertIsNone(s.prove(self.root,self.event,self.env))
   self.source.chmod(0o644);(self.root/'Package.swift').write_text('// changed manifest');head=self.commit();self.event['pull_request']['head']['sha']=head;self.env['GITHUB_SHA']=head
   self.assertIsNone(s.prove(self.root,self.event,self.env))
+ def test_changed_qualification_or_bound_input_forces_real_refresh(self):
+  for path in ('Tools/CIProductTests/InnoDITesting/qualification.json','Package.resolved','Tools/ci_product_api.py','Tests/InnoDISwiftUITests/Changed.swift','__diff_unavailable_full_fallback__'):
+   self.assertTrue(policy.qualification_refresh_needed({'changes':[{'path':path}]}))
+  self.assertFalse(policy.qualification_refresh_needed({'changes':[{'path':'Sources/InnoDITesting/Leaf.swift'}]}))
+  workflow=(ROOT/'.github/workflows/macro-tests.yml').read_text()
+  self.assertIn("needs.ci-plan.outputs.qualification-refresh == 'true'",workflow)
  def test_shared_and_unsupported_products_never_suppress_gates(self):
   with self.assertRaises(ValueError):s.required_jobs('InnoDI')
   self.assertEqual(s.required_jobs('InnoDISwiftUI'),{'policy','fast-tests','examples','documentation-contracts','docc'})
