@@ -881,3 +881,9 @@ install the skill in an AI tool.
 - [Sources/InnoDIExamples/main.swift](Sources/InnoDIExamples/main.swift)
 - [InnoSample](https://github.com/InnoSquadCorp/InnoSample): a multi-module
   Tuist app that combines InnoDI with InnoFlow, InnoNetwork, and InnoRouter
+
+## Sponsorship
+
+Support InnoDI's development through
+[GitHub Sponsors](https://github.com/sponsors/InnoSquadCorp) or
+[Patreon](https://www.patreon.com/c/InnoSquad).
