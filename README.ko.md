@@ -847,5 +847,5 @@ Codex/Claude Code 단독 설치, 관리 원칙, 현재 평가 범위는
 ## 후원
 
 [GitHub Sponsors](https://github.com/sponsors/InnoSquadCorp) 또는
-[Patreon](https://www.patreon.com/c/InnoSquad)를 통해
+[Patreon](https://www.patreon.com/15188938/join)를 통해
 InnoDI 개발을 후원할 수 있습니다.

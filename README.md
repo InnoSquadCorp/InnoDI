@@ -886,4 +886,4 @@ install the skill in an AI tool.
 
 Support InnoDI's development through
 [GitHub Sponsors](https://github.com/sponsors/InnoSquadCorp) or
-[Patreon](https://www.patreon.com/c/InnoSquad).
+[Patreon](https://www.patreon.com/15188938/join).
