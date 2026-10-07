@@ -1,8 +1,6 @@
-# Opt-in stale validation cancellation
+# Default-on stale validation cancellation
 
-Status: executable local workflow wiring; not pushed or activated. The repository
-variable `INNO_JOB_CANCELLATION` remains unset. Only the exact value `enabled`
-activates the new PR behavior.
+Status: proposed default-on workflow wiring. An unset/empty `INNO_JOB_CANCELLATION` or `enabled` activates eligible PR cancellation. `disabled` or an unrecognized value disables it. Native expressions normalize the value passed to Python. Read-only authenticated API inspection on 2026-10-07 confirmed no repository-level override for this feature.
 
 ## Admission and immutable workload scopes
 
@@ -63,11 +61,11 @@ provenance readers reject cancelled metadata runs, so adding cancellation alone
 could leave a later valid candidate blocked. Coalescing requires a separate proof
 that a cancelled observer was superseded by a newer exact successful observer.
 Do not claim this preparation coalesces metadata or has measured queue savings.
-The rollout remains off by default, with the 360-minute per-observer limit above.
+The feature is on by default, with the 360-minute per-observer limit above.
 
 ## Validation and remaining limits
 
-Local tests verify default preservation, keys/collisions, product-key uncertainty,
+Local tests verify default-on and explicit-disable behavior, keys/collisions, product-key uncertainty,
 metadata outcome handling, source mode checks and exact workflow headers. Pinned
 actionlint validates the emitted YAML. No live run was cancelled as a test.
 

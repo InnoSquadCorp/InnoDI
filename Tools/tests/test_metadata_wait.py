@@ -13,6 +13,14 @@ class MetadataWaitTests(unittest.TestCase):
  def test_timeout_never_converts_failure_to_success(self):self.codes=[1,1,1];self.assertEqual(self.runwait(True),1);self.assertEqual(self.time,60)
  def test_cancellation_signal_not_retried(self):self.codes=[-15,0];self.assertEqual(self.runwait(True),-15);self.assertEqual(len(self.calls),1)
  def test_verifier_command_is_never_mutated(self):self.codes=[1,0];self.runwait(True);self.assertEqual(self.calls,[['python3','verify.py']]*2)
+ def test_default_on_is_pr_only_and_disabled_or_unknown_stays_off(self):
+  for flag in ('','enabled','ENABLED'):
+   self.assertTrue(m.enabled_for({'GITHUB_EVENT_NAME':'pull_request','INNO_JOB_CANCELLATION':flag}))
+  self.assertTrue(m.enabled_for({'GITHUB_EVENT_NAME':'pull_request'}))
+  for event in ('push','merge_group','release','workflow_dispatch'):
+   self.assertFalse(m.enabled_for({'GITHUB_EVENT_NAME':event}))
+  for flag in ('disabled','false','unexpected'):
+   self.assertFalse(m.enabled_for({'GITHUB_EVENT_NAME':'pull_request','INNO_JOB_CANCELLATION':flag}))
  def test_invalid_unbounded_controls_reject(self):
   for args in [([],False,10,1),(['x'],True,-1,1),(['x'],True,10,0)]:
    with self.assertRaises(ValueError):m.run(*args)

@@ -21,6 +21,13 @@ class ProductExecutionTests(unittest.TestCase):
   if DI:self.assertEqual(receipt['decision'],'skip-unaffected');self.assertEqual(self.calls,[])
   else:self.assertEqual(self.calls,[['xcrun','swift','build','--target',TARGET,'--force-resolved-versions']])
   x.verify(self.root,self.env,kind,[unit],'macOS',self.root/'tmp',self.root/'receipts',self.dump)
+ def test_default_on_and_explicit_disabled_admission(self):
+  for flag in ('', 'true', 'TRUE'):
+   self.assertEqual(x.admit(self.root,{**self.env,'PRODUCT_SCOPE_ENABLED':flag},self.dump)['mode'],'scoped')
+  env={k:v for k,v in self.env.items() if k!='PRODUCT_SCOPE_ENABLED'}
+  self.assertEqual(x.admit(self.root,env,self.dump)['mode'],'scoped')
+  for flag in ('false','FALSE','unexpected'):
+   self.assertEqual(x.admit(self.root,{**self.env,'PRODUCT_SCOPE_ENABLED':flag},self.dump)['mode'],'full')
  def test_full_fallback_commands_are_original(self):
   kind,unit=self.mode();plan=x.admit(self.root,{**self.env,'PRODUCT_SCOPE_ENABLED':'false'},self.dump);recipe=x.recipe(self.root,plan,kind,unit,'macOS',self.root/'tmp')
   if DI:self.assertEqual(recipe['commands'],[['swift','build','-Xswiftc','-strict-concurrency=complete','-Xswiftc','-warnings-as-errors'],['swift','test','-Xswiftc','-strict-concurrency=complete','-Xswiftc','-warnings-as-errors'],['swift','run','--skip-build','SampleApp']])

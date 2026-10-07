@@ -37,7 +37,7 @@ class JobCancellationWiringTests(unittest.TestCase):
                 bad=copy.deepcopy(data);bad['jobs'][job]['concurrency']={'group':'unsafe','cancel-in-progress':True}
                 with self.assertRaises(ValueError):w.validate_workflow(bad,entry,CONFIG,Path(path).name)
     def test_outer_feature_off_is_exact_previous_admission(self):
-        values={'vars.INNO_JOB_CANCELLATION':'','github.event_name':'pull_request','github.run_id':42,'github.run_attempt':1,
+        values={'vars.INNO_JOB_CANCELLATION':'disabled','github.event_name':'pull_request','github.run_id':42,'github.run_attempt':1,
                 'github.event.action':'synchronize','github.event.label.name':'','github.event.changes.base':''}
         for entry in CONFIG['workflows'].values():
             old=entry['original_concurrency']
@@ -49,6 +49,18 @@ class JobCancellationWiringTests(unittest.TestCase):
             suffix=w.outer_group(old['group'])[len(old['group']):]
             self.assertEqual(expression_value(w.inner(suffix),values),'')
             self.assertEqual(expression_value(w.inner(suffix),{**values,'vars.INNO_JOB_CANCELLATION':'enabled'}),'-jobs-42-1')
+    def test_empty_variables_enable_scoped_cancellation_and_preserve_non_pr(self):
+        values={'vars.INNO_JOB_CANCELLATION':'','github.event_name':'pull_request',
+                'github.event.action':'synchronize','github.event.label.name':'','github.event.changes.base':'',
+                'vars.EXAMPLE_PRODUCT_CI':'','needs.ci-plan.outputs.product-key':'verified'}
+        expression=w.active(CONFIG['metadata'],['EXAMPLE_PRODUCT_CI'],'needs.ci-plan.outputs.product-key')
+        self.assertTrue(expression_value(expression,values))
+        self.assertFalse(expression_value(expression,{**values,'needs.ci-plan.outputs.product-key':''}))
+        for event in ('push','merge_group','workflow_dispatch','release'):
+            self.assertFalse(expression_value(expression,{**values,'github.event_name':event}))
+        for flag in ('disabled','unexpected'):
+            self.assertFalse(expression_value(expression,{**values,'vars.INNO_JOB_CANCELLATION':flag}))
+
     def test_metadata_jobs_never_cancel_validation_and_scoped_missing_key_under_cancels(self):
         values={'vars.INNO_JOB_CANCELLATION':'enabled','github.event_name':'pull_request','github.event.action':'labeled',
                 'github.event.label.name':'documentation','github.event.changes.base':''}
