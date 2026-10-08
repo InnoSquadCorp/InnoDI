@@ -22,24 +22,24 @@ The reviewed inventory contains 27 package targets, 7 products and 89 checked-in
 
 `Tools/ci-product-impact.py` is the planner; the separate `Tools/ci_product_execution.py` adapter is now wired into existing workflows. An unset/empty `INNODI_PRODUCT_CI` or `true` enables admission; `false` or an unrecognized value disables it. Workflow values are normalized before Python execution. Admission rechecks the exact checkout/event/merge parents, complete Git diff, clean tracked and relevant untracked inputs, committed dependency lock, graph/manifest identity and real SwiftPM dump. Missing evidence executes the original full recipe. No manifest is rewritten. Exact command/result receipts are recomputed before acceptance; missing, forged, stale or failed receipts cannot grant success.
 
-The existing example jobs use exact consumer impact to skip unaffected SampleApp, SwiftUIExample or PreviewInjection only after validating a receipt. Full-mode commands retain the original build/test and SampleApp run. The current root has no tracked Package.resolved, so admission presently stays full. A real reproducibility/lock contract must be prepared with Swift before narrowing; no synthetic lock was invented.
+The existing example jobs use exact consumer impact to skip unaffected SampleApp, SwiftUIExample or PreviewInjection only after validating a receipt. Full-mode commands retain the original build/test and SampleApp run. The root and all three examples now have tracked Package.resolved files from verified hosted SwiftPM resolution. Missing or mismatched remaining admission evidence still selects the original full recipe; no synthetic lock was invented.
 
-Full `swift test` remains explicit: `--filter` alone does not prove a narrower test compilation graph. Separate test packages or independently validated native bundle execution are needed before promising product-only test compilation. Existing full coverage and release gates are retained.
+Full `swift test` remains explicit outside the qualified SwiftUI/Testing consumers described below: `--filter` alone does not prove a narrower test compilation graph. Those two separate test packages now have hosted compilation, discovery, and API evidence. Existing full coverage and release gates are retained.
 
 Examples to inspect:
 - SwiftUI: mode=scoped-build-plan; affected products=InnoDISwiftUI; affected tests=InnoDISwiftUITests; test-build products=InnoDI, InnoDISwiftUI
 - migration: mode=scoped-build-plan; affected products=InnoDI-Doctor, InnoDI-Migrate; affected tests=InnoDIDoctorCoreTests, InnoDIMigrationCoreTests; test-build products=InnoDI-Migrate
 - shared core: mode=full; affected products=InnoDI, InnoDI-DependencyGraph, InnoDI-Doctor, InnoDI-Migrate, InnoDIDAGValidationPlugin, InnoDISwiftUI, InnoDITesting; affected tests=InnoDIBuildSupportTests, InnoDICoreTests, InnoDIDependencyGraphCLITests, InnoDIDoctorCoreTests, InnoDIMacrosTests, InnoDIMigrationCoreTests, InnoDIRuntimeTests, InnoDISwiftUITests, InnoDITestingTests; test-build products=InnoDI, InnoDI-DependencyGraph, InnoDI-Migrate, InnoDISwiftUI, InnoDITesting
 
-## Before any remote rollout
+## Publication validation and operational limits
 
-1. Rebase these local changes onto the intended final repository SHA and rerun all policy tests.
-2. Run Apple SwiftPM dump verification, actual target builds, complete test discovery and full release gates. The publication VM has no Swift/Xcode. Earlier isolated Mac validation built all three example consumers and passed their 10 tests plus SampleApp execution, but full runtime validation did not pass. The workflow recipe contract repair was reconstructed for this PR from the Mac finding; its Python recipe is verified here, while this exact Swift wrapper still needs hosted compilation.
-3. Validate real GitHub native parallel execution, failure/cancellation propagation and REST job-step names with an explicitly authorized non-release run. Do not infer these from a linter pass.
+1. The published changes are based on main `821e9ac3c26f2a8899cfcc972c349c00a5e058ed`. Revalidate against the intended final SHA before merging.
+2. The publication VM has no Swift/Xcode. Hosted run 37739258042 at `ba6f1b2de4f330ba1e0165e346914df32d3460a3` subsequently passed full coverage/API, sanitizer, consumer, platform and toolchain gates, including the reconstructed workflow recipe contract. The initial isolated Mac limitations do not substitute for or invalidate this later exact-head evidence.
+3. Native parallel static validators and their REST child-step names passed in hosted policy jobs. Keep exact failure/cancellation contracts; a linter pass alone is insufficient evidence.
 4. Review required-check and proof migration together. No repository settings are changed by this preparation. Read-only authenticated API inspection on 2026-10-07 confirmed no repository-level override for the three new feature variables.
 5. Measure runner queue time separately from actual execution; no speed or cost reduction is claimed.
 
-The existing Ruby 3.3.8 runtime under flow-review-tools/bin can run Ruby-dependent policy tests when added to PATH. Compiler-free tests and YAML checks do not substitute for Apple or hosted validation.
+Compiler-free policy tests use Python and Ruby 3.3.8. These tests and YAML checks do not substitute for Apple or hosted validation.
 
 ## Real resolution bootstrap
 
@@ -55,7 +55,7 @@ Testing-only changes can omit example and documentation jobs because those consu
 
 Global DAG/alias validators and policy/compiler self-tests remain explicit shared checks. These may build validator tools or small probe modules; this is not a claim that every compiler invocation belongs solely to the edited shipping product. Other product test packages, especially CLI/Migrate/Doctor with internal modules and path-sensitive fixtures, remain full until separately proven.
 
-Qualification bootstrap runs in existing Xcode 26.6 jobs only after the original full test build (fast or coverage) and full API validation succeed. It captures full/scoped discovery, actually executes strict scoped tests in fresh scratch directories, verifies first-party compile closure and selected/full API equivalence, and uploads raw evidence. No qualification file is synthesized in this VM. Until generated locks and successful qualification artifacts are verified and committed, the original full fast-test path remains active. Changes to a qualification or its bound manifests/locks/helpers/baseline/test inputs force real bootstrap even when a qualification file already exists. A self-declared replacement record cannot skip this verification; stale proof never authorizes narrowing.
+Qualification bootstrap runs in existing Xcode 26.6 jobs only after the original full test build (fast or coverage) and full API validation succeed. It captures full/scoped discovery, actually executes strict scoped tests in fresh scratch directories, verifies first-party compile closure and selected/full API equivalence, and uploads raw evidence. No qualification file is synthesized in this VM. The generated locks and successful qualification records are now verified and committed. Missing or stale qualification still retains the original full fast-test path. Changes to a qualification or its bound manifests/locks/helpers/baseline/test inputs force real bootstrap even when a qualification file already exists. A self-declared replacement record cannot skip this verification; stale proof never authorizes narrowing.
 
 ## Hosted resolution evidence
 
