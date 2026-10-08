@@ -45,6 +45,7 @@ jobs:
     outputs:
       product-key: ${{ steps.plan.outputs.product-key }}
       qualification-refresh: ${{ steps.plan.outputs.qualification-refresh }}
+      qualification-proof-change: ${{ steps.plan.outputs.qualification-proof-change }}
       post_merge: ${{ steps.origin.outputs.post_merge }}
       reuse-proof: ${{ steps.reuse.outputs.proof }}
       plan: ${{ steps.plan.outputs.plan }}
@@ -242,7 +243,8 @@ jobs:
         # process fixtures cannot starve another test's async deadline; tasks
         # and contention assertions inside each test remain concurrent.
         run: |
-          set -euo pipefail
+          set -eu
+          set -o pipefail
           mkdir -p build
           if [[ -n "$SCOPED_PRODUCT" ]]; then
             python3 -B Tools/run_ci_product_tests.py test 2>&1 | tee build/fast-pr-test-output.log
@@ -282,7 +284,7 @@ jobs:
           swift run InnoDI-DependencyGraph --root . --validate-dag
       - name: Qualify isolated product test packages
         id: qualify-product-tests
-        if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]' && !contains(github.event.pull_request.labels.*.name, 'release-validation') && (needs.ci-plan.outputs.qualification-refresh == 'true' || hashFiles('Tools/CIProductTests/InnoDISwiftUI/qualification.json') == '' || hashFiles('Tools/CIProductTests/InnoDITesting/qualification.json') == '')
+        if: github.event_name == 'pull_request' && (needs.ci-plan.outputs.qualification-proof-change == 'true' || (github.event.pull_request.user.login != 'dependabot[bot]' && !contains(github.event.pull_request.labels.*.name, 'release-validation') && (needs.ci-plan.outputs.qualification-refresh == 'true' || hashFiles('Tools/CIProductTests/InnoDISwiftUI/qualification.json') == '' || hashFiles('Tools/CIProductTests/InnoDITesting/qualification.json') == '')))
         run: bash Tools/qualify-ci-product-tests.sh
       - name: Upload product test qualification evidence
         if: ${{ always() && (steps.qualify-product-tests.outcome == 'success' || steps.qualify-product-tests.outcome == 'failure') }}
@@ -413,7 +415,7 @@ jobs:
           if-no-files-found: error
       - name: Qualify isolated product test packages
         id: qualify-product-tests
-        if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]' && !contains(github.event.pull_request.labels.*.name, 'release-validation') && (needs.ci-plan.outputs.qualification-refresh == 'true' || hashFiles('Tools/CIProductTests/InnoDISwiftUI/qualification.json') == '' || hashFiles('Tools/CIProductTests/InnoDITesting/qualification.json') == '')
+        if: github.event_name == 'pull_request' && (needs.ci-plan.outputs.qualification-proof-change == 'true' || (github.event.pull_request.user.login != 'dependabot[bot]' && !contains(github.event.pull_request.labels.*.name, 'release-validation') && (needs.ci-plan.outputs.qualification-refresh == 'true' || hashFiles('Tools/CIProductTests/InnoDISwiftUI/qualification.json') == '' || hashFiles('Tools/CIProductTests/InnoDITesting/qualification.json') == '')))
         run: bash Tools/qualify-ci-product-tests.sh
       - name: Upload product test qualification evidence
         if: ${{ always() && (steps.qualify-product-tests.outcome == 'success' || steps.qualify-product-tests.outcome == 'failure') }}

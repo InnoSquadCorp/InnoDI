@@ -27,7 +27,7 @@ def execute(root,plan,event,env,receipt,run=subprocess.run):
     if receipt.exists():raise ValueError('stale test receipt already exists')
     proof=proof_for(root,plan,event,env);tests=module('ci_product_tests');product=proof['product']
     prepared=tests.prepare(root,product)
-    scratch=Path(tempfile.mkdtemp(prefix='innodi-scoped-tests-',dir=env.get('RUNNER_TEMP')))
+    scratch=Path(tempfile.mkdtemp(prefix='innodi-scoped-tests-',dir=env.get('RUNNER_TEMP'))).resolve()
     command=[*tests.SWIFT,'test',*prepared['test_arguments'],'--scratch-path',str(scratch),*tests.TEST_FLAGS]
     run(command,cwd=root,check=True)
     inspected=tests.inspect(root,product)

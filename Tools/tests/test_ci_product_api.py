@@ -17,7 +17,7 @@ class SelectedProductAPITests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
+        self.root = Path(self.temporary.name).resolve()
         self.product = "InnoDISwiftUI"
         self.scratch = self.root / "scratch"
         self.binary = self.scratch / "arm64-apple-macosx" / "debug"

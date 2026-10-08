@@ -9,7 +9,7 @@ m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 
 class ResolutionEvidenceTests(unittest.TestCase):
  def setUp(self):
-  self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=Path(self.temp.name)/'repo';self.root.mkdir();self.example=self.root/'Examples/SampleApp';self.example.mkdir(parents=True)
+  self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=Path(self.temp.name).resolve()/'repo';self.root.mkdir();self.example=self.root/'Examples/SampleApp';self.example.mkdir(parents=True)
   for p in (self.root,self.example):(p/'Package.swift').write_text('// exact manifest')
   self.env={'GITHUB_SHA':'a'*40,'GITHUB_RUN_ID':'1','GITHUB_RUN_ATTEMPT':'1'};self.commands=[]
  def fake(self,cmd,**kwargs):

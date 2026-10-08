@@ -20,6 +20,12 @@ class ScopedRuntimeTests(unittest.TestCase):
  def test_selected_package_commands_and_api_receipt(self):
   self.execute();command=self.calls[0];self.assertIn('--package-path',command);self.assertIn('--force-resolved-versions',command);self.assertNotIn('--filter',command)
   self.assertEqual(r.verify_api(self.root,self.plan,{},self.env,self.receipt),{'baseline_match':True})
+ def test_symlinked_runner_temp_uses_one_canonical_command_path(self):
+  alias=self.root/'runner-temp-alias';alias.symlink_to(self.root,target_is_directory=True)
+  self.env['RUNNER_TEMP']=str(alias)
+  result=self.execute()
+  self.assertEqual(result['scratch'],str(Path(result['scratch']).resolve()))
+  self.assertEqual(r.verify_api(self.root,self.plan,{},self.env,self.receipt),{'baseline_match':True})
  def test_failed_test_cannot_write_success(self):
   def fail(*a,**kw):raise subprocess.CalledProcessError(1,a[0])
   with self.assertRaises(subprocess.CalledProcessError):r.execute(self.root,self.plan,{},self.env,self.receipt,fail)

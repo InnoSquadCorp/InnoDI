@@ -79,6 +79,18 @@ class ProductScopeTests(unittest.TestCase):
   self.assertIsNone(s.prove(self.root,self.event,self.env))
   self.source.chmod(0o644);(self.root/'Package.swift').write_text('// changed manifest');head=self.commit();self.event['pull_request']['head']['sha']=head;self.env['GITHUB_SHA']=head
   self.assertIsNone(s.prove(self.root,self.event,self.env))
+ def test_replacement_proof_replays_even_for_release_label_or_bot(self):
+  import re
+  from test_ci_event_routing import expression_value
+  self.assertTrue(policy.qualification_proof_changed({'changes':[{'path':'Tools/CIProductTests/InnoDITesting/qualification.json'}]}))
+  self.assertFalse(policy.qualification_proof_changed({'changes':[{'path':'Sources/InnoDITesting/Leaf.swift'}]}))
+  workflow=(ROOT/'.github/workflows/macro-tests.yml').read_text()
+  condition=workflow.split('      - name: Qualify isolated product test packages\n',1)[1].split('        if: ',1)[1].split('\n',1)[0]
+  condition=re.sub(r"hashFiles\('[^']+'\)","'present'",condition)
+  values={'github.event_name':'pull_request','needs.ci-plan.outputs.qualification-proof-change':'true','needs.ci-plan.outputs.qualification-refresh':'false','github.event.pull_request.user.login':'dependabot[bot]','github.event.pull_request.labels.*.name':['release-validation']}
+  self.assertTrue(expression_value(condition,values))
+  self.assertFalse(expression_value(condition,{**values,'github.event_name':'push'}))
+  self.assertFalse(expression_value(condition,{**values,'needs.ci-plan.outputs.qualification-proof-change':'false'}))
  def test_changed_qualification_or_bound_input_forces_real_refresh(self):
   for path in ('Tools/CIProductTests/InnoDITesting/qualification.json','Package.resolved','Tools/ci_product_api.py','Tests/InnoDISwiftUITests/Changed.swift','__diff_unavailable_full_fallback__'):
    self.assertTrue(policy.qualification_refresh_needed({'changes':[{'path':path}]}))
