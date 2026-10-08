@@ -292,23 +292,37 @@ class ProductConsumerTests(unittest.TestCase):
         self.assertTrue(calls[0][1]["check"])
         self.assertEqual(proof["execution"], {"result": "success", "flags": runner.TEST_FLAGS})
 
-    def test_fresh_build_evidence_requires_exact_planned_and_compiled_closure(self):
+    def test_fresh_build_evidence_requires_exact_compiled_closure(self):
         scratch, description, modules = self.build_fixture()
         evidence = self.root / "evidence"
         result = runner.verify_build_closure(self.root, self.product, self.inspected(), scratch, evidence)
         self.assertEqual(result["first_party_modules"], runner.expected_modules(self.product, self.inspected()))
         self.assertEqual(len(result["compiled_module_paths"]), 5)
+        inventory = json.loads((evidence / "module-inventory.json").read_text())
+        self.assertEqual(inventory["actual_modules"], result["first_party_modules"])
         self.assertEqual((evidence / description.relative_to(scratch)).read_bytes(), description.read_bytes())
         (modules / (self.product + ".swiftmodule")).unlink()
         with self.assertRaisesRegex(ValueError, "actual compiled"):
             runner.verify_build_closure(self.root, self.product, self.inspected(), scratch)
 
-    def test_unrelated_first_party_compile_command_rejected_even_without_artifact(self):
-        scratch, description_path, _ = self.build_fixture()
+    def test_available_unexecuted_commands_do_not_claim_compilation(self):
+        scratch, description_path, modules = self.build_fixture()
         value = json.loads(description_path.read_text())
         value["swiftFrontendCommands"]["other"] = {"moduleName": "OtherTests"}
         description_path.write_text(json.dumps(value))
-        with self.assertRaisesRegex(ValueError, "planned first-party"):
+        proof = runner.verify_build_closure(self.root, self.product, self.inspected(), scratch)
+        self.assertIn("OtherTests", proof["all_planned_modules"])
+        self.assertNotIn("OtherTests", proof["first_party_modules"])
+        (modules / "OtherTests.swiftmodule").write_bytes(b"unrelated compilation")
+        with self.assertRaisesRegex(ValueError, "actual compiled"):
+            runner.verify_build_closure(self.root, self.product, self.inspected(), scratch)
+
+    def test_planned_commands_must_cover_actual_selected_modules(self):
+        scratch, description_path, _ = self.build_fixture()
+        value = json.loads(description_path.read_text())
+        del value["swiftCommands"]["C." + self.product]
+        description_path.write_text(json.dumps(value))
+        with self.assertRaisesRegex(ValueError, "planned commands omit"):
             runner.verify_build_closure(self.root, self.product, self.inspected(), scratch)
 
     def test_unrelated_actual_artifact_rejected_even_without_planned_command(self):

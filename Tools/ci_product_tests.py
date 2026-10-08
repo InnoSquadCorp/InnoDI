@@ -285,8 +285,11 @@ def verify_build_closure(root, product, inspected, scratch, evidence_dir=None):
                 planned.add(module)
     if not commands:
         raise ValueError("empty native Swift compiler command inventory")
-    if planned & all_first_party != expected:
-        raise ValueError("planned first-party modules differ from selected product closure: " + repr(sorted(planned & all_first_party)))
+    # Native descriptions enumerate available commands for dependency products
+    # that the selected test build never executes. Their presence is not proof
+    # of compilation; fresh module outputs below remain an exact-set gate.
+    if not expected <= planned:
+        raise ValueError("planned commands omit selected product closure: " + repr(sorted(expected - planned)))
     unknown = {name for name in planned if name.startswith("InnoDI")} - all_first_party - generated
     if unknown:
         raise ValueError("unreviewed generated/aliased first-party module: " + repr(sorted(unknown)))
@@ -300,6 +303,10 @@ def verify_build_closure(root, product, inspected, scratch, evidence_dir=None):
                 raise ValueError("compiled module escapes fresh scratch")
             built.add(path.stem)
             artifacts.append(path.relative_to(scratch).as_posix())
+    if evidence_dir is not None:
+        inventory = {"expected_modules": sorted(expected), "actual_modules": sorted(built),
+                     "available_commands": sorted(planned), "compiled_module_paths": artifacts}
+        (Path(evidence_dir) / "module-inventory.json").write_text(json.dumps(inventory, indent=2) + "\n")
     if built != expected:
         raise ValueError("actual compiled first-party modules differ from selected product closure: " + repr(sorted(built)))
     return {"schema": "swiftpm-native-v1", "fresh_scratch": True,

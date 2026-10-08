@@ -74,3 +74,21 @@ Discovery uses `swift test list --skip-build` with shared build options;
 `--no-parallel` applies only to actual test execution. SwiftPM 6.3's
 [List command](https://github.com/swiftlang/swift-package-manager/blob/swift-6.3-RELEASE/Sources/Commands/SwiftTestCommand.swift#L691)
 does not accept the test runner's parallelism option.
+
+Test-consumer locks were subsequently generated in the successful resolution
+phase of [run 37729988043](https://github.com/InnoSquadCorp/InnoDI/actions/runs/37729988043)
+(head `d1d9c8f26bbfd38bbcbab592357315cea6e32dcf`). Artifact 11531391317
+SHA256 `be6bb5c624f01b0e9c0bab3bf46a872579f4441c307d66cd591b2aab74d4e4df`
+passed the same provenance/hash checks, and both pins match the tracked root.
+The later qualification step failed; these locks are resolution evidence only.
+SwiftUI's 36 tests did run successfully in that isolated package, but no final
+qualification is accepted until compile inventory, discovery and API checks pass.
+
+Native SwiftPM descriptions contain available commands for unused dependency
+products too. The checker requires every selected module to have a command,
+and requires the actual fresh `.swiftmodule` outputs to match exactly the
+selected dependency/test closure. An unused command cannot certify a build;
+an unrelated compiled module still fails. SwiftPM may also compile a declared
+build-tool plugin while loading the dependency graph, even when that plugin
+is not applied by the test consumer. This setup overhead is not a claim of
+zero compiler work outside selected library/test modules.
