@@ -22,7 +22,8 @@ _api_spec.loader.exec_module(api)
 
 PRODUCTS = {"InnoDISwiftUI": "InnoDISwiftUITests", "InnoDITesting": "InnoDITestingTests"}
 SWIFT = ["xcrun", "swift"]
-TEST_FLAGS = ["--no-parallel", "-Xswiftc", "-strict-concurrency=complete", "-Xswiftc", "-warnings-as-errors"]
+BUILD_FLAGS = ["-Xswiftc", "-strict-concurrency=complete", "-Xswiftc", "-warnings-as-errors"]
+TEST_FLAGS = ["--no-parallel", *BUILD_FLAGS]
 PATH_SENSITIVE = re.compile(r"#(?:file|sourceLocation)|\b(?:Bundle|FileManager|CommandLine|Process)\b|\bURL\s*\(")
 
 
@@ -326,7 +327,7 @@ def qualify(root, product, full_list, check_output=subprocess.check_output, run=
         command = [*SWIFT, "test", *common, *TEST_FLAGS]
         run(command, cwd=Path(root).resolve(), check=True)
         build_closure = verify_build_closure(root, product, inspected, scratch, evidence_dir)
-        scoped_list = check_output([*SWIFT, "test", *common, "--skip-build", "--list-tests", *TEST_FLAGS], text=True)
+        scoped_list = check_output([*SWIFT, "test", "list", *common, "--skip-build", *BUILD_FLAGS], text=True)
         public_api = api.verify(root, product, scratch, full_api_contract,
                                 Path(evidence_dir) / "public-api" if evidence_dir is not None else None,
                                 run=run, check_output=check_output)

@@ -1,6 +1,7 @@
 import copy
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -89,7 +90,14 @@ class ProductConsumerTests(unittest.TestCase):
         full_list = full_list or self.target + ".Suite/example()\nOtherTests.Suite/other()\n"
         scoped_list = scoped_list or self.target + ".Suite/example()\n"
         def output(command, **kwargs):
-            return scoped_list if "--list-tests" in command else self.tool_output(command)
+            if command[:4] == ["xcrun", "swift", "test", "list"]:
+                self.assertIn("--skip-build", command)
+                self.assertIn("--force-resolved-versions", command)
+                self.assertNotIn("--no-parallel", command)
+                self.assertNotIn("--list-tests", command)
+                self.assertTrue(all(flag in command for flag in runner.BUILD_FLAGS))
+                return scoped_list
+            return self.tool_output(command)
         with patch.object(runner, "inspect", return_value=self.inspected()), \
              patch.object(runner, "verify_build_closure", return_value=self.build_proof()), \
              patch.object(runner.api, "verify", return_value=self.api_proof()):
@@ -254,6 +262,24 @@ class ProductConsumerTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "Xcode/SDK/macOS/architecture"):
                     runner.prepare(self.root, self.product, check_output=output)
                 inspected.assert_not_called()
+
+    def test_bootstrap_uses_list_subcommand_without_execution_options(self):
+        binaries = self.root / "fake-bin"
+        binaries.mkdir()
+        xcrun = binaries / "xcrun"
+        xcrun.write_text("#!/bin/sh\n[ \"$1 $2 $3\" = \"swift test list\" ] || exit 64\n"
+                         "for arg do case \"$arg\" in --no-parallel|--list-tests) exit 64;; esac; done\n"
+                         "printf 'InnoDISwiftUITests.Suite/example()\\n'\n")
+        xcrun.chmod(0o755)
+        python = binaries / "python3"
+        python.write_text("#!/bin/sh\nexit 0\n")
+        python.chmod(0o755)
+        environment = {**os.environ, "PATH": str(binaries) + os.pathsep + os.environ["PATH"],
+                       "RUNNER_TEMP": str(self.root)}
+        subprocess.run(["bash", str(ROOT / "Tools/qualify-ci-product-tests.sh")],
+                       cwd=self.root, env=environment, check=True)
+        self.assertIn("InnoDISwiftUITests.Suite/example()",
+                      (self.root / "ci-test-qualification/full-list.txt").read_text())
 
     def test_qualification_runs_real_test_command_before_discovery(self):
         calls = []
