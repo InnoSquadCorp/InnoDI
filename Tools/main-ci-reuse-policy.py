@@ -51,6 +51,10 @@ PROOF_FIELDS = {"schema", "repository_id", "main", "base", "head", "merge", "tre
                 "pr", "run", "attempt", "workflow", "suite", "reused_jobs"}
 
 STEP_SKIPS.update({('CI Required', 'Verify prior validation for metadata')})
+STEP_SKIPS.add(('CI and public operations policy', 'Validate prose-only documentation'))
+
+# Optional real-toolchain bootstrap diagnostics never replace a required gate.
+STEP_SKIPS.update({('examples / sample-app', 'Upload real resolution evidence (SampleApp)'), ('Exhaustive release contracts', 'Qualify isolated product test packages'), ('examples / preview-injection-example', 'Collect real SwiftPM resolution evidence (PreviewInjectionExample)'), ('Exhaustive release contracts', 'Upload product test qualification evidence'), ('examples / sample-app', 'Collect real SwiftPM resolution evidence (SampleApp)'), ('examples / preview-injection-example', 'Upload real resolution evidence (PreviewInjectionExample)'), ('examples / swiftui-example', 'Upload real resolution evidence (SwiftUIExample)'), ('examples / swiftui-example', 'Collect real SwiftPM resolution evidence (SwiftUIExample)')})
 
 
 class Rejected(ValueError):

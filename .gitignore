@@ -116,3 +116,11 @@ coverage/
 
 # Python validation caches
 Tools/**/__pycache__/
+
+# CI scope admission uses actual SwiftPM-generated, reviewed dependency locks.
+!/Package.resolved
+!/Examples/SampleApp/Package.resolved
+!/Examples/SwiftUIExample/Package.resolved
+!/Examples/PreviewInjectionExample/Package.resolved
+!/Tools/CIProductTests/InnoDISwiftUI/Package.resolved
+!/Tools/CIProductTests/InnoDITesting/Package.resolved

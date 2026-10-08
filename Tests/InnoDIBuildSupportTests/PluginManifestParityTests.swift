@@ -1,4 +1,5 @@
 import Foundation
+import InnoDITestSupport
 import Testing
 
 @Suite("Build plugin manifest parity")
@@ -23,12 +24,19 @@ struct PluginManifestParityTests {
                 separatedBy: "persist-credentials: false"
             ).count - 1 == 4
         )
-        #expect(
-            source.contains(
-                "swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors"
-            )
-        )
-        #expect(source.contains("swift run --skip-build SampleApp"))
+        // Commands now live in the admitted adapter recipe. Check both the
+        // workflow wiring and the actual full-mode argv, not stale YAML text.
+        let flags = ["-Xswiftc", "-strict-concurrency=complete", "-Xswiftc", "-warnings-as-errors"]
+        let recipes = try fullExampleRecipes()
+        for unit in ["SampleApp", "SwiftUIExample", "PreviewInjectionExample"] {
+            #expect(source.contains("ci_product_execution.py build --kind di-example --units \(unit)"))
+            #expect(source.contains("ci_product_execution.py verify --kind di-example --units \(unit)"))
+            var expected = [["swift", "build"] + flags, ["swift", "test"] + flags]
+            if unit == "SampleApp" {
+                expected.append(["swift", "run", "--skip-build", "SampleApp"])
+            }
+            #expect(recipes[unit] == expected)
+        }
     }
 
     @Test("Checkout parity rejects floating, missing and divergent pins")
@@ -115,4 +123,23 @@ private func hasFourMatchingCheckoutPins(_ source: String) throws -> Bool {
         Range(match.range(at: 1), in: source).map { String(source[$0]) }
     }
     return matches.count == 4 && Set(pins).count == 1
+}
+
+private func fullExampleRecipes() throws -> [String: [[String]]] {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    process.currentDirectoryURL = packageRootURL()
+    process.arguments = ["python3", "-B", "-c", """
+    import importlib.util, json
+    from pathlib import Path
+    root = Path.cwd()
+    spec = importlib.util.spec_from_file_location("ci_product_execution", root / "Tools/ci_product_execution.py")
+    adapter = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(adapter)
+    units = ("SampleApp", "SwiftUIExample", "PreviewInjectionExample")
+    print(json.dumps({unit: adapter.recipe(root, {"mode": "full"}, "di-example", unit, "macOS", root / ".build/recipe-contract")["commands"] for unit in units}))
+    """]
+    let result = try runCapturedProcess(process, timeoutSeconds: 30)
+    try #require(!result.timedOut && result.exitCode == 0, "\(result.stderr)")
+    return try JSONDecoder().decode([String: [[String]]].self, from: Data(result.stdout.utf8))
 }

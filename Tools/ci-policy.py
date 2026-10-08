@@ -52,12 +52,39 @@ WORKFLOW_IMPACT = {
 }
 
 
+
+def prose_module():
+    spec = importlib.util.spec_from_file_location("ci_prose", Path(__file__).with_name("ci_prose.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def apply_prose(plan, root, event, paths):
+    if plan["lane"] != "fast" or plan.get("requested"):
+        return plan
+    pr = event.get("pull_request", {})
+    proof = prose_module().inspect(root, pr.get("base", {}).get("sha"), pr.get("head", {}).get("sha"), paths)
+    if not proof:
+        if paths and all(prose_module().candidate(path) for path in paths):
+            # Code fences, file modes, missing blobs, and deletions are not prose evidence.
+            return make_plan("pull_request", event, paths + ["__unproven_documentation_full_fallback__"])
+        return plan
+    plan["prose_only"] = proof
+    plan["jobs"] = {job: job == "policy" for job in JOBS}
+    if "examples_full" in plan:
+        plan["examples_full"] = False
+    return plan
+
+
 def path_impact(path):
     if not isinstance(path, str) or not path or "\x00" in path or "\n" in path:
         raise ValueError("invalid changed path")
     parts = PurePosixPath(path).parts
     if path.startswith("/") or any(p in ("..", ".") for p in parts) or "\\" in path:
         raise ValueError("changed path must be a repository-relative POSIX path")
+    if prose_module().RELEASE.search(path):
+        return set(JOBS), "release metadata (full fallback)"
     if path in ("Package.swift", "Package.resolved") or path.startswith(".github/actions/"):
         return set(JOBS), "shared package/toolchain"
     if path.startswith(("Sources/", "Plugins/")) and ".docc/" not in path:
@@ -169,9 +196,57 @@ def make_plan(event_name, event, paths):
             "changes": reasons}
 
 
+def product_scope_module():
+    spec = importlib.util.spec_from_file_location("product_test_scope", Path(__file__).with_name("ci_product_test_scope.py"))
+    value = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(value)
+    return value
+
+
+def apply_product_tests(plan, root, event, paths):
+    if plan.get("prose_only") or plan["lane"] != "fast" or plan["jobs"]["macro-tests"]:
+        return plan
+    proof = product_scope_module().prove(root, event, os.environ)
+    if proof is None:
+        return plan
+    scope = product_scope_module()
+    scope.validate(proof, paths)
+    return {**plan, "product_test_scope": proof,
+            "jobs": {job: job in scope.required_jobs(proof["product"]) for job in JOBS},
+            "examples_full": proof["product"] == "InnoDISwiftUI"}
+
+
+def qualification_proof_changed(plan):
+    return any(change["path"].startswith("Tools/CIProductTests/") and
+               change["path"].endswith("/qualification.json") for change in plan["changes"])
+
+
+def qualification_refresh_needed(plan):
+    exact = {"Package.swift", "Package.resolved", "Tools/ci_product_tests.py",
+             "Tools/ci_product_api.py", "Tools/check-public-api.py", "Tools/public-api-baseline.json",
+             "__diff_unavailable_full_fallback__"}
+    prefixes = ("Tools/CIProductTests/", "Tests/InnoDISwiftUITests/", "Tests/InnoDITestingTests/")
+    return any(change["path"] in exact or change["path"].startswith(prefixes) for change in plan["changes"])
+
+
 def validate_plan(plan):
-    if not isinstance(plan, dict) or set(plan) != {"schema", "lane", "jobs", "examples_full", "changes"}:
+    if not isinstance(plan, dict) or (set(plan) - {"prose_only", "product_test_scope"}) != {"schema", "lane", "jobs", "examples_full", "changes"}:
         raise ValueError("missing or unknown plan fields")
+    product = plan.get("product_test_scope")
+    if "product_test_scope" in plan:
+        if "prose_only" in plan or plan.get("lane") != "fast" or not isinstance(plan.get("changes"), list):
+            raise ValueError("invalid product-only PR lane")
+        scope = product_scope_module()
+        scope.validate(product, [change.get("path") for change in plan["changes"] if isinstance(change, dict)])
+        if plan.get("jobs") != {job: job in scope.required_jobs(product["product"]) for job in JOBS}:
+            raise ValueError("product lane suppresses required scoped/shared contracts")
+    prose = plan.get("prose_only")
+    if "prose_only" in plan:
+        if not isinstance(plan.get("changes"), list):
+            raise ValueError("invalid prose changes")
+        prose_module().validate(prose, [change.get("path") for change in plan["changes"] if isinstance(change, dict)])
+        if plan.get("lane") != "fast" or plan.get("requested") or plan.get("jobs") != {job: job == "policy" for job in JOBS}:
+            raise ValueError("prose-only lane must require exactly static policy")
     if type(plan["schema"]) is not int or plan["schema"] != 1 or plan["lane"] not in ("fast", "full", "release-validation"):
         raise ValueError("unsupported plan schema/lane")
     if not isinstance(plan["jobs"], dict) or set(plan["jobs"]) != set(JOBS) or any(type(v) is not bool for v in plan["jobs"].values()):
@@ -193,16 +268,28 @@ def validate_plan(plan):
         impact, reason = path_impact(change["path"])
         if plan["jobs"]["macro-tests"]:
             impact = impact - {"fast-tests"}
-        if change["reason"] != reason or any(not plan["jobs"][j] for j in impact):
+        if change["reason"] != reason or (not prose and not product and any(not plan["jobs"][j] for j in impact)):
             raise ValueError("plan suppresses changed-path requirements")
     examples_full = plan["lane"] != "fast" or plan["jobs"]["macro-tests"] or any(
         c["reason"] in ("example", "workflow:examples.yml", "unknown path (full fallback)") for c in plan["changes"])
+    if prose:
+        examples_full = False
+    if product:
+        examples_full = product["product"] == "InnoDISwiftUI"
     if plan["examples_full"] != examples_full:
         raise ValueError("plan suppresses extended example requirements")
 
 
-def evaluate(plan, needs, proof=None):
+def evaluate(plan, needs, proof=None, root=None, event=None):
     validate_plan(plan)
+    if "prose_only" in plan:
+        if root is None or not isinstance(event, dict):
+            raise ValueError("prose-only result requires immutable Git revalidation")
+        prose_module().revalidate(root, event, plan["prose_only"], [change["path"] for change in plan["changes"]])
+    if "product_test_scope" in plan:
+        if root is None or not isinstance(event, dict):
+            raise ValueError("product-only result requires exact Git/qualification revalidation")
+        product_scope_module().revalidate(root, event, os.environ, plan["product_test_scope"], [change["path"] for change in plan["changes"]])
     reused = reused_jobs(plan, proof or {})
     if not isinstance(needs, dict) or set(needs) != set(JOBS) | {"ci-plan"}:
         raise ValueError("missing or unexpected CI result")
@@ -238,8 +325,13 @@ def main():
             paths = []
             if event_name == "pull_request":
                 pr = event["pull_request"]
-                paths = changed_paths(args.root, pr["base"]["sha"], pr["head"]["sha"])
-            plan = make_plan(event_name, event, paths)
+                try:
+                    paths = changed_paths(args.root, pr["base"]["sha"], pr["head"]["sha"])
+                except (ValueError, KeyError, OSError, subprocess.CalledProcessError) as error:
+                    print(f"Changed-file evidence unavailable; selecting full validation: {error}", file=sys.stderr)
+                    paths = ["__diff_unavailable_full_fallback__"]
+            plan = apply_prose(make_plan(event_name, event, paths), args.root, event, paths)
+            plan = apply_product_tests(plan, args.root, event, paths)
             validate_plan(plan)
             proof = json.loads(args.reuse_proof_json)
             reused = reused_jobs(plan, proof)
@@ -251,6 +343,8 @@ def main():
             if "GITHUB_OUTPUT" in os.environ:
                 with open(os.environ["GITHUB_OUTPUT"], "a") as stream:
                     stream.write("plan=" + payload + "\n")
+                    stream.write("qualification-refresh=" + str(qualification_refresh_needed(plan)).lower() + "\n")
+                    stream.write("qualification-proof-change=" + str(qualification_proof_changed(plan)).lower() + "\n")
                     for job, selected in plan["jobs"].items():
                         # Keep jobs[] as the complete logical contract; only
                         # physical execution is suppressed by explicit proof.
@@ -266,7 +360,9 @@ def main():
                 # Re-read authoritative metadata after the main jobs finish.
                 # Lost/raced proof is an aggregate failure, never a green skip.
                 reuse.revalidate(proof, event, os.environ)
-            evaluate(json.loads(args.plan_json), json.loads(args.needs_json), proof)
+            plan = json.loads(args.plan_json)
+            event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text()) if "prose_only" in plan or "product_test_scope" in plan else None
+            evaluate(plan, json.loads(args.needs_json), proof, Path("."), event)
             print("CI Required: every contract has fresh success or revalidated exact-tree PR evidence; no unexplained skips.")
         else:
             needs = json.loads(args.needs_json)

@@ -158,6 +158,11 @@ class ExhaustiveSupersetTests(unittest.TestCase):
         self.assertLess(exhaustive_skips, fast_skips)
         self.assertNotIn('--filter', coverage)
         self.assertNotIn('--filter', test)
+        self.assertIn('if [[ -n "$SCOPED_PRODUCT" ]]; then', test)
+        self.assertIn('Tools/run_ci_product_tests.py test', test)
+        # The qualified branch executes the unchanged original leaf tests and
+        # an API emitter proven equal to the full checker, not a unique gate.
+        self.assertIn('product_test_scope.product', test)
         self.assertIn('--enable-code-coverage', coverage)
         self.assertIn('Tools/check-coverage-floor.py', coverage)
         # Freeze every executable validation/report step in the fast lane, so
@@ -167,7 +172,7 @@ class ExhaustiveSupersetTests(unittest.TestCase):
         infrastructure = {'Checkout', 'Select Xcode 26.6', 'Fingerprint exact cache inputs',
                           'Restore SwiftPM dependency cache', 'Observe restored cache products',
                           'Report cache and validation observations', 'Summarize test suite durations',
-                          'Upload Escape Hatch Report', 'Upload Deferred-Wrapper Alias Report'}
+                          'Upload Escape Hatch Report', 'Upload Deferred-Wrapper Alias Report', 'Upload scoped product test evidence', 'Qualify isolated product test packages', 'Upload product test qualification evidence'}
         self.assertEqual(steps - infrastructure, {'Run in-process test contracts',
             'Validate macro synthesis and CI policy', 'Validate public API and Global DAG',
             'Report Build-Validation Escape Hatches', 'Report Deferred-Wrapper Alias Findings'})
@@ -176,7 +181,9 @@ class ExhaustiveSupersetTests(unittest.TestCase):
                 'Tools/check-no-fatalerror-in-macros.sh', 'Tools/check-ci-validation-opt-out.sh',
                 'Tools/check-ci-action-pins.sh'],
             'Validate public API and Global DAG': [
-                'Tools/check-public-api.py', 'swift run InnoDI-DependencyGraph --root . --validate-dag'],
+                'set -euo pipefail', 'if [[ -n "$SCOPED_PRODUCT" ]]; then',
+                'python3 -B Tools/run_ci_product_tests.py api', 'else',
+                'Tools/check-public-api.py --current-output build/public-api-current.json', 'fi', 'swift run InnoDI-DependencyGraph --root . --validate-dag'],
             'Report Build-Validation Escape Hatches': [
                 '{', 'Tools/report-validate-dag-escape-hatches.sh', '} >> "$GITHUB_STEP_SUMMARY"'],
             'Report Deferred-Wrapper Alias Findings': [

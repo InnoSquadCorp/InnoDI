@@ -770,6 +770,9 @@ class DependabotPolicyTests(unittest.TestCase):
 
 
 def workflow_jobs(text):
+    native_spec = importlib.util.spec_from_file_location('native_inventory', ROOT / 'Tools/native_parallel.py')
+    native = importlib.util.module_from_spec(native_spec); native_spec.loader.exec_module(native)
+    text = native.project(text)
     body = text.split('\njobs:\n', 1)[1]
     jobs = {}
     for block in re.split(r'(?m)^  (?=[A-Za-z0-9_-]+:\n)', body):

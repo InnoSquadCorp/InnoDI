@@ -185,8 +185,10 @@ class SelectionTests(unittest.TestCase):
             event["pull_request"]["head"]["sha"] = "1" * 40
             event_file.write_text(json.dumps(event))
             proc = subprocess.run(cmd, env={**env, "GITHUB_EVENT_NAME": "pull_request"}, capture_output=True, text=True)
-            self.assertNotEqual(proc.returncode, 0)
-            self.assertFalse(output.exists())
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            fallback = json.loads(output.read_text())
+            self.assertEqual({j for j, selected in fallback["jobs"].items() if selected}, set(policy.JOBS) - {"fast-tests"})
+            self.assertNotIn("prose_only", fallback)
 
 
 class RequiredTests(unittest.TestCase):

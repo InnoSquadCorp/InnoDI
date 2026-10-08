@@ -6,6 +6,11 @@ permissions:
 on:
   workflow_call:
     inputs:
+      product-key:
+        description: Compile-free cancellation partition only, never build authorization
+        type: string
+        required: false
+        default: ''
       exhaustive:
         type: boolean
         default: true
@@ -18,6 +23,9 @@ on:
 
 jobs:
   sample-app:
+    concurrency:
+      group: scoped-job-v1-${{ github.repository }}-${{ github.workflow }}-examples.yml-sample-app-pr-${{ github.event.pull_request.number }}-base-${{ github.event.pull_request.base.ref }}-${{ contains(github.event.pull_request.labels.*.name, 'release-validation') && 'release-validation' || 'no-release-validation' }}-${{ ((vars.INNODI_PRODUCT_CI == '' || vars.INNODI_PRODUCT_CI == 'true')) && inputs.product-key || 'full-package' }}-${{ ((vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base)))) && (!((vars.INNODI_PRODUCT_CI == '' || vars.INNODI_PRODUCT_CI == 'true')) || inputs.product-key != '')) && 'active' || format('off-{0}-{1}', github.run_id, github.run_attempt) }}
+      cancel-in-progress: ${{ (vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base)))) && (!((vars.INNODI_PRODUCT_CI == '' || vars.INNODI_PRODUCT_CI == 'true')) || inputs.product-key != '') }}
     runs-on: xcode-27
     timeout-minutes: 30
     steps:
@@ -25,6 +33,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: Verify prebuilt-compatible Xcode 27 and Swift 6.4
         # SwiftSyntax 604.0.0 has a matching prebuilt on Swift 6.4, the primary
         # consumer toolchain. Keep the representative consumer lane there so
@@ -33,17 +42,34 @@ jobs:
           set -euo pipefail
           [[ "$(xcodebuild -version)" == Xcode\ 27* ]]
           [[ "$(swift --version)" == *"Apple Swift version 6.4"* ]]
+      - name: Collect real SwiftPM resolution evidence (SampleApp)
+        id: resolution-evidence
+        if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]' && !contains(github.event.pull_request.labels.*.name, 'release-validation') && (hashFiles('Package.resolved') == '' || hashFiles('Examples/SampleApp/Package.resolved') == '')
+        run: python3 -B Tools/collect_ci_resolution_evidence.py --unit SampleApp --output "$RUNNER_TEMP/ci-resolution-SampleApp"
+      - name: Upload real resolution evidence (SampleApp)
+        if: github.event_name == 'pull_request' && steps.resolution-evidence.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-resolution-SampleApp-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ci-resolution-SampleApp
+          if-no-files-found: error
+          retention-days: 7
       - name: Build and Test SampleApp
+        env:
+          PRODUCT_SCOPE_ENABLED: ${{ (vars.INNODI_PRODUCT_CI == '' || vars.INNODI_PRODUCT_CI == 'true') && 'true' || 'false' }}
         run: |
-          cd Examples/SampleApp
-          swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
-          swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+          python3 -B Tools/ci_product_execution.py build --kind di-example --units SampleApp --platform macOS --temporary "$RUNNER_TEMP/product-example" --receipts "$RUNNER_TEMP/product-example-receipts"
+          python3 -B Tools/ci_product_execution.py verify --kind di-example --units SampleApp --platform macOS --temporary "$RUNNER_TEMP/product-example" --receipts "$RUNNER_TEMP/product-example-receipts"
       - name: Run SampleApp
-        run: |
-          cd Examples/SampleApp
-          swift run --skip-build SampleApp
+        # Execution is part of the preceding admitted recipe; prove its exact result.
+        env:
+          PRODUCT_SCOPE_ENABLED: ${{ (vars.INNODI_PRODUCT_CI == '' || vars.INNODI_PRODUCT_CI == 'true') && 'true' || 'false' }}
+        run: python3 -B Tools/ci_product_execution.py verify --kind di-example --units SampleApp --platform macOS --temporary "$RUNNER_TEMP/product-example" --receipts "$RUNNER_TEMP/product-example-receipts"
 
   swiftui-example:
+    concurrency:
+      group: scoped-job-v1-${{ github.repository }}-${{ github.workflow }}-examples.yml-swiftui-example-pr-${{ github.event.pull_request.number }}-base-${{ github.event.pull_request.base.ref }}-${{ contains(github.event.pull_request.labels.*.name, 'release-validation') && 'release-validation' || 'no-release-validation' }}-${{ ((vars.INNODI_PRODUCT_CI == '' || vars.INNODI_PRODUCT_CI == 'true')) && inputs.product-key || 'full-package' }}-${{ ((vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base)))) && (!((vars.INNODI_PRODUCT_CI == '' || vars.INNODI_PRODUCT_CI == 'true')) || inputs.product-key != '')) && 'active' || format('off-{0}-{1}', github.run_id, github.run_attempt) }}
+      cancel-in-progress: ${{ (vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base)))) && (!((vars.INNODI_PRODUCT_CI == '' || vars.INNODI_PRODUCT_CI == 'true')) || inputs.product-key != '') }}
     # SampleApp is the representative PR consumer. The larger examples stay
     # exhaustive main/scheduled gates so a source edit does not trigger three
     # independent cold macro builds before review feedback is available.
@@ -55,17 +81,34 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: Select Xcode 26.6
         uses: ./.github/actions/select-xcode
         with:
           version: "26.6"
+      - name: Collect real SwiftPM resolution evidence (SwiftUIExample)
+        id: resolution-evidence
+        if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]' && !contains(github.event.pull_request.labels.*.name, 'release-validation') && (hashFiles('Package.resolved') == '' || hashFiles('Examples/SwiftUIExample/Package.resolved') == '')
+        run: python3 -B Tools/collect_ci_resolution_evidence.py --unit SwiftUIExample --output "$RUNNER_TEMP/ci-resolution-SwiftUIExample"
+      - name: Upload real resolution evidence (SwiftUIExample)
+        if: github.event_name == 'pull_request' && steps.resolution-evidence.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-resolution-SwiftUIExample-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ci-resolution-SwiftUIExample
+          if-no-files-found: error
+          retention-days: 7
       - name: Build and Test SwiftUIExample
+        env:
+          PRODUCT_SCOPE_ENABLED: ${{ (vars.INNODI_PRODUCT_CI == '' || vars.INNODI_PRODUCT_CI == 'true') && 'true' || 'false' }}
         run: |
-          cd Examples/SwiftUIExample
-          swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
-          swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+          python3 -B Tools/ci_product_execution.py build --kind di-example --units SwiftUIExample --platform macOS --temporary "$RUNNER_TEMP/product-example" --receipts "$RUNNER_TEMP/product-example-receipts"
+          python3 -B Tools/ci_product_execution.py verify --kind di-example --units SwiftUIExample --platform macOS --temporary "$RUNNER_TEMP/product-example" --receipts "$RUNNER_TEMP/product-example-receipts"
 
   preview-injection-example:
+    concurrency:
+      group: scoped-job-v1-${{ github.repository }}-${{ github.workflow }}-examples.yml-preview-injection-example-pr-${{ github.event.pull_request.number }}-base-${{ github.event.pull_request.base.ref }}-${{ contains(github.event.pull_request.labels.*.name, 'release-validation') && 'release-validation' || 'no-release-validation' }}-${{ ((vars.INNODI_PRODUCT_CI == '' || vars.INNODI_PRODUCT_CI == 'true')) && inputs.product-key || 'full-package' }}-${{ ((vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base)))) && (!((vars.INNODI_PRODUCT_CI == '' || vars.INNODI_PRODUCT_CI == 'true')) || inputs.product-key != '')) && 'active' || format('off-{0}-{1}', github.run_id, github.run_attempt) }}
+      cancel-in-progress: ${{ (vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base)))) && (!((vars.INNODI_PRODUCT_CI == '' || vars.INNODI_PRODUCT_CI == 'true')) || inputs.product-key != '') }}
     if: github.event_name != 'pull_request' || inputs.exhaustive
     runs-on: macos-26
     timeout-minutes: 30
@@ -74,15 +117,29 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: Select Xcode 26.6
         uses: ./.github/actions/select-xcode
         with:
           version: "26.6"
+      - name: Collect real SwiftPM resolution evidence (PreviewInjectionExample)
+        id: resolution-evidence
+        if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]' && !contains(github.event.pull_request.labels.*.name, 'release-validation') && (hashFiles('Package.resolved') == '' || hashFiles('Examples/PreviewInjectionExample/Package.resolved') == '')
+        run: python3 -B Tools/collect_ci_resolution_evidence.py --unit PreviewInjectionExample --output "$RUNNER_TEMP/ci-resolution-PreviewInjectionExample"
+      - name: Upload real resolution evidence (PreviewInjectionExample)
+        if: github.event_name == 'pull_request' && steps.resolution-evidence.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-resolution-PreviewInjectionExample-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ci-resolution-PreviewInjectionExample
+          if-no-files-found: error
+          retention-days: 7
       - name: Build and Test PreviewInjectionExample
+        env:
+          PRODUCT_SCOPE_ENABLED: ${{ (vars.INNODI_PRODUCT_CI == '' || vars.INNODI_PRODUCT_CI == 'true') && 'true' || 'false' }}
         run: |
-          cd Examples/PreviewInjectionExample
-          swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
-          swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+          python3 -B Tools/ci_product_execution.py build --kind di-example --units PreviewInjectionExample --platform macOS --temporary "$RUNNER_TEMP/product-example" --receipts "$RUNNER_TEMP/product-example-receipts"
+          python3 -B Tools/ci_product_execution.py verify --kind di-example --units PreviewInjectionExample --platform macOS --temporary "$RUNNER_TEMP/product-example" --receipts "$RUNNER_TEMP/product-example-receipts"
 
   examples-required:
     name: Examples Required
@@ -95,6 +152,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: Require selected example jobs
         env:
           CI_NEEDS: ${{ toJSON(needs) }}

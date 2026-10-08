@@ -24,8 +24,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: macro-tests-${{ github.ref }}
-  cancel-in-progress: ${{ !(github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base))) }}
+  group: macro-tests-${{ github.ref }}${{ ((vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request') && format('-jobs-{0}-{1}', github.run_id, github.run_attempt) || '' }}
+  cancel-in-progress: ${{ !((vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request') && (!(github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base)))) }}
   queue: ${{ (github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base))) && 'max' || 'single' }}
 
 jobs:
@@ -43,6 +43,9 @@ jobs:
       actions: read
       checks: read
     outputs:
+      product-key: ${{ steps.plan.outputs.product-key }}
+      qualification-refresh: ${{ steps.plan.outputs.qualification-refresh }}
+      qualification-proof-change: ${{ steps.plan.outputs.qualification-proof-change }}
       post_merge: ${{ steps.origin.outputs.post_merge }}
       reuse-proof: ${{ steps.reuse.outputs.proof }}
       plan: ${{ steps.plan.outputs.plan }}
@@ -88,14 +91,21 @@ jobs:
         id: plan
         env:
           CI_REUSE: ${{ steps.reuse.outputs.proof }}
-        run: python3 Tools/ci-policy.py plan --event "$GITHUB_EVENT_PATH" --output build/ci-plan.json
+          PRODUCT_SCOPE_ENABLED: ${{ (vars.INNODI_PRODUCT_CI == '' || vars.INNODI_PRODUCT_CI == 'true') && 'true' || 'false' }}
+        run: |
+          python3 Tools/ci-policy.py plan --event "$GITHUB_EVENT_PATH" --output build/ci-plan.json
+          python3 -B Tools/ci_product_key.py --event "$GITHUB_EVENT_PATH"
+
 
   policy:
+    concurrency:
+      group: scoped-job-v1-${{ github.repository }}-${{ github.workflow }}-macro-tests.yml-policy-pr-${{ github.event.pull_request.number }}-base-${{ github.event.pull_request.base.ref }}-${{ contains(github.event.pull_request.labels.*.name, 'release-validation') && 'release-validation' || 'no-release-validation' }}-${{ ((vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base))))) && 'active' || format('off-{0}-{1}', github.run_id, github.run_attempt) }}
+      cancel-in-progress: ${{ (vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base)))) }}
     name: CI and public operations policy
     needs: ci-plan
-    # Existing Python public-API negative tests invoke swiftc. Use the same
-    # exact compiler as the primary contracts instead of a runner's default.
-    runs-on: macos-26
+    # Prose-only PRs have exact Git evidence and use compiler-free static checks.
+    # Ordinary policy tests retain their exact compiler requirement.
+    runs-on: ${{ fromJSON(needs.ci-plan.outputs.plan).prose_only && 'ubuntu-latest' || 'macos-26' }}
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -103,18 +113,35 @@ jobs:
         with:
           persist-credentials: false
       - name: Select Xcode 26.6
+        if: ${{ !fromJSON(needs.ci-plan.outputs.plan).prose_only }}
         uses: ./.github/actions/select-xcode
         with:
           version: "26.6"
+      # Independent source-only guards; native parallel joins before proceeding.
+      - parallel:
+          - name: Validate build-validation policy
+            run: Tools/check-ci-validation-opt-out.sh
+          - name: Validate pinned actions and scoped permissions
+            run: Tools/check-ci-action-pins.sh
       - name: Validate repository automation policy
+        if: ${{ !fromJSON(needs.ci-plan.outputs.plan).prose_only }}
         run: |
-          Tools/check-ci-validation-opt-out.sh
-          Tools/check-ci-action-pins.sh
           python3 -B Tools/check-ci-workflows.py
           python3 -B -m unittest discover -s Tools/tests
           python3 Tools/check-public-operations.py
+      - name: Validate prose-only documentation
+        if: ${{ fromJSON(needs.ci-plan.outputs.plan).prose_only }}
+        env:
+          CI_PLAN: ${{ needs.ci-plan.outputs.plan }}
+        run: |
+          python3 -B Tools/ci_prose.py --plan-json "$CI_PLAN"
+          Tools/check-docs-local-links.sh
+          Tools/check-localized-readme-sync.sh
 
   documentation-contracts:
+    concurrency:
+      group: scoped-job-v1-${{ github.repository }}-${{ github.workflow }}-macro-tests.yml-documentation-contracts-pr-${{ github.event.pull_request.number }}-base-${{ github.event.pull_request.base.ref }}-${{ contains(github.event.pull_request.labels.*.name, 'release-validation') && 'release-validation' || 'no-release-validation' }}-${{ ((vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base))))) && 'active' || format('off-{0}-{1}', github.run_id, github.run_attempt) }}
+      cancel-in-progress: ${{ (vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base)))) }}
     name: Documentation contracts
     needs: ci-plan
     if: needs.ci-plan.outputs.documentation-contracts == 'true'
@@ -146,6 +173,7 @@ jobs:
     if: needs.ci-plan.outputs.examples == 'true'
     uses: ./.github/workflows/examples.yml
     with:
+      product-key: ${{ needs.ci-plan.outputs.product-key }}
       exhaustive: ${{ needs.ci-plan.outputs.examples_full == 'true' }}
 
   docc:
@@ -165,6 +193,9 @@ jobs:
       branch_ref: ${{ github.event.merge_group.head_ref || github.event.pull_request.head.ref && format('refs/heads/{0}', github.event.pull_request.head.ref) || github.ref }}
 
   fast-tests:
+    concurrency:
+      group: scoped-job-v1-${{ github.repository }}-${{ github.workflow }}-macro-tests.yml-fast-tests-pr-${{ github.event.pull_request.number }}-base-${{ github.event.pull_request.base.ref }}-${{ contains(github.event.pull_request.labels.*.name, 'release-validation') && 'release-validation' || 'no-release-validation' }}-${{ ((vars.INNODI_PRODUCT_CI == '' || vars.INNODI_PRODUCT_CI == 'true')) && needs.ci-plan.outputs.product-key || 'full-package' }}-${{ ((vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base)))) && (!((vars.INNODI_PRODUCT_CI == '' || vars.INNODI_PRODUCT_CI == 'true')) || needs.ci-plan.outputs.product-key != '')) && 'active' || format('off-{0}-{1}', github.run_id, github.run_attempt) }}
+      cancel-in-progress: ${{ (vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base)))) && (!((vars.INNODI_PRODUCT_CI == '' || vars.INNODI_PRODUCT_CI == 'true')) || needs.ci-plan.outputs.product-key != '') }}
     name: Fast PR contracts
     needs: ci-plan
     if: needs.ci-plan.outputs.fast-tests == 'true'
@@ -175,6 +206,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: Select Xcode 26.6
         uses: ./.github/actions/select-xcode
         with:
@@ -196,6 +228,10 @@ jobs:
           DEPENDENCY_CACHE_HIT: ${{ steps.dependency-cache.outputs.cache-hit }}
         run: python3 -B Tools/ci-cache.py restored
       - name: Run in-process test contracts
+        env:
+          CI_PLAN: ${{ needs.ci-plan.outputs.plan }}
+          PRODUCT_SCOPE_ENABLED: ${{ (vars.INNODI_PRODUCT_CI == '' || vars.INNODI_PRODUCT_CI == 'true') && 'true' || 'false' }}
+          SCOPED_PRODUCT: ${{ fromJSON(needs.ci-plan.outputs.plan).product_test_scope.product || '' }}
         # Consumer, strict-concurrency, one migration smoke, and the unique
         # binding fix-it consumer contracts spawn clean SwiftPM builds. The
         # fix-it build alone compiles SwiftSyntax from source with one job. They
@@ -207,17 +243,22 @@ jobs:
         # process fixtures cannot starve another test's async deadline; tasks
         # and contention assertions inside each test remain concurrent.
         run: |
+          set -eu
           set -o pipefail
           mkdir -p build
-          swift test \
-            --no-parallel \
-            -Xswiftc -strict-concurrency=complete \
-            -Xswiftc -warnings-as-errors \
-            --skip 'InnoDIBuildSupportTests.PublicAPIContractTests/compilerDefaultArgumentContract' \
-            --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)' \
-            --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer' \
-            --skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs' \
-            2>&1 | tee build/fast-pr-test-output.log
+          if [[ -n "$SCOPED_PRODUCT" ]]; then
+            python3 -B Tools/run_ci_product_tests.py test 2>&1 | tee build/fast-pr-test-output.log
+          else
+            swift test \
+              --no-parallel \
+              -Xswiftc -strict-concurrency=complete \
+              -Xswiftc -warnings-as-errors \
+              --skip 'InnoDIBuildSupportTests.PublicAPIContractTests/compilerDefaultArgumentContract' \
+              --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)' \
+              --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer' \
+              --skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs' \
+              2>&1 | tee build/fast-pr-test-output.log
+          fi
       - name: Summarize test suite durations
         if: ${{ always() && hashFiles('build/fast-pr-test-output.log') != '' }}
         run: |
@@ -229,9 +270,30 @@ jobs:
           Tools/check-ci-validation-opt-out.sh
           Tools/check-ci-action-pins.sh
       - name: Validate public API and Global DAG
+        env:
+          CI_PLAN: ${{ needs.ci-plan.outputs.plan }}
+          PRODUCT_SCOPE_ENABLED: ${{ (vars.INNODI_PRODUCT_CI == '' || vars.INNODI_PRODUCT_CI == 'true') && 'true' || 'false' }}
+          SCOPED_PRODUCT: ${{ fromJSON(needs.ci-plan.outputs.plan).product_test_scope.product || '' }}
         run: |
-          Tools/check-public-api.py
+          set -euo pipefail
+          if [[ -n "$SCOPED_PRODUCT" ]]; then
+            python3 -B Tools/run_ci_product_tests.py api
+          else
+            Tools/check-public-api.py --current-output build/public-api-current.json
+          fi
           swift run InnoDI-DependencyGraph --root . --validate-dag
+      - name: Qualify isolated product test packages
+        id: qualify-product-tests
+        if: github.event_name == 'pull_request' && (needs.ci-plan.outputs.qualification-proof-change == 'true' || (github.event.pull_request.user.login != 'dependabot[bot]' && !contains(github.event.pull_request.labels.*.name, 'release-validation') && (needs.ci-plan.outputs.qualification-refresh == 'true' || hashFiles('Tools/CIProductTests/InnoDISwiftUI/qualification.json') == '' || hashFiles('Tools/CIProductTests/InnoDITesting/qualification.json') == '')))
+        run: bash Tools/qualify-ci-product-tests.sh
+      - name: Upload product test qualification evidence
+        if: ${{ always() && (steps.qualify-product-tests.outcome == 'success' || steps.qualify-product-tests.outcome == 'failure') }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-test-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ci-test-qualification
+          if-no-files-found: warn
+          retention-days: 7
       - name: Report Build-Validation Escape Hatches
         env:
           INNODI_ESCAPE_HATCH_JSON: build/escape-hatch-report.json
@@ -257,11 +319,27 @@ jobs:
           name: deferred-aliases-report-fast-pr
           path: build/deferred-aliases.json
           if-no-files-found: error
+      - name: Upload scoped product test evidence
+        if: ${{ always() && fromJSON(needs.ci-plan.outputs.plan).product_test_scope.product != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: scoped-product-tests-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            build/ci-product-test-receipt.json
+            build/ci-product-api-result.json
+            build/ci-product-api-evidence
+            build/ci-product-build-evidence
+            build/fast-pr-test-output.log
+          if-no-files-found: error
+          retention-days: 7
       - name: Report cache and validation observations
         if: ${{ always() && steps.cache-inputs.outcome == 'success' }}
         run: python3 -B Tools/ci-cache.py report
 
   macro-tests:
+    concurrency:
+      group: scoped-job-v1-${{ github.repository }}-${{ github.workflow }}-macro-tests.yml-macro-tests-pr-${{ github.event.pull_request.number }}-base-${{ github.event.pull_request.base.ref }}-${{ contains(github.event.pull_request.labels.*.name, 'release-validation') && 'release-validation' || 'no-release-validation' }}-${{ ((vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base))))) && 'active' || format('off-{0}-{1}', github.run_id, github.run_attempt) }}
+      cancel-in-progress: ${{ (vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base)))) }}
     name: Exhaustive release contracts
     needs: ci-plan
     if: needs.ci-plan.outputs.macro-tests == 'true'
@@ -335,6 +413,18 @@ jobs:
           name: public-api-current-${{ github.sha }}
           path: build/public-api-current.json
           if-no-files-found: error
+      - name: Qualify isolated product test packages
+        id: qualify-product-tests
+        if: github.event_name == 'pull_request' && (needs.ci-plan.outputs.qualification-proof-change == 'true' || (github.event.pull_request.user.login != 'dependabot[bot]' && !contains(github.event.pull_request.labels.*.name, 'release-validation') && (needs.ci-plan.outputs.qualification-refresh == 'true' || hashFiles('Tools/CIProductTests/InnoDISwiftUI/qualification.json') == '' || hashFiles('Tools/CIProductTests/InnoDITesting/qualification.json') == '')))
+        run: bash Tools/qualify-ci-product-tests.sh
+      - name: Upload product test qualification evidence
+        if: ${{ always() && (steps.qualify-product-tests.outcome == 'success' || steps.qualify-product-tests.outcome == 'failure') }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-test-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ci-test-qualification
+          if-no-files-found: warn
+          retention-days: 7
       - name: Validate Global DAG
         run: swift run InnoDI-DependencyGraph --root . --validate-dag
       - name: Report Build-Validation Escape Hatches
@@ -434,6 +524,9 @@ jobs:
         run: python3 -B Tools/ci-cache.py report
 
   consumer-contracts:
+    concurrency:
+      group: scoped-job-v1-${{ github.repository }}-${{ github.workflow }}-macro-tests.yml-consumer-contracts-pr-${{ github.event.pull_request.number }}-base-${{ github.event.pull_request.base.ref }}-${{ contains(github.event.pull_request.labels.*.name, 'release-validation') && 'release-validation' || 'no-release-validation' }}-${{ ((vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base))))) && 'active' || format('off-{0}-{1}', github.run_id, github.run_attempt) }}
+      cancel-in-progress: ${{ (vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base)))) }}
     name: Exhaustive consumer contracts (Xcode 26.6)
     # The subprocess build contracts run beside the coverage gate instead of
     # inside it. They build fixture packages in separate, non-instrumented
@@ -496,6 +589,9 @@ jobs:
         run: python3 -B Tools/ci-cache.py report
 
   sanitizers:
+    concurrency:
+      group: scoped-job-v1-${{ github.repository }}-${{ github.workflow }}-macro-tests.yml-sanitizers-pr-${{ github.event.pull_request.number }}-base-${{ github.event.pull_request.base.ref }}-${{ contains(github.event.pull_request.labels.*.name, 'release-validation') && 'release-validation' || 'no-release-validation' }}-${{ ((vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base))))) && 'active' || format('off-{0}-{1}', github.run_id, github.run_attempt) }}
+      cancel-in-progress: ${{ (vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base)))) }}
     name: Thread and address sanitizers (Xcode 26.6)
     needs: ci-plan
     if: needs.ci-plan.outputs.sanitizers == 'true'
@@ -540,6 +636,9 @@ jobs:
           --skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'
 
   swift-62-compatibility:
+    concurrency:
+      group: scoped-job-v1-${{ github.repository }}-${{ github.workflow }}-macro-tests.yml-swift-62-compatibility-pr-${{ github.event.pull_request.number }}-base-${{ github.event.pull_request.base.ref }}-${{ contains(github.event.pull_request.labels.*.name, 'release-validation') && 'release-validation' || 'no-release-validation' }}-${{ ((vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base))))) && 'active' || format('off-{0}-{1}', github.run_id, github.run_attempt) }}
+      cancel-in-progress: ${{ (vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base)))) }}
     name: Swift 6.2 compatibility
     needs: ci-plan
     if: needs.ci-plan.outputs.swift-62-compatibility == 'true'
@@ -617,6 +716,9 @@ jobs:
         run: python3 -B Tools/ci-cache.py report
 
   xcode-27-compatibility:
+    concurrency:
+      group: scoped-job-v1-${{ github.repository }}-${{ github.workflow }}-macro-tests.yml-xcode-27-compatibility-pr-${{ github.event.pull_request.number }}-base-${{ github.event.pull_request.base.ref }}-${{ contains(github.event.pull_request.labels.*.name, 'release-validation') && 'release-validation' || 'no-release-validation' }}-${{ ((vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base))))) && 'active' || format('off-{0}-{1}', github.run_id, github.run_attempt) }}
+      cancel-in-progress: ${{ (vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base)))) }}
     name: Xcode 27 compatibility preview
     needs: ci-plan
     if: needs.ci-plan.outputs.xcode-27-compatibility == 'true'
@@ -676,6 +778,9 @@ jobs:
         run: python3 -B Tools/ci-cache.py report
 
   apple-platform-builds:
+    concurrency:
+      group: scoped-job-v1-${{ github.repository }}-${{ github.workflow }}-macro-tests.yml-apple-platform-builds-pr-${{ github.event.pull_request.number }}-base-${{ github.event.pull_request.base.ref }}-${{ contains(github.event.pull_request.labels.*.name, 'release-validation') && 'release-validation' || 'no-release-validation' }}-${{ ((vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base))))) && 'active' || format('off-{0}-{1}', github.run_id, github.run_attempt) }}
+      cancel-in-progress: ${{ (vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base)))) }}
     name: Apple platform builds (Xcode 26.6)
     needs: ci-plan
     if: needs.ci-plan.outputs.apple-platform-builds == 'true'
@@ -718,6 +823,9 @@ jobs:
           done
 
   path-identity:
+    concurrency:
+      group: scoped-job-v1-${{ github.repository }}-${{ github.workflow }}-macro-tests.yml-path-identity-pr-${{ github.event.pull_request.number }}-base-${{ github.event.pull_request.base.ref }}-${{ contains(github.event.pull_request.labels.*.name, 'release-validation') && 'release-validation' || 'no-release-validation' }}-${{ ((vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base))))) && 'active' || format('off-{0}-{1}', github.run_id, github.run_attempt) }}
+      cancel-in-progress: ${{ (vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request' && !((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base)))) }}
     needs: ci-plan
     if: needs.ci-plan.outputs.path-identity == 'true'
     runs-on: macos-26
@@ -769,7 +877,7 @@ jobs:
       - docc
       - remote-consumer
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: ${{ ((vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && github.event_name == 'pull_request') && ((github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base)))) && 360 || (5) }}
     permissions:
       contents: read
       pull-requests: read
@@ -780,9 +888,11 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: Require every planned result
         if: ${{ !(github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base))) }}
         env:
+          PRODUCT_SCOPE_ENABLED: ${{ (vars.INNODI_PRODUCT_CI == '' || vars.INNODI_PRODUCT_CI == 'true') && 'true' || 'false' }}
           CI_PLAN: ${{ needs.ci-plan.outputs.plan }}
           CI_NEEDS: ${{ toJSON(needs) }}
           CI_REUSE: ${{ needs.ci-plan.outputs.reuse-proof }}
@@ -791,8 +901,9 @@ jobs:
       - name: Verify prior validation for metadata
         if: ${{ (github.event_name == 'pull_request' && (((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name && github.event.label.name != 'release-validation') || (github.event.action == 'edited' && !github.event.changes.base))) }}
         env:
+          INNO_JOB_CANCELLATION: ${{ (vars.INNO_JOB_CANCELLATION == '' || vars.INNO_JOB_CANCELLATION == 'enabled') && 'enabled' || 'disabled' }}
           GH_TOKEN: ${{ github.token }}
-        run: python3 -B Tools/verify-ci-metadata.py --check 'CI Required'
+        run: python3 -B Tools/metadata_wait.py -- python3 -B Tools/verify-ci-metadata.py --check 'CI Required'
 
   append-perf-history:
     if: >-
