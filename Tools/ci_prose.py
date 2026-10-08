@@ -17,7 +17,9 @@ def candidate(path):
         return False
     if any(part in ('', '.', '..') for part in path.split('/')) or path.startswith('/') or '\\' in path:
         return False
-    return '/' not in path or path.startswith(('docs/', 'Docs/')) or (path.startswith('Sources/') and '.docc/' in path)
+    # Catalog symbol/article links require DocC validation even without code fences.
+    if '.docc/' in path: return False
+    return '/' not in path or path.startswith(('docs/', 'Docs/'))
 
 
 def executable_signature(text):

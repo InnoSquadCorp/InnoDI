@@ -57,7 +57,8 @@ ALLOWED_STEP_SKIP = {("docc / docc", "Upload GitHub Pages Artifact"),
 ALLOWED_STEP_SKIP.update({('CI Required', 'Verify prior validation for metadata')})
 ALLOWED_STEP_SKIP.add(('CI and public operations policy', 'Validate prose-only documentation'))
 
-# Optional real-toolchain bootstrap diagnostics never replace a required gate.
+# Conditional real-toolchain bootstrap steps may skip when not applicable.
+# When selected, they must succeed; failed qualification cannot become evidence.
 ALLOWED_STEP_SKIP.update({('examples / sample-app', 'Upload real resolution evidence (SampleApp)'), ('Exhaustive release contracts', 'Qualify isolated product test packages'), ('examples / preview-injection-example', 'Collect real SwiftPM resolution evidence (PreviewInjectionExample)'), ('Exhaustive release contracts', 'Upload product test qualification evidence'), ('examples / sample-app', 'Collect real SwiftPM resolution evidence (SampleApp)'), ('examples / preview-injection-example', 'Upload real resolution evidence (PreviewInjectionExample)'), ('examples / swiftui-example', 'Upload real resolution evidence (SwiftUIExample)'), ('examples / swiftui-example', 'Collect real SwiftPM resolution evidence (SwiftUIExample)')})
 
 

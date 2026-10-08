@@ -25,6 +25,19 @@ class ProductExecutionTests(unittest.TestCase):
   if DI:self.assertEqual(receipt['decision'],'skip-unaffected');self.assertEqual(self.calls,[])
   else:self.assertEqual(self.calls,[['xcrun','swift','build','--target',TARGET,'--force-resolved-versions']])
   x.verify(self.root,self.env,kind,[unit],'macOS',self.root/'tmp',self.root/'receipts',self.dump)
+ def test_plugin_dependencies_keep_all_consumers_selected(self):
+  for target in ('InnoDIDependencyGraphCore','InnoDI-DAGValidationCoordinator'):
+   plan=x.impact.select(GRAPH,['Sources/'+target+'/Changed.swift'])
+   self.assertIn('InnoDIDAGValidationPlugin',plan['affected_products'])
+   for unit in ('SampleApp','SwiftUIExample','PreviewInjectionExample'):
+    recipe=x.recipe(self.root,{'mode':'scoped','products':plan['affected_products']},'di-example',unit,'macOS',self.root/'tmp')
+    self.assertEqual(recipe['decision'],'run-selected-consumer')
+    self.assertTrue(recipe['commands'])
+ def test_missing_consumer_mapping_cannot_skip(self):
+  graph=copy.deepcopy(GRAPH);del graph['consumers']['Examples/SampleApp']
+  (self.root/'Tools/ci-product-graph.json').write_text(json.dumps(graph))
+  with self.assertRaisesRegex(ValueError,'example missing'):
+   x.recipe(self.root,{'mode':'scoped','products':['InnoDITesting']},'di-example','SampleApp','macOS',self.root/'tmp')
  def test_default_on_and_explicit_disabled_admission(self):
   for flag in ('', 'true', 'TRUE'):
    self.assertEqual(x.admit(self.root,{**self.env,'PRODUCT_SCOPE_ENABLED':flag},self.dump)['mode'],'scoped')

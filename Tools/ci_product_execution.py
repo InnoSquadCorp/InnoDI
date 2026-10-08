@@ -151,11 +151,16 @@ def recipe(root, admission, kind, unit, platform, temporary):
             if not commands: raise ValueError('empty product build cannot succeed')
             return {'decision':'run-scoped','commands':commands}
         return {'decision':'run-full','commands':[['xcrun','swift','build']]}
-    examples = {'SampleApp': {'InnoDI'}, 'SwiftUIExample': {'InnoDISwiftUI'}, 'PreviewInjectionExample': {'InnoDISwiftUI'}}
-    if kind != 'di-example' or unit not in examples: raise ValueError('unreviewed example')
+    if kind != 'di-example' or unit not in ('SampleApp', 'SwiftUIExample', 'PreviewInjectionExample'):
+        raise ValueError('unreviewed example')
     directory = str(root/'Examples'/unit)
-    if admission['mode'] == 'scoped' and not set(admission['products']) & examples[unit]:
-        return {'decision':'skip-unaffected','commands':[],'cwd':directory}
+    if admission['mode'] == 'scoped':
+        graph = json.loads((root/'Tools/ci-product-graph.json').read_text())
+        impact.validate(graph)
+        consumer = graph['consumers'].get('Examples/'+unit)
+        if consumer is None: raise ValueError('example missing from reviewed consumer graph')
+        if not set(admission['products']) & set(consumer['products']):
+            return {'decision':'skip-unaffected','commands':[],'cwd':directory}
     flags=['-Xswiftc','-strict-concurrency=complete','-Xswiftc','-warnings-as-errors']
     resolved=['--force-resolved-versions'] if admission['mode']=='scoped' else []
     commands=[['swift','build',*resolved,*flags],['swift','test',*resolved,*flags]]

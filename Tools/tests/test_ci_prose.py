@@ -36,6 +36,15 @@ class ProseTests(unittest.TestCase):
         self.assertEqual([j for j,v in plan['jobs'].items() if v],['policy']);self.assertIn('prose_only',plan)
         p.evaluate(plan,self.needs(plan),root=self.root,event=self.event)
         p.prose_module().check_files(self.root,plan['prose_only'])
+    def test_catalog_inline_symbol_changes_keep_docc_gate(self):
+        path='Sources/InnoDI/InnoDI.docc/Guide.md'
+        target=self.root/path;target.parent.mkdir(parents=True);target.write_text('See ``ExistingSymbol`` and <doc:ExistingArticle>.\n')
+        self.git('add','.');self.git('commit','-qm','catalog base');self.base=self.git('rev-parse','HEAD')
+        plan=self.plan({path:'See ``MissingSymbol`` and <doc:MissingArticle>.\n'})
+        self.assertNotIn('prose_only',plan)
+        self.assertTrue(plan['jobs']['docc'])
+        self.assertTrue(plan['jobs']['documentation-contracts'])
+        self.assertFalse(p.prose_module().candidate('docs/Guide.docc/Article.md'))
     def test_funding_only_static(self):
         plan=self.plan({'.github/FUNDING.yml':'github: innosquad\ncustom: https://example.invalid/sponsor\n'})
         self.assertIn('prose_only',plan);p.evaluate(plan,self.needs(plan),root=self.root,event=self.event)
