@@ -92,3 +92,25 @@ an unrelated compiled module still fails. SwiftPM may also compile a declared
 build-tool plugin while loading the dependency graph, even when that plugin
 is not applied by the test consumer. This setup overhead is not a claim of
 zero compiler work outside selected library/test modules.
+
+## Successful isolated-test qualification
+
+[Run 37735555205](https://github.com/InnoSquadCorp/InnoDI/actions/runs/37735555205)
+qualified both consumers at head `a7945623264c35b508aa90bbc1d2200039784146`
+after successful clean full coverage and full API validation. Artifact 11532198526
+SHA256 `42418b3104646d3599ac38930af5f36b5f604aac25b79228702518155a18a39b`
+contains the original checked-in qualification records and raw proof. Its native
+run/attempt, merge parents, bound input hashes, raw descriptions, module inventory,
+and symbol graphs were checked before import.
+
+- SwiftUI: 36 discovered tests, all matching the original full-package inventory
+- Testing: 20 discovered tests, all matching the original full-package inventory
+- Each fresh build compiled exactly its selected library and test module plus
+  `InnoDI`, `InnoDIMacros`, and `InnoDICore`; the other shipping library was absent
+- Both strict test executions and selected/full/baseline API comparisons passed
+
+Qualification is bound to Xcode 26.6 build 17F113, Swift 6.3.3,
+macOS 26.6.2, macOS SDK 26.5 build 25F70, and arm64. Changes to these live inputs
+fail the selected gate until requalified. These records enable ordinary eligible
+single-leaf source PR planning; shared/unknown/main/queue/release paths remain full.
+The commit importing the records itself requires a fresh qualification replay.

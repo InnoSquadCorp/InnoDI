@@ -1,0 +1,147 @@
+{
+  "build_closure": {
+    "all_planned_modules": [
+      "InnoDI",
+      "InnoDIBuildSupport",
+      "InnoDICore",
+      "InnoDIDependencyGraphCLI",
+      "InnoDIDependencyGraphCore",
+      "InnoDIDoctorCore",
+      "InnoDIMacros",
+      "InnoDIMigrationCore",
+      "InnoDISwiftUI",
+      "InnoDITesting",
+      "InnoDITestingProductTestsPackageTests",
+      "InnoDITestingTests",
+      "InnoDIWorkspaceAnalysis",
+      "InnoDI_DAGValidationCoordinator",
+      "InnoDI_DependencyGraph",
+      "InnoDI_Doctor",
+      "InnoDI_Migrate",
+      "SwiftBasicFormat",
+      "SwiftCompilerPlugin",
+      "SwiftCompilerPluginMessageHandling",
+      "SwiftDiagnostics",
+      "SwiftIDEUtils",
+      "SwiftIfConfig",
+      "SwiftLexicalLookup",
+      "SwiftLibraryPluginProvider",
+      "SwiftOperators",
+      "SwiftParser",
+      "SwiftParserDiagnostics",
+      "SwiftRefactor",
+      "SwiftSyntax",
+      "SwiftSyntax509",
+      "SwiftSyntax510",
+      "SwiftSyntax600",
+      "SwiftSyntax601",
+      "SwiftSyntax602",
+      "SwiftSyntax603",
+      "SwiftSyntax604",
+      "SwiftSyntaxBuilder",
+      "SwiftSyntaxMacroExpansion",
+      "SwiftSyntaxMacros",
+      "SwiftSyntaxMacrosGenericTestSupport",
+      "SwiftSyntaxMacrosTestSupport",
+      "SwiftWarningControl",
+      "_SwiftSyntaxGenericTestSupport"
+    ],
+    "compiled_module_paths": [
+      "arm64-apple-macosx/debug/Modules/InnoDI.swiftmodule",
+      "arm64-apple-macosx/debug/Modules/InnoDITesting.swiftmodule",
+      "arm64-apple-macosx/debug/Modules/InnoDITestingTests.swiftmodule",
+      "arm64-apple-macosx/debug/Modules-tool/InnoDICore.swiftmodule",
+      "arm64-apple-macosx/debug/Modules-tool/InnoDIMacros.swiftmodule"
+    ],
+    "first_party_modules": [
+      "InnoDI",
+      "InnoDICore",
+      "InnoDIMacros",
+      "InnoDITesting",
+      "InnoDITestingTests"
+    ],
+    "fresh_scratch": true,
+    "raw_description_sha256": {
+      "arm64-apple-macosx/debug/description.json": "c0abae86d89b4eb3dfcd95061978dde2a1d268fdc68632a0198174109d9e4699",
+      "arm64-apple-macosx/debug/plugin-tools-description.json": "c0abae86d89b4eb3dfcd95061978dde2a1d268fdc68632a0198174109d9e4699"
+    },
+    "schema": "swiftpm-native-v1"
+  },
+  "contract": {
+    "files": {
+      "Package.resolved": "ecdd389f1ad35f356081a751345c4fd661cbbc980d37f0c495b4385e1e4d6c2a",
+      "Package.swift": "2cca3eab3ad411cb0d37e562a5f09f2542ff05ef7f3416a7071c65aa276fabcb",
+      "Tools/CIProductTests/InnoDITesting/Package.resolved": "1fc0e0d86ed4ece2536055538075075cd8818e271bce02169db1519bcc504dee",
+      "Tools/CIProductTests/InnoDITesting/Package.swift": "6585f11fd6b561eed140a9936272a308a4576a4ba2e0fca1eadd93b220e776bc",
+      "Tools/check-public-api.py": "8db0a3cc8d9823243b6828d0993a34e012a125b137ce04245ed1a0cf38b16e56",
+      "Tools/ci_product_api.py": "50acfc25d5ef2c735429589e5869575c79cdbca38de9811daba16454e71b0d94",
+      "Tools/ci_product_tests.py": "b884c4d6a0bd2726e318370430053e298f669457afd74f47835ac6055b1e9c34",
+      "Tools/public-api-baseline.json": "a00a57d9869de62e9c4b4fa50aca0fb8ad8c47d1faa0f67e0622aa55f5567b49"
+    },
+    "platform": "macOS",
+    "product": "InnoDITesting",
+    "source_inventory": {
+      "InnoDITestingTests.swift": "6318fcf9fa69b5e72cc6ede7b7257fd39e03129fc05988eb563bf434b59858a9",
+      "PreparedOverrideTests.swift": "acc48616b01a987e586c4e5272d9a8126f975fab44a2ecaa154751a893701d09"
+    },
+    "test_target": "InnoDITestingTests",
+    "toolchain": "Apple Swift version 6.3.3 (swiftlang-6.3.3.1.3 clang-2100.1.1.101)\nTarget: arm64-apple-macosx26.0",
+    "toolchain_environment": {
+      "architecture": "arm64",
+      "macos_version": "26.6.2",
+      "schema": 1,
+      "sdk_build": "25F70",
+      "sdk_version": "26.5",
+      "xcode_build": "17F113",
+      "xcode_version": "26.6"
+    }
+  },
+  "discovered_tests": [
+    "InnoDITestingTests.InnoDITestingTests/concurrentMockState()",
+    "InnoDITestingTests.InnoDITestingTests/concurrentRecorder()",
+    "InnoDITestingTests.InnoDITestingTests/concurrentValueBox()",
+    "InnoDITestingTests.InnoDITestingTests/effectPresetCompositionAndParallelIsolation()",
+    "InnoDITestingTests.InnoDITestingTests/interactionValidation()",
+    "InnoDITestingTests.InnoDITestingTests/mainActorEffectOverride()",
+    "InnoDITestingTests.InnoDITestingTests/missingStubValidation()",
+    "InnoDITestingTests.InnoDITestingTests/optionalNilEffectOverride()",
+    "InnoDITestingTests.InnoDITestingTests/presetComposition()",
+    "InnoDITestingTests.InnoDITestingTests/productionDefaultRemainsUnchanged()",
+    "InnoDITestingTests.InnoDITestingTests/strictEffectOverridePreflight()",
+    "InnoDITestingTests.PreparedOverrideTests/explicitMainActor()",
+    "InnoDITestingTests.PreparedOverrideTests/helperNameCollisionsAndDefaults()",
+    "InnoDITestingTests.PreparedOverrideTests/mainActorClosure()",
+    "InnoDITestingTests.PreparedOverrideTests/mainActorPreset()",
+    "InnoDITestingTests.PreparedOverrideTests/optionalNilAndDefaultRestoration()",
+    "InnoDITestingTests.PreparedOverrideTests/ordinaryClosureAndTransientDefault()",
+    "InnoDITestingTests.PreparedOverrideTests/strictPresetPreflight()",
+    "InnoDITestingTests.PreparedOverrideTests/validPresetAndTransientIdentity()",
+    "InnoDITestingTests.PreparedOverrideTests/validationFailureAndRecordingProfile()"
+  ],
+  "discovery_sha256": {
+    "full": "a0bfb93e1601785f807d4ddd806626eeea14f6d967f2f05991796226c437058e",
+    "scoped": "41be3d23c2ee903097e42b7f79bee319da99ec30707f09b9958f566965814eea"
+  },
+  "execution": {
+    "flags": [
+      "--no-parallel",
+      "-Xswiftc",
+      "-strict-concurrency=complete",
+      "-Xswiftc",
+      "-warnings-as-errors"
+    ],
+    "result": "success"
+  },
+  "public_api": {
+    "baseline_match": true,
+    "full_current_match": true,
+    "normalized_sha256": "cd492232be6a41869115163ddfcf96c72acf7e2842f7b025a5ff15601a3ac393",
+    "product": "InnoDITesting",
+    "raw_graph_sha256": {
+      "InnoDITesting.symbols.json": "befca048b0df38a9723a07ab1a3f3bb146d4795eaa14db9d989cb0fa90ed9994"
+    },
+    "schema": "selected-api-v1",
+    "target": "arm64-apple-macosx14.0"
+  },
+  "schema": 1
+}
