@@ -103,3 +103,11 @@ qualify the updated version-selection guidance or demonstrate tests on later
 patches. Re-run host evaluations when behavior or discovery metadata changes.
 Full repeated bilingual evaluation, 6.x migration execution, SwiftUI device
 behavior, and combined-library resolution remain unverified.
+
+## Consumer command diagnostics
+
+The validator parses dependency-graph JSON from stdout only. SwiftPM warnings
+are retained in `dependency-graph.stderr.log`,
+linked by each command's `stderr_log` evidence field. Malformed or empty stdout
+and nonzero command exits still fail validation. Other commands retain combined
+text logs, including Swift Testing summaries written to stderr.
