@@ -747,49 +747,49 @@ struct ReleaseCandidateScriptTests {
         #expect(result.output.contains("'### Highlights' must contain non-placeholder content"))
     }
 
-    @Test("Every README dependency must use the candidate version")
-    func staleReadmeVersionIsRejected() throws {
+    @Test("Every README dependency must use the candidate version", arguments: ReleaseCandidateScriptFixture.readmeNames)
+    func staleReadmeVersionIsRejected(name: String) throws {
         let fixture = try ReleaseCandidateScriptFixture()
         defer { fixture.remove() }
         try fixture.writeReadme(
-            named: "README.ko.md",
+            named: name,
             dependencyVersions: ["4.3.0"]
         )
 
         let result = try fixture.run()
 
         #expect(result.exitCode != 0)
-        #expect(result.output.contains("README.ko.md must use"))
+        #expect(result.output.contains("\(name) must use"))
         #expect(result.output.contains("from: \"\(fixture.version)\""))
     }
 
-    @Test("Every README must contain exactly one InnoDI dependency")
-    func duplicateReadmeDependencyIsRejected() throws {
+    @Test("Every README must contain exactly one InnoDI dependency", arguments: ReleaseCandidateScriptFixture.readmeNames)
+    func duplicateReadmeDependencyIsRejected(name: String) throws {
         let fixture = try ReleaseCandidateScriptFixture()
         defer { fixture.remove() }
         try fixture.writeReadme(
-            named: "README.ko.md",
+            named: name,
             dependencyVersions: [fixture.version, fixture.version]
         )
 
         let result = try fixture.run()
 
         #expect(result.exitCode != 0)
-        #expect(result.output.contains("README.ko.md must contain exactly one"))
+        #expect(result.output.contains("\(name) must contain exactly one"))
     }
 
-    @Test("The English and Korean README variants are required")
-    func missingReadmeVariantIsRejected() throws {
+    @Test("All seven maintained README variants are required", arguments: ReleaseCandidateScriptFixture.readmeNames)
+    func missingReadmeVariantIsRejected(name: String) throws {
         let fixture = try ReleaseCandidateScriptFixture()
         defer { fixture.remove() }
         try FileManager.default.removeItem(
-            at: fixture.rootURL.appendingPathComponent("README.ko.md")
+            at: fixture.rootURL.appendingPathComponent(name)
         )
 
         let result = try fixture.run()
 
         #expect(result.exitCode != 0)
-        #expect(result.output.contains("missing README variant: README.ko.md"))
+        #expect(result.output.contains("missing README variant: \(name)"))
     }
 
     @Test("English migration guide cannot describe the candidate train as unreleased")
@@ -860,6 +860,11 @@ private struct ReleaseCandidateScriptFixture {
     static let readmeNames = [
         "README.md",
         "README.ko.md",
+        "README.ja.md",
+        "README.zh-Hans.md",
+        "README.de.md",
+        "README.es.md",
+        "README.ru.md",
     ]
 
     let rootURL: URL
