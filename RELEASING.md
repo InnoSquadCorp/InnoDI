@@ -175,10 +175,11 @@ Before dispatching the `Release Gate` workflow:
       version
     - remove the matching `Current development train: <version> (unreleased)`
       line, or advance it to a later development train
-    - update every installation reference in `README.md` and `README.ko.md` to
-      the exact version; the other translations are frozen notice pages
+    - update every installation reference and guide-version marker in all seven
+      `README*.md` files to the exact version; the five concise translations
+      must retain their explicit scope and historical-documentation links
     - replace the development-checkout installation and unreleased banner with
-      the exact-version installation in both READMEs; update the linked
+      the exact-version installation in the full English/Korean READMEs; update the linked
       stable documentation at the same time. The README installation contract
       test follows the development-train/latest-stable metadata above.
     - leave exactly one matching release-notes section in `CHANGELOG.md`

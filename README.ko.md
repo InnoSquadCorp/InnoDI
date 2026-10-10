@@ -132,7 +132,7 @@ InnoDI 7.0.1은 7.0.0에서 사용한 `swift-syntax`의 `604.0.0` 고정을 유�
 빌드 시점 validator는 lock과 cache를 SwiftPM scratch 디렉터리 아래에 두며, 이
 디렉터리는 APFS 같은 로컬 파일시스템에 있어야 합니다. NFS, SMB, WebDAV, FUSE
 mount는 기본적으로 거부합니다. 파일시스템 표와 복구 절차는
-[Lock Safety](Sources/InnoDI/InnoDI.docc/lock-safety.md)를 참고하세요.
+[Lock Safety](Sources/InnoDI/InnoDI.docc/ko.lproj/lock-safety.md)를 참고하세요.
 
 ## 개인정보 보호
 
@@ -166,7 +166,7 @@ dependencies: [
 그 다음 필요한 product를 연결합니다. `InnoDI`가 핵심입니다. SwiftUI helper가
 필요하면 `InnoDISwiftUI`를 추가하고, `InnoDITesting`은 생성 mock이나 override
 preset을 쓰는 테스트 또는 프리뷰 지원 target에만 추가하세요.
-[Auto Mock](Sources/InnoDI/InnoDI.docc/AutoMock.md)을 참고하세요.
+[Auto Mock](Sources/InnoDI/InnoDI.docc/ko.lproj/AutoMock.md)을 참고하세요.
 
 ```swift
 .target(
@@ -211,14 +211,14 @@ qualifier shadow, 전역 의존성 그래프처럼 attached macro가 볼 수 없
 [Integration Guide](Sources/InnoDI/InnoDI.docc/ko.lproj/IntegrationGuide.md#빌드-플러그인)는
 Xcode와 Tuist의 한계, `generated-qualifier.inheritance-unverifiable` 뒤의
 superclass 규칙, scratch path 요구 사항을 다룹니다.
-[Plugin Opt-Out](Sources/InnoDI/InnoDI.docc/PluginOptOut.md)은 컨테이너 단위
+[Plugin Opt-Out](Sources/InnoDI/InnoDI.docc/ko.lproj/PluginOptOut.md)은 컨테이너 단위
 `validateDAG: false`와 빌드 전체 `INNODI_DISABLE_BUILD_VALIDATION=1` escape
 hatch를 설명하며, 프로덕션 CI는 두 옵션을 모두 설정하지 않아야 합니다.
 
 ### 3. 첫 컨테이너 작성
 
 아래 빠른 시작으로 이어가세요.
-[튜토리얼](Sources/InnoDI/InnoDI.docc/Tutorial-01-Hello.md)은 컨테이너를 단계별로
+[튜토리얼](Sources/InnoDI/InnoDI.docc/ko.lproj/Tutorial-01-Hello.md)은 컨테이너를 단계별로
 만듭니다.
 
 ## 빠른 시작
@@ -282,6 +282,9 @@ var apiClient: any APIClientProtocol
 
 필요한 작업에서 시작하세요.
 
+전체 작업과 번역 범위는 [문서 안내](Sources/InnoDI/InnoDI.docc/ko.lproj/DocumentationGuide.md)를,
+호출 시 입력과 모듈별 조합은 [Assisted Factory와 Collection](Sources/InnoDI/InnoDI.docc/ko.lproj/Composition.md)을 참고하세요.
+
 1. 동기 서비스와 값: [Overview](Sources/InnoDI/InnoDI.docc/ko.lproj/Overview.md)
 2. 준비와 종료가 필요한 비동기 작업: [Owned Containers](Sources/InnoDI/InnoDI.docc/ko.lproj/OwnedContainers.md)
 3. 테스트와 프리뷰: 위 Quick Start의 mock override와 [Auto Mock](Sources/InnoDI/InnoDI.docc/ko.lproj/AutoMock.md)
@@ -311,8 +314,9 @@ override ABI는 매크로가 소유하도록 사용자 선언의 이름을 바�
 `_InnoDIMountOverrides = Overrides`도 생성합니다. 이 underscore 이름을 직접
 선언하거나 참조하지 마세요.
 
-컨테이너의 모든 stored instance member에는 `@Provide` 또는 `@SubContainer`가
-필요합니다. computed/static property는 계속 사용할 수 있습니다. 그래야 생성
+컨테이너의 모든 stored instance member에는 지원되는 managed-member 매크로
+`@Input`, `@Provide`, `@Multibinding`, `@SubContainerFactory`, `@SubContainer`
+중 하나가 필요합니다. computed/static property는 계속 사용할 수 있습니다. 그래야 생성
 initializer가 전체 상태를 소유하고 memberwise initializer 변화가 생기지 않습니다.
 
 `@DIContainer`가 지원하는 선언은 file scope 또는 nominal type 안에 nested된,

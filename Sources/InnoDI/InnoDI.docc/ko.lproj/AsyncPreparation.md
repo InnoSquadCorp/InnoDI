@@ -82,6 +82,17 @@ InnoDI가 소유하는 범위는 전달된 operation으로 만든 작업뿐입�
 member는 이미 scope 기반 provider를 소유합니다. 첫 읽기에서 시작하고, 동시에
 들어온 읽기를 합치며, 생성된 `closeAsyncProviders()`로 닫힙니다. 컨테이너
 member에 소유자가 닫을 수 있는 지연 생성만 필요하다면 이 방식을 선택하세요.
-상태 관찰, ``DIAsyncPreparationPlan``을 통한 선택적 준비, 실패 후 재시도가
-필요하다면 ``DIAsyncScope``를 `@Input`으로 주입하세요. provider 수명은
-<doc:Provide>를 참고하세요.
+Provider 수명은 <doc:Provide>를 참고하세요.
+
+지원되는 컨테이너 그래프에 선택적 준비, 상태 관찰, 취소, 재시도까지 필요하다면
+`@DIContainer(generateOwned: true)`로 opt-in하고 `makeOwned`를 사용하세요.
+생성된 owner는 `prepare`, `requireReady`, `status`, `cancel`, `retry`, `close`를
+제공합니다. 한 번의 작업에는 준비 상태를 확인하고 정리를 기다리는
+`withPrepared`를 사용할 수 있습니다. Owner 생성은 eager provider가 ready가 될
+때까지 기다리지 않습니다. 지원하는 선언과 borrowing 경계는
+<doc:OwnedContainers>를 참고하세요.
+
+애플리케이션이 scope를 직접 관리하거나 ``DIAsyncPreparationPlan``을 수동으로
+구성해야 한다면 ``DIAsyncScope``를 `@Input`으로 주입하세요. 주입된 scope는
+borrowed 값이므로 생성된 owner를 닫아도 해당 input은 닫히지 않습니다. Scope를
+생성한 애플리케이션에서 정리를 책임져야 합니다.
