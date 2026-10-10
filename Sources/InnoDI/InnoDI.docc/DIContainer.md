@@ -4,7 +4,7 @@
 or in a non-generic nominal declaration as an InnoDI container and synthesizes
 the container API surface.
 
-InnoDI 6.0 requires both the struct and every enclosing nominal declaration to
+InnoDI requires both the struct and every enclosing nominal declaration to
 omit generic parameters and generic `where` clauses. Classes, actors, enums,
 protocols, extension declarations, structs declared inside extensions, and
 structs in executable scopes such as functions, closures, accessors, or switch
@@ -52,14 +52,15 @@ operation closure remains on MainActor.
 
 Every supported container, including one with no managed members, synthesizes
 the complete overrides scaffolding. A user-declared nested `Overrides` type is
-unsupported in InnoDI 6.0 and emits `container.overrides-name-conflict`; rename
+unsupported and emits `container.overrides-name-conflict`; rename
 it so the macro can own the mountable override ABI.
 
 The macro also emits the reserved compiler-support alias
 `_InnoDIMountOverrides = Overrides` for generated parent mounting code. Do not
 declare or reference that underscored name directly.
 
-Every stored instance member must use `@Provide` or `@SubContainer`.
+Every stored instance member must use a supported managed-member attribute:
+`@Input`, `@Provide`, `@Multibinding`, `@SubContainerFactory`, or `@SubContainer`.
 Computed and type properties remain available. This lets the synthesized
 initializer own all stored state and prevents memberwise-initializer ABI drift.
 

@@ -71,9 +71,11 @@ Localized mirror:
 
 Keep the English docs authoritative, then mirror the same structure and meaning
 into the Korean README and DocC files. The Japanese, Simplified Chinese,
-German, Spanish, and Russian translations were frozen at 6.0.0. Their README
-files and `*.lproj` folders are notice pages that link the 6.0.0 translation;
-do not add new content to them.
+German, Spanish, and Russian READMEs are concise current-release guides,
+not full translations of the reference. Keep all five guides current together;
+preserve the guide-version and section markers used by the parity gate. Their
+`*.lproj` folders still contain historical 6.0.0 DocC notices. Do not present
+those notices as current translated API documentation.
 
 The generated DocC archive currently builds from the English base catalog, so
 localized DocC files are maintained as source mirrors in the repository.
@@ -83,8 +85,11 @@ selects the documentation contracts and in every release: a swift fence count
 or H2 header count drift between the English canonical and the Korean README,
 or between an English DocC article and its `ko.lproj` counterpart, fails the
 build, as do an English DocC article without a `ko.lproj` counterpart and a
-notice page that stops linking `README.md` and its 6.0.0 translation. The
-frozen `*.lproj` folders are not compared. When you add a DocC article, or add
+concise guide that loses its current version, required section, installation,
+critical API token, canonical link, or historical link. The frozen `*.lproj`
+folders are not compared. Passing structural checks does not prove translation
+accuracy: review meaning, particularly readiness, cancellation, isolation and
+platform limitations, in every changed locale. When you add a DocC article, or add
 or remove an H2 or a Swift example in `README.md` or a DocC article, mirror
 the change into the Korean file in the same PR. The script accepts
 `INNODI_README_SYNC_STRICT=0` only as an explicit soft-rollout window for

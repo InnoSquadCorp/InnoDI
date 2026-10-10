@@ -24,7 +24,10 @@
 
 - `README.md` is the English canonical README.
 - `README.ko.md` mirrors the same structure. `README.{ja,zh-Hans,de,es,ru}.md`
-  are notice pages frozen at 6.0.0 that link their 6.0.0 translation.
+  are maintained concise current-release guides, with an explicit scope notice
+  and links to complete English references and historical 6.0.0 translations.
+  Keep their version, required sections, install snippet, and safety boundaries
+  aligned; do not imply they translate the full reference.
 - `Sources/InnoDI/InnoDI.docc/*.md` is the English DocC base.
 - `Sources/InnoDI/InnoDI.docc/ko.lproj/*.md` is the maintained localized
   mirror. The other `*.lproj` folders hold only a 6.0.0 translation notice.

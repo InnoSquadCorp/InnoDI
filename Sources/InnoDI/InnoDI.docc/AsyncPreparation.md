@@ -87,7 +87,16 @@ A container member declared with
 scope-backed provider. It starts on the first read, coalesces concurrent
 readers, and closes through the generated `closeAsyncProviders()`. Choose it
 when a container member only needs lazy construction that its owner can
-close. Inject a ``DIAsyncScope`` as an `@Input` instead when the application
-needs observable status, selected preparation through
-``DIAsyncPreparationPlan``, or retry after a failure. See <doc:Provide> for
-the provider lifetime.
+close. See <doc:Provide> for the provider lifetime.
+
+For a supported container graph that also needs selected preparation, status,
+cancellation, or retry, opt in with `@DIContainer(generateOwned: true)` and use
+`makeOwned`. Its generated owner exposes `prepare`, `requireReady`, `status`,
+`cancel`, `retry`, and `close`; `withPrepared` checks readiness and awaits cleanup
+for one operation. Creating the owner does not wait for eager providers to become
+ready. See <doc:OwnedContainers> for supported shapes and borrowing boundaries.
+
+Inject a ``DIAsyncScope`` as an `@Input` when the application needs to manage
+a scope directly or compose a manual ``DIAsyncPreparationPlan``. An injected
+scope remains borrowed: closing a generated owner does not close that input.
+The application that created the scope must arrange its cleanup.

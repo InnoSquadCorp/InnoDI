@@ -3,15 +3,19 @@
 `@GenerateMock` (RFC 0001) synthesizes a call-recording mock peer for a
 protocol so tests can plug into the existing `Overrides` builder without
 hand-writing the mock body. The attribute is available as an
-**experimental** opt-in and remains experimental in InnoDI 6.0. Its generated
+**experimental** opt-in. Its generated
 shape may evolve until RFC 0001's dedicated GA criteria pass.
 
 ## Usage
 
+Add the `InnoDITesting` product to the test or preview-support target and
+import it for the validation helpers below. It re-exports `InnoDI`, including
+`@GenerateMock`. Keep this test support out of production targets.
+
 Attach `@GenerateMock` directly to a protocol declaration:
 
 ```swift
-import InnoDI
+import InnoDITesting
 
 @GenerateMock
 protocol UserService {

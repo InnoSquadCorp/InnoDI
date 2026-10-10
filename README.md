@@ -287,6 +287,10 @@ var apiClient: any APIClientProtocol
 
 Start with the task you need:
 
+See the [complete documentation map](Sources/InnoDI/InnoDI.docc/DocumentationGuide.md)
+for every task, the [assisted factories and collections guide](Sources/InnoDI/InnoDI.docc/Composition.md),
+and the exact scope of each translated guide.
+
 1. Synchronous services and values: [Overview](Sources/InnoDI/InnoDI.docc/Overview.md)
 2. Asynchronous readiness and shutdown: [Owned Containers](Sources/InnoDI/InnoDI.docc/OwnedContainers.md)
 3. Tests and previews: the mock override in Quick Start above, then [Auto Mock](Sources/InnoDI/InnoDI.docc/AutoMock.md)
@@ -317,7 +321,8 @@ The macro also emits the reserved compiler-support alias
 `_InnoDIMountOverrides = Overrides` for generated parent mounting code. Do not
 declare or reference that underscored name directly.
 
-Every stored instance member in a container must use `@Provide` or
+Every stored instance member in a container must use a supported managed-member
+macro: `@Input`, `@Provide`, `@Multibinding`, `@SubContainerFactory`, or
 `@SubContainer`; computed and static properties remain available. This keeps
 the generated initializer complete and prevents memberwise-initializer drift.
 

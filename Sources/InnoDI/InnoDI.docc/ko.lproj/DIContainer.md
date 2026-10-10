@@ -55,7 +55,7 @@ overload는 바뀌지 않습니다. 명시적 `@MainActor` 또는 `mainActor: tr
 `withOverrides` overload와 operation closure가 계속 MainActor에 격리됩니다.
 
 관리 멤버가 없는 경우까지 지원되는 모든 컨테이너가 전체 overrides scaffolding을
-생성합니다. 사용자가 nested `Overrides` 타입을 직접 선언하는 것은 InnoDI 6.0에서
+생성합니다. 사용자가 nested `Overrides` 타입을 직접 선언하는 것은
 지원하지 않으며 `container.overrides-name-conflict` 오류가 발생합니다. mount 가능한
 override ABI는 매크로가 소유하도록 사용자 선언의 이름을 바꾸세요.
 
@@ -63,7 +63,9 @@ override ABI는 매크로가 소유하도록 사용자 선언의 이름을 바�
 `_InnoDIMountOverrides = Overrides`도 생성합니다. 이 underscore 이름을 직접
 선언하거나 참조하지 마세요.
 
-모든 stored instance member에는 `@Provide` 또는 `@SubContainer`가 필요합니다.
+모든 stored instance member에는 지원되는 managed-member attribute인
+`@Input`, `@Provide`, `@Multibinding`, `@SubContainerFactory`, `@SubContainer` 중
+하나가 필요합니다.
 computed/type property는 계속 사용할 수 있습니다. 그래야 합성 initializer가 모든
 stored state를 소유하고 memberwise initializer ABI 변화를 막을 수 있습니다.
 

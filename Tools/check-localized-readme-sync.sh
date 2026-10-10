@@ -12,10 +12,9 @@
 # gets the same structural comparison. A Korean page without an English
 # counterpart is reported and skipped.
 #
-# The other translations were frozen at 6.0.0 and are now notice pages. Their
-# READMEs must keep linking the canonical README and their 6.0.0 translation.
-# Their `*.lproj` folders hold only a TranslationNotice page and are never
-# compared.
+# Five additional READMEs are concise current guides, checked for stable
+# version, sections, API tokens and the canonical minimum example. Their
+# historical DocC `*.lproj` notices are not full current translations.
 #
 # Default mode is strict: differences are reported and the script exits
 # non-zero. Set `INNODI_README_SYNC_STRICT=0` to demote failures to
@@ -29,13 +28,6 @@ cd "$ROOT_DIR"
 CANONICAL="README.md"
 LOCALIZED=(
     "README.ko.md"
-)
-NOTICE_PAGES=(
-    "README.ja.md"
-    "README.zh-Hans.md"
-    "README.de.md"
-    "README.es.md"
-    "README.ru.md"
 )
 
 DOCC_CATALOG="Sources/InnoDI/InnoDI.docc"
@@ -137,16 +129,9 @@ for file in "${LOCALIZED[@]}"; do
     done
 done
 
-for file in "${NOTICE_PAGES[@]}"; do
-    frozen_link="https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/$file"
-    if [[ ! -f "$file" ]] \
-        || ! grep -Fq -- "(README.md)" "$file" \
-        || ! grep -Fq -- "$frozen_link" "$file"; then
-        report_drift "$file" "translation notice must link README.md and $frozen_link"
-    else
-        echo "OK $file: notice page"
-    fi
-done
+if ! python3 Tools/check-docs-translated-guides.py; then
+    report_drift "README*.md" "concise current-guide contract failed"
+fi
 
 docc_page_count=0
 for localized_dir in "${LOCALIZED_DOCC_DIRS[@]}"; do
@@ -185,7 +170,7 @@ for localized_dir in "${LOCALIZED_DOCC_DIRS[@]}"; do
 done
 
 if [[ "$drift_count" -eq 0 ]]; then
-    echo "All localized READMEs and $docc_page_count localized DocC article(s) match the English canonical structure and critical API/diagnostic tokens."
+    echo "Full Korean mirrors ($docc_page_count DocC articles) and five concise current-guide contracts passed."
     exit 0
 fi
 

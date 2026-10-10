@@ -17,8 +17,13 @@ breaking change 표는
 | 4.1 → 4.2 | `@SubContainer` wiring 단순화 | 모든 `withNames:` 사이트를 `with:` key path로 교체하거나, 스택드 peer-macro 헬퍼를 manual/root 헬퍼 코드로 분리하세요. `withNames:`는 더 이상 공개 매크로 시그니처에서 받지 않습니다. |
 | 4.2 → 4.3 | Feature-root 헬퍼 통합 | 새 SwiftUI feature-root 헬퍼는 스택드 `@DIFeatureRoot` 대신 `@SubContainer(featureRoot:)` 또는 `featureRoots:`로 옮기세요. `@DIFeatureRoot`는 호환성 용도로 deprecated 상태로 남습니다. |
 | 4.x → 4.x+1 (experimental) | `@GenerateMock` opt-in | RFC 0001의 1-3단계는 **experimental**로 제공됩니다. Attribute는 안정적이지만 생성되는 mock 형태는 바뀔 수 있습니다. 도입은 opt-in입니다. <doc:AutoMock>을 참고하세요. |
+| 5.x → 6.0 | 명시적인 input과 container role 표기 | `@Provide(.input)`을 `@Input`으로, hierarchy/isolation marker를 `@DIContainerRole`로 바꾸세요. [5.x → 6.0](#5x--60-어휘)을 참고하세요. |
 | 6.x → 7.0 | Parent key path 정규화, 명시적 SwiftUI import, typed prewarm, 선택적 owned 비동기 수명 관리 | 서브컨테이너 parent key path를 `\Self.member`로 쓰고, `InnoDISwiftUI`를 import하는 파일에서 SwiftUI도 import하세요. `InnoDI-Migrate`가 둘 다 처리합니다. macOS target을 14로 올리고 host owner 관찰을 Observation으로 옮기세요. key path prewarm 호출은 직접 옮기세요. Owned preparation과 override helper는 선택적인 추가 API입니다. [6.x → 7.0](#6x--70)을 참고하세요. |
 | 4.x → 5.0 | 공개 계약 강화 | `concrete:`와 `@DIFeatureRoot`를 제거하고, 지원 선언 경계·MainActor 격리·검증·Graph JSON v2 변경에 맞춰 마이그레이션하세요. `@GenerateMock`는 experimental 상태를 유지합니다. |
+
+표의 각 행은 과거 버전 사이의 변경이며 서로 바꿔 쓸 수 있는 현재 API 예제가
+아닙니다. 여러 버전을 건너뛴다면 해당하는 변경을 모두 적용하고 6.x → 7.0
+안내로 마무리하세요.
 
 이후 본문은 사용자가 보통 필요로 하는 순서대로 — 먼저 4.1 → 4.2 wiring
 단순화, 그 다음 4.0 → 4.1 운영 강화, 그 다음 5.0 surface와
@@ -511,6 +516,10 @@ direct collection 선언으로 바꾸세요.
 @Multibinding([\Self.first, \Self.second])
 var services: [any Service]
 ```
+
+현재 7.0.x에서 contributor는 배열 원소 타입에 **할당 가능**하면 되며 타입
+표기가 정확히 같을 필요는 없습니다. <doc:Composition>을 참고하세요. 아래
+문단은 원래 6.0 전환 당시의 규칙을 기록합니다.
 
 Contributor key path 순서가 곧 출력 순서입니다. Contributor는 작성된 타입이
 배열 원소 타입과 정확히 일치하는 동기 direct managed dependency여야 합니다.
