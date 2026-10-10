@@ -17,8 +17,13 @@ changes a consumer must make**.
 | 4.1 → 4.2 | `@SubContainer` wiring simplification | Replace every `withNames:` site with `with:` key paths or split stacked peer-macro helper generation into manual/root helper code. `withNames:` is no longer accepted by the public macro signature. |
 | 4.2 → 4.3 | Feature-root helper integration | Move new SwiftUI feature root helpers from stacked `@DIFeatureRoot` usage into `@SubContainer(featureRoot:)` or `featureRoots:`. `@DIFeatureRoot` remains deprecated for compatibility. |
 | 4.x → 4.x+1 (experimental) | `@GenerateMock` opt-in | RFC 0001 stage 1-3 ship as **experimental** — the attribute is stable, the generated mock shape may evolve. Adoption is opt-in. See <doc:AutoMock>. |
+| 5.x → 6.0 | Explicit input and container-role vocabulary | Replace `@Provide(.input)` with `@Input`, and hierarchy/isolation markers with `@DIContainerRole`; see [5.x → 6.0](#5x--60-vocabulary). |
 | 6.x → 7.0 | Canonical parent key paths, explicit SwiftUI imports, typed prewarm, optional owned async lifecycle | Spell sub-container parent key paths as `\Self.member` and import SwiftUI wherever a file imports `InnoDISwiftUI`; `InnoDI-Migrate` does both. Raise macOS targets to 14 and move host-owner observation to Observation. Migrate key-path prewarm calls by hand. Owned preparation and override helpers are optional additions; see [6.x → 7.0](#6x--70). |
 | 4.x → 5.0 | Contract hardening | Remove `concrete:` and deprecated `@DIFeatureRoot`; adopt the supported declaration matrix, actor-correct access, and graph JSON schema v2. `@GenerateMock` remains experimental until its independent GA criteria pass. |
+
+These rows describe historical transitions, not interchangeable current API
+recipes. When skipping releases, apply every relevant hop and finish with the
+6.x → 7.0 section.
 
 The rest of this article expands each row in the order users
 historically need them: the 4.1 → 4.2 wiring simplification first, then 4.0
@@ -525,6 +530,10 @@ direct injectable collection declaration:
 @Multibinding([\Self.first, \Self.second])
 var services: [any Service]
 ```
+
+For current 7.0.x usage, contributors need to be **assignable** to the array
+element type, not textually identical; see <doc:Composition>. The following
+paragraph records the original 6.0 transition.
 
 Contributor key-path order is output order. Contributors must be synchronous
 direct managed dependencies whose written type exactly matches the array

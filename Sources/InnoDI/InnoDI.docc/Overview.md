@@ -53,6 +53,9 @@ supported Apple toolchain and release gates.
 
 ### Start Here
 
+- <doc:DocumentationGuide>
+- <doc:Composition>
+
 - <doc:Validation>
 - <doc:PolicyBoundaries>
 - <doc:AntiPatterns>

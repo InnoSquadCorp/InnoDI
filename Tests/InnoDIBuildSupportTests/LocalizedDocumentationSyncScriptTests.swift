@@ -17,7 +17,7 @@ struct LocalizedDocumentationSyncScriptTests {
                 "OK Sources/InnoDI/InnoDI.docc/ko.lproj/Guide.md: swift_fences=1 h2_headers=2"
             )
         )
-        #expect(result.output.contains("1 localized DocC article(s) match"))
+        #expect(result.output.contains("Full Korean mirrors (1 DocC articles)"))
     }
 
     @Test("An English DocC article without a Korean mirror fails in strict mode")
@@ -84,7 +84,7 @@ struct LocalizedDocumentationSyncScriptTests {
         #expect(result.output.contains("(strict mode disabled)"))
     }
 
-    @Test("Frozen translations and Korean pages without an English counterpart are not compared")
+    @Test("Historical DocC translations and Korean-only pages are not structurally compared")
     func uncomparedPagesDoNotFail() throws {
         let fixture = try LocalizedDocumentationFixture()
         defer { fixture.remove() }
@@ -100,7 +100,27 @@ struct LocalizedDocumentationSyncScriptTests {
                 "SKIP Sources/InnoDI/InnoDI.docc/ko.lproj/KoreanOnly.md: no English counterpart"
             )
         )
-        #expect(result.output.contains("1 localized DocC article(s) match"))
+        #expect(result.output.contains("Full Korean mirrors (1 DocC articles)"))
+    }
+
+    @Test("A concise guide with the wrong package URL fails the integrated guard")
+    func conciseGuideInstallationDriftFails() throws {
+        let fixture = try LocalizedDocumentationFixture()
+        defer { fixture.remove() }
+        let guide = try String(
+            contentsOf: fixture.rootURL.appendingPathComponent("README.ja.md"),
+            encoding: .utf8
+        )
+        try fixture.write("README.ja.md", guide.replacingOccurrences(
+            of: "https://github.com/InnoSquadCorp/InnoDI.git",
+            with: "https://example.com/WrongPackage.git"
+        ))
+
+        let result = try fixture.runSyncCheck()
+
+        #expect(result.exitCode == 1)
+        #expect(result.output.contains("README.ja.md: expected one canonical InnoDI package URL/current-version declaration"))
+        #expect(result.output.contains("::error::1 localized documentation contract drift(s)"))
     }
 
     @Test("An empty or missing Korean DocC catalog fails instead of passing vacuously")
@@ -165,12 +185,18 @@ private struct LocalizedDocumentationFixture {
         )
         try write("README.md", readme)
         try write("README.ko.md", readme)
+        for name in ["CHANGELOG.md", "Tools/check-docs-translated-guides.py"] {
+            try write(name, String(
+                contentsOf: packageRootURL().appendingPathComponent(name),
+                encoding: .utf8
+            ))
+        }
         for name in ["README.ja.md", "README.zh-Hans.md", "README.de.md", "README.es.md", "README.ru.md"] {
-            try write(name, """
-                [README.md](README.md)
-
-                https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/\(name)
-                """)
+            let guide = try String(
+                contentsOf: packageRootURL().appendingPathComponent(name),
+                encoding: .utf8
+            )
+            try write(name, guide + "\n[Fixture guide](\(Self.catalog)/Guide.md)\n")
         }
 
         try write("\(Self.catalog)/Guide.md", """

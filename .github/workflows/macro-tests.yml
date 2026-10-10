@@ -159,8 +159,8 @@ jobs:
       - name: Validate copyable documentation and mirrors
         # check-localized-readme-sync.sh is strict: the Korean README and
         # every Korean DocC article must match the structure of their English
-        # canonical page (swift fence count + H2 header count), and the frozen
-        # translations must stay notice pages. Set `INNODI_README_SYNC_STRICT=0`
+        # canonical page (swift fence count + H2 header count); concise guides
+        # retain release, section and API contracts. Set `INNODI_README_SYNC_STRICT=0`
         # only as a temporary soft-rollout window when the next major version
         # restructures the canonical docs. The release gate is already strict.
         run: |
