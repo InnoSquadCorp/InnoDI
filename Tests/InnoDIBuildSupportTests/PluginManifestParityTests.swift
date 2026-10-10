@@ -99,9 +99,9 @@ struct PluginManifestParityTests {
         #expect(source.contains("findTuistWorkspaceRoot"))
         #expect(source.contains("tuistWorkspaceSources"))
         #expect(source.contains("dependencies: []"))
-        #expect(source.contains("declaresOutputs: false"))
+        #expect(source.contains("xcodeBuildVariant: true"))
         #expect(source.contains("ordersSwiftCompilation: primaryTarget is SwiftSourceModuleTarget"))
-        #expect(source.contains("outputDirectory.appending(path: \"_InnoDIDAGValidation.generated.swift\")"))
+        #expect(source.contains("\"_InnoDIDAGValidation.generated.swift\""))
         #expect(source.contains("module-edge hierarchy validation"))
         #expect(
             !FileManager.default.fileExists(

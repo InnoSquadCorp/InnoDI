@@ -7,6 +7,27 @@ process, including how a development train becomes a stable version, lives in
 
 Latest stable public release: `7.0.1`
 
+## Unreleased
+
+### Highlights
+
+- Give native Xcode DAG validation commands configuration/platform-specific
+  outputs, removing the missing-output warning without disabling validation or
+  colliding when an iOS app builds its watchOS companion. Swift targets receive
+  a comment-only Swift input; Clang targets receive a comment-only header.
+  Reports remain outside target resource bundles.
+
+### Upgrade Actions
+
+Regenerate the consumer workspace after adopting the released patch. This
+build-plugin fix does not require container source changes. Inspect a consumer
+with the read-only tools before planning any source migration:
+
+```bash
+swift run InnoDI-Doctor --root /path/to/consumer
+swift run InnoDI-Migrate --root /path/to/consumer --check
+```
+
 ## 7.0.1
 
 ### Highlights

@@ -52,8 +52,9 @@ extension InnoDIDAGValidationPlugin: XcodeBuildToolPlugin {
             outputDirectory: outputDirectory,
             targetName: target.displayName,
             manifest: manifest,
-            declaresOutputs: false,
-            ordersSwiftCompilation: false
+            declaresOutputs: true,
+            ordersSwiftCompilation: target.inputFiles.contains { isXcodeValidationSource($0.url) },
+            xcodeBuildVariant: true
         )
     }
 }
@@ -97,7 +98,8 @@ private func makeBuildCommands(
     targetName: String,
     manifest: WorkspaceAnalysisManifestV1,
     declaresOutputs: Bool,
-    ordersSwiftCompilation: Bool
+    ordersSwiftCompilation: Bool,
+    xcodeBuildVariant: Bool = false
 ) throws -> [Command] {
     let stateDirectory = outputDirectory.appending(
         path: "innodi-dag-validation-state",
@@ -105,6 +107,12 @@ private func makeBuildCommands(
     )
     let manifestURL = outputDirectory.appending(path: "workspace-analysis.json")
     try writeManifestIfChanged(manifest, to: manifestURL)
+    // Xcode expands build settings in output paths, but command arguments are
+    // shell-quoted separately. Pass a literal base to the coordinator, which
+    // resolves the same variant from its build environment at execution time.
+    let declaredOutputDirectory = xcodeBuildVariant
+        ? outputDirectory.appending(path: "xcode/$(CONFIGURATION)$(EFFECTIVE_PLATFORM_NAME)/$(PLATFORM_NAME)")
+        : outputDirectory
 
     return [
         .buildCommand(
@@ -113,26 +121,24 @@ private func makeBuildCommands(
             arguments: [
                 "--analysis-manifest", manifestURL.path(percentEncoded: false),
                 "--state-dir", stateDirectory.path(percentEncoded: false),
-                "--output-dir", outputDirectory.path(percentEncoded: false),
-            ],
+                xcodeBuildVariant ? "--xcode-output-base" : "--output-dir",
+                outputDirectory.path(percentEncoded: false),
+            ] + (xcodeBuildVariant ? [
+                "--xcode-source-kind", ordersSwiftCompilation ? "swift" : "clang",
+            ] : []),
             environment: coordinatorEnvironment,
             inputFiles: [manifestURL] + manifest.sourceFileURLs,
-            // Xcode can build one multi-destination target for iOS and watchOS
-            // in the same graph while assigning both variants the same plugin
-            // work directory. Declaring identical outputs makes those valid
-            // variant commands collide. The coordinator still writes its
-            // diagnostics into the sandboxed work directory; Xcode variants
-            // intentionally run as always-out-of-date validation gates.
-            // Reports stay in the work directory. Declaring them here makes
-            // SwiftPM copy them into target resource bundles. Clang targets
-            // use an output-free gate (SwiftPM tools >= 6.0).
-            outputFiles: declaresOutputs && ordersSwiftCompilation ? [
+            // Configuration/platform variants must not claim the same output.
+            // Keep reports out of the output list so they are not resources.
+            outputFiles: declaresOutputs && (ordersSwiftCompilation || xcodeBuildVariant) ? [
                 // A Swift input creates an explicit compile dependency. With
                 // only report/resource outputs, SwiftPM's Xcode build engine
                 // may fail compilation and cancel this gate before it emits
                 // its structured diagnostic on a warm build.
                 // Do not introduce Swift sources into a Clang-only target.
-                outputDirectory.appending(path: "_InnoDIDAGValidation.generated.swift"),
+                declaredOutputDirectory.appending(path: ordersSwiftCompilation
+                    ? "_InnoDIDAGValidation.generated.swift"
+                    : "_InnoDIDAGValidation.generated.h"),
             ] : []
         )
     ]
@@ -404,7 +410,7 @@ private struct XcodeTargetCollector {
     ) throws -> [WorkspaceAnalysisSourceV1] {
         try target.inputFiles
             .filter { file in
-                file.url.pathExtension == "swift"
+                isXcodeValidationSource(file.url)
                     && (file.type == .source || file.type == .unknown)
             }
             .map { file in
@@ -933,7 +939,7 @@ private func xcodeAnalysisRoot(project: XcodeProject) -> URL {
     let sourceURLs = project.targets.flatMap { target in
         target.inputFiles
             .map(\.url)
-            .filter { $0.pathExtension == "swift" }
+            .filter(isXcodeValidationSource)
     }
     let paths = [projectDirectory] + sourceURLs.map(\.standardizedFileURL)
     var commonComponents = projectDirectory.pathComponents
@@ -979,6 +985,9 @@ private func tuistWorkspaceSources(
         ".build",
         ".git",
         "Derived",
+        "DerivedData",
+        "Build",
+        "build",
         "Tests",
         "Tuist",
         "UITests",
@@ -1005,7 +1014,7 @@ private func tuistWorkspaceSources(
             continue
         }
         guard resourceValues.isRegularFile == true,
-              fileURL.pathExtension == "swift",
+              isXcodeValidationSource(fileURL),
               !["Project.swift", "Tuist.swift", "Workspace.swift"].contains(
                   fileURL.lastPathComponent
               ) else {
@@ -1023,6 +1032,14 @@ private func tuistWorkspaceSources(
         )
     }
     return sources.sorted(by: sourcePrecedes)
+}
+
+private func isXcodeValidationSource(_ url: URL) -> Bool {
+    // Xcode includes a plugin's generated Swift input on subsequent plugin
+    // invocations. Feeding our own output back into the manifest invalidates
+    // warm builds and creates a script/compile dependency cycle.
+    url.pathExtension == "swift"
+        && url.lastPathComponent != "_InnoDIDAGValidation.generated.swift"
 }
 #endif
 

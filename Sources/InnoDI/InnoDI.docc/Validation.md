@@ -76,10 +76,17 @@ These artifacts are part of the documented release contract in `RELEASING.md`.
 They remain in the plugin work directory and its validation-state directories;
 the plugin does not declare reports as target resources. Swift targets declare
 only a comment-only generated Swift file to order validation before compilation.
-Clang targets use output-free commands so no Swift source is introduced. Xcode
-project targets retain output-free gates to avoid collisions between build
-destinations. SwiftPM consumers require tools version 6.0 or later for
-output-free commands.
+SwiftPM Clang targets use output-free commands so no Swift source is introduced.
+SwiftPM consumers require tools version 6.0 or later for output-free commands.
+
+In the unreleased native Xcode adapter, outputs are isolated by configuration,
+effective platform and SDK platform inside the plugin work directory. This
+removes the missing-output warning and avoids iOS/watchOS output collisions.
+Swift targets use the comment-only Swift input; Clang targets use a comment-only
+header. Xcode may still schedule the gate on an unchanged build; the coordinator
+reuses cached validation and preserves unchanged generated input timestamps.
+Source/manifest changes still invalidate validation. The released 7.0.1 Xcode
+adapter uses output-free gates instead.
 
 The plugin forwards only the documented coordinator environment controls:
 `INNODI_LOCK_TIMEOUT`, `INNODI_STALE_LOCK_AGE`, `INNODI_ALLOW_UNSAFE_LOCK`,

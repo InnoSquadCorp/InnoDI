@@ -33,6 +33,15 @@ do {
         )
     }
 
+    if let kind = arguments.xcodeSourceKind {
+        try writeXcodeValidationOrderingInput(
+            kind: kind,
+            signature: outcome.signature,
+            result: outcome.result,
+            to: URL(fileURLWithPath: arguments.outputDirectoryPath, isDirectory: true)
+        )
+    }
+
     if outcome.result.exitCode != 0 || !outcome.wasCached {
         if !outcome.result.stdout.isEmpty {
             FileHandle.standardOutput.write(Data(outcome.result.stdout.utf8))

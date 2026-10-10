@@ -602,9 +602,9 @@ package enum ValidationCoordinator {
             ),
             coordinatorStartTime: coordinatorStartTime,
             outputDirectory: outputDirectoryURL,
-            // Only authoritative SwiftPM manifests need a generated compile
-            // input. A root-mode output directory may live inside the scan
-            // root; writing Swift there would make validation scan itself.
+            // Root scans must not start scanning their own generated output.
+            // The native Xcode CLI writes the explicitly requested source kind
+            // after validation; a Tuist manifest includes peer Swift targets.
             emitsSwiftOrderingSource: analysisManifest?.manifest.buildSystem
                 == WorkspaceAnalysisManifest.swiftPMBuildSystem,
             verboseLoggingEnabled: verboseLoggingEnabled

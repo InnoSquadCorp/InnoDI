@@ -79,6 +79,23 @@ internal func writeSwiftOrderingSource(signature: String, result: ValidationComm
     }
 }
 
+package func writeXcodeValidationOrderingInput(
+    kind: XcodeValidationSourceKind,
+    signature: String,
+    result: ValidationCommandResult,
+    to outputDirectory: URL
+) throws {
+    if kind == .swift {
+        try writeSwiftOrderingSource(signature: signature, result: result, to: outputDirectory)
+    } else {
+        let headerURL = outputDirectory.appendingPathComponent("_InnoDIDAGValidation.generated.h")
+        let header = "// InnoDI DAG validation: \(signature) (exit \(result.exitCode)).\n"
+        if (try? String(contentsOf: headerURL, encoding: .utf8)) != header {
+            try header.write(to: headerURL, atomically: true, encoding: .utf8)
+        }
+    }
+}
+
 internal func persistMetricsArtifact(_ artifact: ValidationMetricsArtifact, to url: URL) throws {
     let data = try JSONEncoder().encode(artifact)
     try data.write(to: url, options: .atomic)
