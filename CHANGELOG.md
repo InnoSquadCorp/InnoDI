@@ -38,6 +38,7 @@ with the read-only tools before planning any source migration:
 ```bash
 swift run InnoDI-Doctor --root /path/to/consumer
 swift run InnoDI-Migrate --root /path/to/consumer --check
+swift run InnoDI-Migrate --root /path/to/consumer --report
 ```
 
 한국어 업그레이드 안내:
