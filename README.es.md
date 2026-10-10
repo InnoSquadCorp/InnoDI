@@ -1,10 +1,10 @@
 # InnoDI
 
-<!-- innodi:guide version=7.0.1 -->
+<!-- innodi:guide version=7.0.2 -->
 
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
-> Guía breve y actualizada para **InnoDI 7.0.1**, no una traducción completa del README inglés ni del catálogo DocC. El [README inglés](README.md) es la referencia canónica; también hay un [README coreano](README.ko.md) detallado. Las guías enlazadas están en inglés y sus versiones coreanas mantenidas están en [ko.lproj](Sources/InnoDI/InnoDI.docc/ko.lproj).
+> Guía breve y actualizada para **InnoDI 7.0.2**, no una traducción completa del README inglés ni del catálogo DocC. El [README inglés](README.md) es la referencia canónica; también hay un [README coreano](README.ko.md) detallado. Las guías enlazadas están en inglés y sus versiones coreanas mantenidas están en [ko.lproj](Sources/InnoDI/InnoDI.docc/ko.lproj).
 
 InnoDI genera código de inyección de dependencias mediante macros de Swift. Los contenedores explícitos, la validación durante la compilación y la construcción del proyecto, y el grafo de dependencias permiten revisar el cableado. No ofrece registro dinámico ni un property wrapper `@Injected`.
 
@@ -26,7 +26,7 @@ Añade el paquete y la configuración del target a tu `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "7.0.1")
+    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "7.0.2")
 ]
 ```
 
@@ -144,7 +144,7 @@ Antes de aplicar una migración que escriba archivos, revisa el informe y la [gu
 
 ## Guías por tarea
 
-Los siguientes artículos son las versiones canónicas en inglés. Las versiones coreanas mantenidas están en [ko.lproj](Sources/InnoDI/InnoDI.docc/ko.lproj); esta página no promete un catálogo DocC completo en español para 7.0.1.
+Los siguientes artículos son las versiones canónicas en inglés. Las versiones coreanas mantenidas están en [ko.lproj](Sources/InnoDI/InnoDI.docc/ko.lproj); esta página no promete un catálogo DocC completo en español para 7.0.2.
 
 - [Entender los conceptos](Sources/InnoDI/InnoDI.docc/Overview.md)
 - [Crear el primer contenedor](Sources/InnoDI/InnoDI.docc/Tutorial-01-Hello.md)

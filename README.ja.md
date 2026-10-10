@@ -2,12 +2,12 @@
 
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
-<!-- innodi:guide version=7.0.1 -->
+<!-- innodi:guide version=7.0.2 -->
 ## バージョンと対象範囲
 
-このページは **InnoDI 7.0.1 の簡潔な日本語ユーザーガイド**です。マクロによる依存性注入、コンパイル時・ビルド時検証、依存グラフ、SwiftUI 連携の導入手順をまとめています。動的登録 API や `@Injected` プロパティラッパーは提供しません。
+このページは **InnoDI 7.0.2 の簡潔な日本語ユーザーガイド**です。マクロによる依存性注入、コンパイル時・ビルド時検証、依存グラフ、SwiftUI 連携の導入手順をまとめています。動的登録 API や `@Injected` プロパティラッパーは提供しません。
 
-完全な説明の基準は [英語 README](README.md) です。[韓国語 README](README.ko.md) と [韓国語 DocC](Sources/InnoDI/InnoDI.docc/ko.lproj/Overview.md) も利用できます。以下の詳細ガイドへのリンクは原則として英語です。このページの更新は、DocC 全体の日本語訳が提供されていることを意味しません。リリース時点の内容は [7.0.1 タグのドキュメント](https://github.com/InnoSquadCorp/InnoDI/blob/7.0.1/README.md) を参照してください。
+完全な説明の基準は [英語 README](README.md) です。[韓国語 README](README.ko.md) と [韓国語 DocC](Sources/InnoDI/InnoDI.docc/ko.lproj/Overview.md) も利用できます。以下の詳細ガイドへのリンクは原則として英語です。このページの更新は、DocC 全体の日本語訳が提供されていることを意味しません。リリース時点の内容は [7.0.2 タグのドキュメント](https://github.com/InnoSquadCorp/InnoDI/blob/7.0.2/README.md) を参照してください。
 
 <!-- innodi:section requirements -->
 ## 動作要件と互換性
@@ -27,7 +27,7 @@
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "7.0.1")
+    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "7.0.2")
 ]
 ```
 
@@ -164,4 +164,4 @@ swift run InnoDI-Migrate --root /path/to/consumer --write
 <!-- innodi:section history -->
 ## 過去のドキュメント
 
-[6.0.0 時点の日本語 README](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.ja.md) は過去バージョンの資料です。7.0.1 の導入手順とは区別して参照してください。
+[6.0.0 時点の日本語 README](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.ja.md) は過去バージョンの資料です。7.0.2 の導入手順とは区別して参照してください。
