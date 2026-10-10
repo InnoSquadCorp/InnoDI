@@ -36,6 +36,46 @@ struct ValidationCoordinatorArgumentsTests {
         #expect(arguments.stateDirectoryPath == nil)
     }
 
+    @Test("Xcode configuration and SDK variants have distinct outputs")
+    func resolvesXcodeVariants() throws {
+        let input = ["--analysis-manifest", "/tmp/analysis.json", "--xcode-output-base", "/tmp/plugin output"]
+        let variants: [(String, String, String)] = [
+            ("Debug", "-iphoneos", "iphoneos"),
+            ("Debug", "-watchos", "watchos"),
+            ("Debug", "-iphonesimulator", "iphonesimulator"),
+            ("Release", "-iphoneos", "iphoneos"),
+            ("Debug", "", "macosx"),
+            ("Debug", "-maccatalyst", "macosx"),
+        ]
+        var paths: Set<String> = []
+        for (configuration, effectivePlatform, platform) in variants {
+            let arguments = try parseValidationCoordinatorArguments(input, environment: [
+                "CONFIGURATION": configuration,
+                "EFFECTIVE_PLATFORM_NAME": effectivePlatform,
+                "PLATFORM_NAME": platform,
+            ])
+            #expect(arguments.outputDirectoryPath == "/tmp/plugin output/xcode/\(configuration)\(effectivePlatform)/\(platform)/")
+            paths.insert(arguments.outputDirectoryPath)
+        }
+        #expect(paths.count == variants.count)
+    }
+
+    @Test("Xcode output routing rejects missing and escaping build settings")
+    func rejectsUnsafeXcodeVariants() {
+        let input = ["--analysis-manifest", "/tmp/analysis.json", "--xcode-output-base", "/tmp/output"]
+        #expect(throws: ValidationCoordinatorArgumentError.invalidXcodeBuildSetting("CONFIGURATION")) {
+            try parseValidationCoordinatorArguments(input, environment: [:])
+        }
+        for value in ["..", "/tmp/escape", "one/two", "bad\0component"] {
+            #expect(throws: ValidationCoordinatorArgumentError.invalidXcodeBuildSetting("PLATFORM_NAME")) {
+                try parseValidationCoordinatorArguments(input, environment: ["CONFIGURATION": "Debug", "PLATFORM_NAME": value])
+            }
+        }
+        #expect(throws: ValidationCoordinatorArgumentError.conflictingOutputDirectories) {
+            try parseValidationCoordinatorArguments(input + ["--output-dir", "/tmp/other"], environment: [:])
+        }
+    }
+
     @Test("Workspace input contracts fail closed")
     func rejectsAmbiguousOrIncompleteInputs() {
         expectArgumentError(

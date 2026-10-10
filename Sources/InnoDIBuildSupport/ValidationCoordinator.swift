@@ -595,6 +595,10 @@ package enum ValidationCoordinator {
             )
         }
         let signatureCollection = signatureCollectionOutput.result
+        let isXcodeManifest = analysisManifest?.manifest.buildSystem == "xcode"
+        let hasPrimarySwiftSource = analysisManifest?.manifest.primaryTarget?.sources.contains {
+            URL(fileURLWithPath: $0.filePath).pathExtension == "swift"
+        } == true
         let outcomeWriter = ValidationOutcomeWriter(
             signatureCollection: signatureCollection,
             signatureCollectionMilliseconds: validationElapsedMilliseconds(
@@ -602,11 +606,11 @@ package enum ValidationCoordinator {
             ),
             coordinatorStartTime: coordinatorStartTime,
             outputDirectory: outputDirectoryURL,
-            // Only authoritative SwiftPM manifests need a generated compile
-            // input. A root-mode output directory may live inside the scan
-            // root; writing Swift there would make validation scan itself.
+            // Only authoritative build manifests emit compile inputs; root
+            // scans must not start scanning their own generated output.
             emitsSwiftOrderingSource: analysisManifest?.manifest.buildSystem
-                == WorkspaceAnalysisManifest.swiftPMBuildSystem,
+                == WorkspaceAnalysisManifest.swiftPMBuildSystem || (isXcodeManifest && hasPrimarySwiftSource),
+            emitsClangOrderingHeader: isXcodeManifest && !hasPrimarySwiftSource,
             verboseLoggingEnabled: verboseLoggingEnabled
         )
 

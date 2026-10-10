@@ -75,11 +75,18 @@ build validation은 다음 산출물을 생성합니다.
 이 산출물은 `RELEASING.md`에 문서화된 릴리즈 계약의 일부입니다.
 산출물은 plugin work directory와 그 안의 validation-state 디렉터리에 남으며,
 plugin이 target resource로 선언하지 않습니다. Swift target은 컴파일 전에
-검증이 실행되도록 주석만 있는 generated Swift 파일만 output으로 선언합니다. Clang
-target에는 Swift 소스가 추가되지 않도록 output 없는 command를 사용합니다.
-Xcode project target도 build destination 사이의 충돌을 피하도록 output 없는
-gate를 유지합니다. SwiftPM에서 output 없는 command를 실행하려면 tools version
+검증이 실행되도록 주석만 있는 generated Swift 파일만 output으로 선언합니다.
+SwiftPM Clang target에는 Swift 소스가 추가되지 않도록 output 없는 command를
+사용합니다. SwiftPM에서 output 없는 command를 실행하려면 tools version
 6.0 이상이 필요합니다.
+
+미배포 native Xcode adapter는 plugin work directory 안에서 configuration,
+effective platform, SDK platform별로 output을 분리합니다. output 누락 경고와
+iOS/watchOS 출력 충돌을 해결하며, Swift target에는 주석만 있는 Swift input을,
+Clang target에는 주석만 있는 header를 선언합니다. 변경 없는 빌드에서도 Xcode가
+gate를 실행할 수 있지만, coordinator는 검증 캐시를 재사용하고 내용이 같은
+generated input의 timestamp를 보존합니다. 소스나 manifest가 바뀌면 검증이
+무효화됩니다. 배포된 7.0.1 Xcode adapter는 output 없는 gate를 사용합니다.
 
 plugin은 문서화된 coordinator 환경 변수만 전달합니다.
 `INNODI_LOCK_TIMEOUT`, `INNODI_STALE_LOCK_AGE`, `INNODI_ALLOW_UNSAFE_LOCK`,

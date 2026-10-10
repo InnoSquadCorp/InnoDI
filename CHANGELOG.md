@@ -7,6 +7,14 @@ process, including how a development train becomes a stable version, lives in
 
 Latest stable public release: `7.0.1`
 
+## Unreleased
+
+- Give native Xcode DAG validation commands configuration/platform-specific
+  outputs, removing the missing-output warning without disabling validation or
+  colliding when an iOS app builds its watchOS companion. Swift targets receive
+  a comment-only Swift input; Clang targets receive a comment-only header.
+  Reports remain outside target resource bundles.
+
 ## 7.0.1
 
 ### Highlights

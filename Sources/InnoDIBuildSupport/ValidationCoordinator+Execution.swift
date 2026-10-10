@@ -54,6 +54,7 @@ struct ValidationOutcomeWriter {
     let coordinatorStartTime: TimeInterval
     let outputDirectory: URL
     let emitsSwiftOrderingSource: Bool
+    let emitsClangOrderingHeader: Bool
     let verboseLoggingEnabled: Bool
 
     var signature: String {
@@ -72,6 +73,13 @@ struct ValidationOutcomeWriter {
         )
         if emitsSwiftOrderingSource {
             try writeSwiftOrderingSource(signature: signature, result: result, to: outputDirectory)
+        }
+        if emitsClangOrderingHeader {
+            let headerURL = outputDirectory.appendingPathComponent("_InnoDIDAGValidation.generated.h")
+            let header = "// InnoDI DAG validation: \(signature) (exit \(result.exitCode)).\n"
+            if (try? String(contentsOf: headerURL, encoding: .utf8)) != header {
+                try header.write(to: headerURL, atomically: true, encoding: .utf8)
+            }
         }
         let combinedReasonCodes = Array(
             Set(signatureCollection.reasonCodes + sharedRunRecord.reasonCodes)

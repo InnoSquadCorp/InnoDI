@@ -21,6 +21,8 @@ package enum ValidationCoordinatorArgumentError:
     case duplicateOption(String)
     case conflictingWorkspaceInputs
     case externalToolUnsupportedForManifest
+    case conflictingOutputDirectories
+    case invalidXcodeBuildSetting(String)
     case missingRequiredArguments
 
     package var errorDescription: String? {
@@ -35,6 +37,10 @@ package enum ValidationCoordinatorArgumentError:
             return "Options --root and --analysis-manifest are mutually exclusive."
         case .externalToolUnsupportedForManifest:
             return "Option --tool is not supported with --analysis-manifest; manifest-backed validation runs in process."
+        case .conflictingOutputDirectories:
+            return "Options --output-dir and --xcode-output-base are mutually exclusive."
+        case .invalidXcodeBuildSetting(let name):
+            return "Xcode build setting \(name) is missing or is not a safe path component."
         case .missingRequiredArguments:
             return "Required options: exactly one of --root <path> or --analysis-manifest <path>, plus --output-dir <path>."
         }
@@ -42,13 +48,15 @@ package enum ValidationCoordinatorArgumentError:
 }
 
 package func parseValidationCoordinatorArguments(
-    _ rawArguments: [String] = Array(CommandLine.arguments.dropFirst())
+    _ rawArguments: [String] = Array(CommandLine.arguments.dropFirst()),
+    environment: [String: String] = ProcessInfo.processInfo.environment
 ) throws -> ValidationCoordinatorArguments {
     var rootPath: String?
     var analysisManifestPath: String?
     var toolPath: String?
     var stateDirectoryPath: String?
     var outputDirectoryPath: String?
+    var xcodeOutputBase: String?
     var seenOptions: Set<String> = []
     var index = 0
 
@@ -84,6 +92,8 @@ package func parseValidationCoordinatorArguments(
             stateDirectoryPath = try requireValue(for: option)
         case "--output-dir":
             outputDirectoryPath = try requireValue(for: option)
+        case "--xcode-output-base":
+            xcodeOutputBase = try requireValue(for: option)
         default:
             throw ValidationCoordinatorArgumentError.unknownOption(option)
         }
@@ -92,6 +102,15 @@ package func parseValidationCoordinatorArguments(
 
     if rootPath != nil, analysisManifestPath != nil {
         throw ValidationCoordinatorArgumentError.conflictingWorkspaceInputs
+    }
+    if let xcodeOutputBase {
+        guard outputDirectoryPath == nil else {
+            throw ValidationCoordinatorArgumentError.conflictingOutputDirectories
+        }
+        outputDirectoryPath = try xcodePluginOutputDirectory(
+            basePath: xcodeOutputBase,
+            environment: environment
+        ).path(percentEncoded: false)
     }
     guard let outputDirectoryPath else {
         throw ValidationCoordinatorArgumentError.missingRequiredArguments
