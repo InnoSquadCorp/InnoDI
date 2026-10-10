@@ -2,6 +2,7 @@
 """Build an isolated copy of the exact-release consumer and record real evidence."""
 
 import argparse
+from contextlib import ExitStack
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -27,12 +28,17 @@ def main():
     evidence_file = run_dir / "evidence.json"
     evidence = {"status": "running", "started_at": datetime.now(timezone.utc).isoformat(), "commands": [], "run_directory": str(run_dir)}
 
-    def command(label, argv):
+    def command(label, argv, structured_output=False):
         log = run_dir / (label + ".log")
         entry = {"argv": [str(value) for value in argv], "log": str(log)}
         evidence["commands"].append(entry)
-        with log.open("w") as stream:
-            result = subprocess.run(entry["argv"], stdout=stream, stderr=subprocess.STDOUT, check=False)
+        with log.open("w") as stream, ExitStack() as stack:
+            error_output = subprocess.STDOUT
+            if structured_output:
+                error_log = run_dir / (label + ".stderr.log")
+                entry["stderr_log"] = str(error_log)
+                error_output = stack.enter_context(error_log.open("w"))
+            result = subprocess.run(entry["argv"], stdout=stream, stderr=error_output, check=False)
         entry["exit_code"] = result.returncode
         if result.returncode:
             raise RuntimeError(f"{label} failed ({result.returncode}); see {log}")
@@ -67,7 +73,7 @@ def main():
         options = ["--package-path", package, "--scratch-path", scratch]
         command("resolve", ["swift", "package", *options, "resolve"])
         pins = {pin["identity"]: pin for pin in json.loads((package / "Package.resolved").read_text())["pins"]}
-        graph_text = command("dependency-graph", ["swift", "package", *options, "show-dependencies", "--format", "json"])
+        graph_text = command("dependency-graph", ["swift", "package", *options, "show-dependencies", "--format", "json"], structured_output=True)
         graph = {node["identity"]: node for node in flatten(json.loads(graph_text))}
         expected = {"innodi": support, "swift-syntax": support["swift_syntax"]}
         check(set(pins) == set(expected), "Unexpected dependency pins; review the fixture's dependency graph")
