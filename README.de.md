@@ -1,10 +1,10 @@
 # InnoDI
 
-<!-- innodi:guide version=7.0.1 -->
+<!-- innodi:guide version=7.0.2 -->
 
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
-> Aktueller kompakter Leitfaden für **InnoDI 7.0.1**, keine vollständige Übersetzung der englischen README oder des DocC-Katalogs. Maßgeblich ist die [englische README](README.md); eine ausführliche [koreanische README](README.ko.md) ist ebenfalls verfügbar. Die unten verlinkten Fachartikel sind auf Englisch; gepflegte koreanische Fassungen stehen unter [ko.lproj](Sources/InnoDI/InnoDI.docc/ko.lproj).
+> Aktueller kompakter Leitfaden für **InnoDI 7.0.2**, keine vollständige Übersetzung der englischen README oder des DocC-Katalogs. Maßgeblich ist die [englische README](README.md); eine ausführliche [koreanische README](README.ko.md) ist ebenfalls verfügbar. Die unten verlinkten Fachartikel sind auf Englisch; gepflegte koreanische Fassungen stehen unter [ko.lproj](Sources/InnoDI/InnoDI.docc/ko.lproj).
 
 InnoDI erzeugt Dependency-Injection-Code mit Swift-Makros. Explizite Container, Prüfungen zur Übersetzungs- und Build-Zeit sowie ein Abhängigkeitsgraph machen die Verdrahtung überprüfbar. Dynamische Registrierungen und einen `@Injected`-Property-Wrapper bietet InnoDI nicht.
 
@@ -26,7 +26,7 @@ Paket und Zielkonfiguration in der eigenen `Package.swift` ergänzen:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "7.0.1")
+    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "7.0.2")
 ]
 ```
 
@@ -144,7 +144,7 @@ Vor schreibenden Migrationsschritten Bericht und [Migrationsanleitung](Sources/I
 
 ## Vertiefung nach Aufgabe
 
-Alle folgenden Fachartikel sind die kanonischen englischen Fassungen. Die entsprechenden gepflegten koreanischen Artikel stehen in [ko.lproj](Sources/InnoDI/InnoDI.docc/ko.lproj); vollständige deutsche DocC-Übersetzungen für 7.0.1 werden hier nicht zugesagt.
+Alle folgenden Fachartikel sind die kanonischen englischen Fassungen. Die entsprechenden gepflegten koreanischen Artikel stehen in [ko.lproj](Sources/InnoDI/InnoDI.docc/ko.lproj); vollständige deutsche DocC-Übersetzungen für 7.0.2 werden hier nicht zugesagt.
 
 - [Konzepte verstehen](Sources/InnoDI/InnoDI.docc/Overview.md)
 - [Ersten Container bauen](Sources/InnoDI/InnoDI.docc/Tutorial-01-Hello.md)

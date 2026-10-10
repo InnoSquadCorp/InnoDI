@@ -2,12 +2,12 @@
 
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
-<!-- innodi:guide version=7.0.1 -->
+<!-- innodi:guide version=7.0.2 -->
 ## 版本与适用范围
 
-本页是 **InnoDI 7.0.1 的简体中文精简用户指南**，介绍基于宏的依赖注入、编译期与构建期验证、依赖图工具和 SwiftUI 集成。InnoDI 不提供动态注册 API，也不提供 `@Injected` 属性包装器。
+本页是 **InnoDI 7.0.2 的简体中文精简用户指南**，介绍基于宏的依赖注入、编译期与构建期验证、依赖图工具和 SwiftUI 集成。InnoDI 不提供动态注册 API，也不提供 `@Injected` 属性包装器。
 
-完整说明以 [英文 README](README.md) 为准；另有 [韩文 README](README.ko.md) 和 [韩文 DocC](Sources/InnoDI/InnoDI.docc/ko.lproj/Overview.md)。下文的深入指南链接默认指向英文文档。本页更新并不表示已经提供完整的简体中文 DocC 翻译。需要核对发布时的内容，请查看 [7.0.1 标签下的文档](https://github.com/InnoSquadCorp/InnoDI/blob/7.0.1/README.md)。
+完整说明以 [英文 README](README.md) 为准；另有 [韩文 README](README.ko.md) 和 [韩文 DocC](Sources/InnoDI/InnoDI.docc/ko.lproj/Overview.md)。下文的深入指南链接默认指向英文文档。本页更新并不表示已经提供完整的简体中文 DocC 翻译。需要核对发布时的内容，请查看 [7.0.2 标签下的文档](https://github.com/InnoSquadCorp/InnoDI/blob/7.0.2/README.md)。
 
 <!-- innodi:section requirements -->
 ## 环境要求与兼容性
@@ -27,7 +27,7 @@
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "7.0.1")
+    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "7.0.2")
 ]
 ```
 
@@ -164,4 +164,4 @@ swift run InnoDI-Migrate --root /path/to/consumer --write
 <!-- innodi:section history -->
 ## 历史文档
 
-[6.0.0 简体中文 README](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.zh-Hans.md) 仅用于查阅旧版本，请勿将其中的安装与使用说明直接套用于 7.0.1。
+[6.0.0 简体中文 README](https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/README.zh-Hans.md) 仅用于查阅旧版本，请勿将其中的安装与使用说明直接套用于 7.0.2。

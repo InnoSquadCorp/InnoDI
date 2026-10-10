@@ -1,10 +1,10 @@
 # InnoDI
 
-<!-- innodi:guide version=7.0.1 -->
+<!-- innodi:guide version=7.0.2 -->
 
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
-> Краткое актуальное руководство по **InnoDI 7.0.1**, а не полный перевод английского README или каталога DocC. Основной источник — [английский README](README.md); также доступен подробный [корейский README](README.ko.md). Ссылки на подробные статьи ведут к английским версиям; поддерживаемые корейские версии находятся в [ko.lproj](Sources/InnoDI/InnoDI.docc/ko.lproj).
+> Краткое актуальное руководство по **InnoDI 7.0.2**, а не полный перевод английского README или каталога DocC. Основной источник — [английский README](README.md); также доступен подробный [корейский README](README.ko.md). Ссылки на подробные статьи ведут к английским версиям; поддерживаемые корейские версии находятся в [ko.lproj](Sources/InnoDI/InnoDI.docc/ko.lproj).
 
 InnoDI генерирует код внедрения зависимостей с помощью макросов Swift. Явные контейнеры, проверки при компиляции и сборке, а также граф зависимостей позволяют проверять связи при ревью. Динамической регистрации и обёртки свойства `@Injected` нет.
 
@@ -26,7 +26,7 @@ InnoDI генерирует код внедрения зависимостей �
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "7.0.1")
+    .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "7.0.2")
 ]
 ```
 
@@ -144,7 +144,7 @@ swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
 
 ## Подробные руководства по задачам
 
-Ниже приведены канонические английские статьи. Поддерживаемые корейские версии находятся в [ko.lproj](Sources/InnoDI/InnoDI.docc/ko.lproj); эта страница не обещает полного русского каталога DocC для 7.0.1.
+Ниже приведены канонические английские статьи. Поддерживаемые корейские версии находятся в [ko.lproj](Sources/InnoDI/InnoDI.docc/ko.lproj); эта страница не обещает полного русского каталога DocC для 7.0.2.
 
 - [Разобраться в основных понятиях](Sources/InnoDI/InnoDI.docc/Overview.md)
 - [Создать первый контейнер](Sources/InnoDI/InnoDI.docc/Tutorial-01-Hello.md)

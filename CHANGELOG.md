@@ -5,9 +5,9 @@ section becomes the body of that version's GitHub Release. The release
 process, including how a development train becomes a stable version, lives in
 [RELEASING.md](RELEASING.md).
 
-Latest stable public release: `7.0.1`
+Latest stable public release: `7.0.2`
 
-## Unreleased
+## 7.0.2
 
 ### Highlights
 
@@ -16,6 +16,18 @@ Latest stable public release: `7.0.1`
   colliding when an iOS app builds its watchOS companion. Swift targets receive
   a comment-only Swift input; Clang targets receive a comment-only header.
   Reports remain outside target resource bundles.
+- Keep the consumer skill dependency-graph JSON on stdout free of build
+  diagnostics, so structured consumers can parse it directly.
+- Refresh current multilingual guides and English/Korean API navigation.
+
+### Breaking and Behavior Changes
+
+Native Xcode validation now orders compilation through SDK-specific
+generated inputs. Validation failures still fail the build; unchanged
+generated inputs retain their timestamps. Xcode may still invoke the gate
+on an unchanged build, where the coordinator reuses validation caches.
+SwiftPM Clang targets retain output-free gates. Public container APIs,
+SwiftSyntax `604.0.0`, supported toolchains and platform minimums are unchanged.
 
 ### Upgrade Actions
 
@@ -27,6 +39,16 @@ with the read-only tools before planning any source migration:
 swift run InnoDI-Doctor --root /path/to/consumer
 swift run InnoDI-Migrate --root /path/to/consumer --check
 ```
+
+한국어 업그레이드 안내:
+
+- 7.0.2를 해석한 뒤 소비자 workspace를 다시 생성하세요. Xcode DAG 검증은
+  configuration과 SDK별 output을 사용하며, container 소스 migration은
+  필요하지 않습니다. 변경 없는 빌드에서도 gate가 호출될 수 있고 검증 캐시는
+  재사용됩니다.
+- SwiftSyntax `604.0.0` 고정과 Mockable 0.6.4의 의존성 제약 충돌은 그대로입니다.
+  기존 migration 및 consumer 검증 경계는 [7.0.1 업그레이드 노트](#701)를
+  함께 확인하세요.
 
 ## 7.0.1
 
