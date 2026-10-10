@@ -1,7 +1,14 @@
 """Keep unreleased examples separate from the advertised stable installation."""
 from pathlib import Path
 import re
+import importlib.util
 import unittest
+
+
+_checker_path = Path(__file__).resolve().parents[1] / 'check-docs-translated-guides.py'
+_spec = importlib.util.spec_from_file_location('guide_check', _checker_path)
+_guide_check = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_guide_check)
 
 
 class ReadmeInstallationTests(unittest.TestCase):
@@ -40,7 +47,7 @@ class ReadmeInstallationTests(unittest.TestCase):
                 self.assertIn("https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/" + name, text)
                 self.assertIn(".package(", text)
                 version = re.search(r"Latest stable public release: `(\d+\.\d+\.\d+)`", (root / "CHANGELOG.md").read_text()).group(1)
-                self.assertIn('from: "' + version + '"', text)
+                self.assertTrue(_guide_check.has_current_installation(text, version))
                 self.assertIn(f"<!-- innodi:guide version={version} -->", text)
 
 

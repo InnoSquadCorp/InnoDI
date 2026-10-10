@@ -56,6 +56,23 @@ class TranslatedGuideTests(unittest.TestCase):
         errors = self.mutate('Sources/InnoDI/InnoDI.docc/Composition.md', 'README.md')
         self.assertTrue(any('Composition.md' in error for error in errors))
 
+    def test_wrong_package_url_fails(self):
+        errors = self.mutate('url: "https://github.com/InnoSquadCorp/InnoDI.git"',
+                             'url: "https://example.com/wrong-package.git"')
+        self.assertTrue(any('package URL/current-version' in error for error in errors))
+
+    def test_stale_pin_with_current_version_elsewhere_fails(self):
+        version = re.search(r'Latest stable public release: `([^`]+)`', (self.root / 'CHANGELOG.md').read_text()).group(1)
+        errors = self.mutate(f'from: "{version}"', 'from: "0.0.0"')
+        self.assertTrue(any('package URL/current-version' in error for error in errors))
+
+    def test_version_and_url_must_be_in_same_declaration(self):
+        text = '''```swift
+.package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "0.0.0")
+.package(url: "https://example.com/Other.git", from: "7.0.1")
+```'''
+        self.assertFalse(guide_check.has_current_installation(text, '7.0.1'))
+
     def test_missing_guide_fails(self):
         (self.root / 'README.ru.md').unlink()
         self.assertIn('README.ru.md: missing guide', guide_check.failures(self.root))

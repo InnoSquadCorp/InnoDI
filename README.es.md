@@ -138,7 +138,7 @@ swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
 
 Doctor es de solo lectura por defecto: no resuelve paquetes, no compila ni elimina cachés. Los manifiestos dinámicos y los mapeos incompletos de Tuist no se presentan como correctos. El informe de migración usa los códigos de salida `0` si no hay cambios, `1` si se requieren cambios y `2` si está bloqueado. `--check-contract` devuelve `5` si cambia el contrato del grafo; `before.json` y `after.json` deben ser artefactos JSON existentes y acotados por target.
 
-Antes de aplicar una migración que escriba archivos, revisa el informe y la [guía de migración](Sources/InnoDI/InnoDI.docc/MigrationGuide.md#6x--70). Si usas `--apply`, revisa los archivos `RECOVERY` indicados después de cerrar los editores y antes de eliminarlos. Las notas de versión se centralizan en el [changelog](CHANGELOG.md#701).
+Antes de aplicar una migración que escriba archivos, revisa el informe y la [guía de migración](Sources/InnoDI/InnoDI.docc/MigrationGuide.md#6x--70). Si usas `swift run InnoDI-Doctor --root /path/to/consumer --apply`, revisa los archivos `RECOVERY` indicados después de cerrar los editores y antes de eliminarlos. Las notas de versión se centralizan en el [changelog](CHANGELOG.md#701).
 
 <!-- innodi:section documentation -->
 

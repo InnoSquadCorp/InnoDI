@@ -13,6 +13,16 @@ TOKENS = ('InnoDIDAGValidationPlugin', 'InnoDISwiftUI', 'InnoDITesting',
           'InnoDI-Migrate', '--check', '--report', '604.0.0', 'Mockable')
 
 
+
+def has_current_installation(text: str, version: str) -> bool:
+    """Require one canonical URL/version pair in the same Swift declaration."""
+    swift_blocks = re.findall(r'```swift[^\n]*\n(.*?)\n```', text, re.S)
+    declarations = re.findall(r'\.package\s*\(([^()]*)\)', '\n'.join(swift_blocks), re.S)
+    expected = f'url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "{version}"'
+    normalize = lambda value: re.sub(r'\s+', '', value)
+    return len(declarations) == 1 and normalize(declarations[0]) == normalize(expected)
+
+
 def failures(root: Path) -> list[str]:
     errors = []
     release = re.search(r'Latest stable public release: `(\d+\.\d+\.\d+)`',
@@ -32,8 +42,10 @@ def failures(root: Path) -> list[str]:
             errors.append(f'{name}: missing guide')
             continue
         text = path.read_text()
+        if not has_current_installation(text, version):
+            errors.append(f'{name}: expected one canonical InnoDI package URL/current-version declaration')
         required = [f'<!-- innodi:guide version={version} -->',
-                    f'from: "{version}"', '(README.md)',
+                    '(README.md)',
                     f'https://github.com/InnoSquadCorp/InnoDI/blob/6.0.0/{name}',
                     *[f'<!-- innodi:section {section} -->' for section in SECTIONS],
                     *TOKENS,

@@ -138,7 +138,7 @@ swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
 
 Doctor ist standardmäßig schreibgeschützt: kein Auflösen von Paketen, kein Build und keine Cache-Löschung. Dynamische Manifeste und unvollständige Tuist-Zuordnungen werden nicht als gesund ausgegeben. Der Migrationsbericht verwendet Exit-Code `0` für unverändert, `1` für notwendige Änderungen und `2` für blockiert. `--check-contract` liefert `5`, wenn sich der Graphvertrag geändert hat; `before.json` und `after.json` müssen vorhandene, zielbezogene JSON-Graphartefakte sein.
 
-Vor schreibenden Migrationsschritten Bericht und [Migrationsanleitung](Sources/InnoDI/InnoDI.docc/MigrationGuide.md#6x--70) lesen. Bei `--apply` gemeldete `RECOVERY`-Dateien nach dem Schließen von Editoren prüfen, bevor sie entfernt werden. Versionshinweise stehen zentral im [Changelog](CHANGELOG.md#701).
+Vor schreibenden Migrationsschritten Bericht und [Migrationsanleitung](Sources/InnoDI/InnoDI.docc/MigrationGuide.md#6x--70) lesen. Bei `swift run InnoDI-Doctor --root /path/to/consumer --apply` gemeldete `RECOVERY`-Dateien nach dem Schließen von Editoren prüfen, bevor sie entfernt werden. Versionshinweise stehen zentral im [Changelog](CHANGELOG.md#701).
 
 <!-- innodi:section documentation -->
 
