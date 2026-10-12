@@ -6,6 +6,20 @@ process, including how a development train becomes a stable version, lives in
 [RELEASING.md](RELEASING.md).
 
 Latest stable public release: `7.0.2`
+Current development train: `7.0.3` (unreleased)
+
+## Unreleased
+
+### Highlights
+
+- Render the maintained Korean DocC catalog under `/InnoDI/ko`, alongside
+  the English site, and reject missing, stale or incorrectly hosted current API
+  articles before publishing documentation. Require the Korean source catalog
+  and read rendered locale payloads explicitly as UTF-8.
+
+### Breaking and Behavior Changes
+
+### Upgrade Actions
 
 ## 7.0.2
 

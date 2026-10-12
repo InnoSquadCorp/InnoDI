@@ -4,9 +4,10 @@
 
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
-> 이 페이지는 **InnoDI 7.0.2** 문서입니다. 6.x에서 필요한 소스 변경은
-> [마이그레이션 가이드](Sources/InnoDI/InnoDI.docc/ko.lproj/MigrationGuide.md#6x--70)를 따르세요.
-> [버전 고정 7.0.2 문서](https://github.com/InnoSquadCorp/InnoDI/blob/7.0.2/README.ko.md).
+> [!IMPORTANT]
+> 이 페이지는 **InnoDI 7.0.3 개발 체크아웃(미출시)**의 예제입니다.
+> 배포 버전을 쓰는 경우 [7.0.2 문서](https://github.com/InnoSquadCorp/InnoDI/blob/7.0.2/README.ko.md)를 따라 설치하세요.
+> 6.x에서 필요한 소스 변경은 [마이그레이션 가이드](Sources/InnoDI/InnoDI.docc/ko.lproj/MigrationGuide.md#6x--70)를 따르세요.
 
 컴파일 타임과 빌드 타임 검증, dependency graph 도구, hierarchy 검증,
 SwiftUI helper를 함께 제공하는 Swift용 매크로 기반 DI 프레임워크입니다.
@@ -153,13 +154,21 @@ tvOS, visionOS 앱에 InnoDI를 임베드하면 SwiftPM이 매니페스트를 �
 
 `Package.swift`에 InnoDI를 추가합니다.
 
+현재 개발 예제는 저장소를 옆에 체크아웃한 뒤 local package로 연결합니다.
+
+```swift
+.package(name: "InnoDI", path: "../InnoDI")
+```
+
+배포 버전 설치는 [7.0.2 문서](https://github.com/InnoSquadCorp/InnoDI/blob/7.0.2/README.ko.md)를 참고하세요.
+
 ```swift
 dependencies: [
     .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "7.0.2")
 ]
 ```
 
-이하 product·plugin·API 예제는 모두 **InnoDI 7.0.2**를 기준으로 합니다.
+이하 product·plugin·API 예제는 모두 **InnoDI 7.0.3 개발 체크아웃(미출시)**를 기준으로 합니다.
 6.x에서 필요한 소스 변경은
 [마이그레이션 가이드](Sources/InnoDI/InnoDI.docc/ko.lproj/MigrationGuide.md#6x--70)를 따르세요.
 
@@ -825,6 +834,11 @@ DocC 생성:
 ```bash
 Tools/generate-docc.sh
 ```
+
+영어 DocC는 `.build/docc/InnoDI`, 한국어 DocC는 `.build/docc/InnoDI/ko`에 생성됩니다.
+한국어 원본이 없거나 렌더링된 언어별 문서가 유효하지 않으면 문서 빌드를 실패 처리합니다.
+공개 문서: [English](https://innosquadcorp.github.io/InnoDI/documentation/innodi/) ·
+[한국어](https://innosquadcorp.github.io/InnoDI/ko/documentation/innodi/).
 
 릴리즈 노트와 업그레이드 노트는 [CHANGELOG.md](CHANGELOG.md)에 모여 있습니다.
 
