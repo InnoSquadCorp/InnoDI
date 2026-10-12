@@ -74,6 +74,55 @@ class NativeReadyTests(unittest.TestCase):
         self.api.native_job['steps'][1]['name'] = (n.SOURCE_STEP + BASE + ' for ' +
                                                   self.api.native_run['display_title'].rsplit(' source:', 1)[0])
 
+    def test_human_snapshot_is_independent_of_bot_settings_and_protection_activation(self):
+        for fork in [False, True]:
+            for draft in [False, True]:
+                for enabled in [False, True]:
+                    with self.subTest(fork=fork, draft=draft, enabled=enabled):
+                        self.api = Transcript()
+                        if fork:
+                            self.fork()
+                        else:
+                            self.api.pr['user'] = dict(login='human', id=1, type='User')
+                        self.api.pr['draft'] = draft
+                        self.api.repo.pop('allow_auto_merge')
+                        self.api.repo.pop('allow_squash_merge')
+                        self.api.rules.clear()
+                        self.api.run['conclusion'] = 'failure'
+                        self.running()
+                        ready, reason = self.snapshot(enabled)
+                        self.assertTrue(ready, reason)
+                        self.assertIn('Manual PR', reason)
+                        self.assertFalse(self.api.merge_settings_reads)
+                        self.assertFalse(self.api.mutations)
+
+    def test_read_only_snapshot_uses_verified_merge_settings_with_strict_false(self):
+        self.api.repo.pop('allow_auto_merge')
+        self.api.repo.pop('allow_squash_merge')
+        self.api.rules[0]['parameters']['strict_required_status_checks_policy'] = False
+        self.running()
+        ready, reason = self.snapshot()
+        self.assertTrue(ready, reason)
+        self.assertEqual(len(self.api.merge_settings_reads), 2)
+        self.assertFalse(self.api.mutations)
+
+    def test_read_only_snapshot_distinguishes_disabled_unverified_and_missing_protection(self):
+        cases = [
+            (lambda a: a.repo.update(allow_auto_merge=False), 'feature disabled'),
+            (lambda a: a.merge_settings.pop('autoMergeAllowed'), 'setting unverified'),
+            (lambda a: a.rules.pop(), 'required-PR/resolved-thread rule missing'),
+        ]
+        for alter, reason in cases:
+            self.api = Transcript()
+            self.api.repo.pop('allow_auto_merge')
+            self.api.repo.pop('allow_squash_merge')
+            alter(self.api)
+            self.running()
+            ready, actual = self.snapshot()
+            self.assertFalse(ready)
+            self.assertIn(reason, actual)
+            self.assertFalse(self.api.mutations)
+
     def test_fork_without_rest_association_uses_trusted_event_binding(self):
         self.fork()
         self.assertEqual(n.latest(self.api, p, NUMBER, HEAD)['id'], NATIVE_RUN)

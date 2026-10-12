@@ -27,6 +27,9 @@ INVENTORY = json.loads((Path(__file__).parent / 'fixtures/dependabot-full-ci.jso
 class Transcript:
     def __init__(self):
         self.repo = dict(id=100, full_name=p.REPOSITORY, default_branch='main', allow_auto_merge=True, allow_squash_merge=True)
+        self.merge_settings = dict(databaseId=100, nameWithOwner=p.REPOSITORY,
+                                   autoMergeAllowed=True, squashMergeAllowed=True)
+        self.merge_settings_reads = []
         self.pr = dict(number=NUMBER, node_id='PR_node', user=dict(p.BOT), state='open', merged=False, merged_at=None, draft=False,
                        mergeable=True, merge_commit_sha=MERGE, auto_merge=None, requested_reviewers=[], requested_teams=[],
                        base=dict(ref='main', sha=BASE, repo=self.repo), head=dict(ref="dependabot/test", sha=HEAD, repo=self.repo))
@@ -131,6 +134,9 @@ class Transcript:
         return copy.deepcopy(value)
 
     def graphql(self, query, variables):
+        if 'autoMergeAllowed' in query:
+            self.merge_settings_reads.append((query, copy.deepcopy(variables)))
+            return dict(repository=copy.deepcopy(self.merge_settings))
         if query.startswith('mutation'):
             self.mutations.append(('graphql', query, copy.deepcopy(variables)))
             if self.graph_fail: raise PermissionError('403 denied')
@@ -209,11 +215,81 @@ class DependabotPolicyTests(unittest.TestCase):
                    lambda a: a.rules.clear(), lambda a: a.ruleset.update(enforcement='evaluate'),
                    lambda a: a.ruleset.update(bypass_actors=[dict(actor_id=p.APP, actor_type='Integration')]),
                    lambda a: a.ruleset.update(current_user_can_bypass='always'),
-                   lambda a: a.rules[0]['parameters'].update(strict_required_status_checks_policy=False),
                    lambda a: a.rules[0]['parameters']['required_status_checks'].pop(),
                    lambda a: a.rules[0]['parameters']['required_status_checks'][0].update(integration_id=None)]
         for change in changes:
             with self.subTest(change=change): self.reject(change)
+
+    def test_read_only_merge_settings_fallback_requires_same_repository_true_booleans(self):
+        for fields in [('allow_auto_merge',), ('allow_squash_merge',),
+                       ('allow_auto_merge', 'allow_squash_merge')]:
+            api = Transcript()
+            for field in fields:
+                api.repo.pop(field)
+            proof = p.proof(api, NUMBER)
+            self.assertEqual(proof['head'], HEAD)
+            self.assertEqual(len(api.merge_settings_reads), 1)
+            query, variables = api.merge_settings_reads[0]
+            self.assertTrue(query.startswith('query('))
+            self.assertEqual(variables, dict(owner='InnoSquadCorp', name='InnoDI'))
+            self.assertFalse(api.mutations)
+        p.proof(self.api, NUMBER)
+        self.assertFalse(self.api.merge_settings_reads)
+
+    def test_merge_setting_false_or_malformed_is_not_overridden_by_fallback(self):
+        for field in ['allow_auto_merge', 'allow_squash_merge']:
+            for value in [False, None, 'true', 1, {}, []]:
+                api = Transcript()
+                api.repo[field] = value
+                with self.subTest(field=field, value=value), self.assertRaises(p.Rejected):
+                    p.proof(api, NUMBER)
+                self.assertFalse(api.merge_settings_reads)
+                self.assertFalse(api.mutations)
+
+    def test_merge_settings_fallback_rejects_unknown_false_foreign_or_conflicting_evidence(self):
+        changes = [lambda a: setattr(a, 'merge_settings', None),
+                   lambda a: a.merge_settings.update(databaseId=999),
+                   lambda a: a.merge_settings.update(databaseId='100'),
+                   lambda a: a.merge_settings.update(nameWithOwner='other/InnoDI')]
+        for field in ['autoMergeAllowed', 'squashMergeAllowed']:
+            changes += [lambda a, f=field: a.merge_settings.pop(f)]
+            changes += [lambda a, f=field, v=value: a.merge_settings.update({f: v})
+                        for value in [False, None, 'true', 1, {}, []]]
+        for change in changes:
+            api = Transcript()
+            api.repo.pop('allow_auto_merge')
+            change(api)
+            with self.subTest(change=change), self.assertRaises(p.Rejected):
+                p.proof(api, NUMBER)
+            self.assertFalse(api.mutations)
+        api = Transcript()
+        api.repo.pop('allow_auto_merge')
+        with mock.patch.object(api, 'graphql', side_effect=PermissionError('403 denied')):
+            with self.assertRaisesRegex(p.Rejected, 'unverified: read-only GraphQL unavailable'):
+                p.proof(api, NUMBER)
+        self.assertFalse(api.mutations)
+
+    def test_explicit_strict_false_keeps_current_head_ci_review_and_native_barriers(self):
+        self.api.rules[0]['parameters']['strict_required_status_checks_policy'] = False
+        p.proof(self.api, NUMBER)
+        for alter in [lambda a: a.run.update(head_sha='d' * 40),
+                      lambda a: a.run.update(status='in_progress'),
+                      lambda a: a.run.update(conclusion='failure'),
+                      lambda a: a.pr['base'].update(sha='d' * 40),
+                      lambda a: a.review_list.append(dict(id=1, state='CHANGES_REQUESTED', user=dict(id=2))),
+                      lambda a: a.threads.append(dict(isResolved=False)),
+                      lambda a: a.rules.pop(),
+                      lambda a: a.rules[0]['parameters']['required_status_checks'].pop(),
+                      lambda a: a.ruleset.pop('current_user_can_bypass')]:
+            api = Transcript()
+            api.rules[0]['parameters']['strict_required_status_checks_policy'] = False
+            alter(api)
+            with self.subTest(alter=alter), self.assertRaises(p.Rejected):
+                p.proof(api, NUMBER)
+            self.assertFalse(api.mutations)
+        for value in [None, 'false', 0, 1, {}, []]:
+            self.reject(lambda a, v=value: a.rules[0]['parameters'].update(strict_required_status_checks_policy=v))
+        self.reject(lambda a: a.rules[0]['parameters'].pop('strict_required_status_checks_policy'))
 
     def test_native_review_barrier_and_runtime_no_bypass_visibility_are_required(self):
         for mutate in [lambda a: a.rules.pop(),
