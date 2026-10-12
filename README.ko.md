@@ -836,6 +836,7 @@ Tools/generate-docc.sh
 ```
 
 영어 DocC는 `.build/docc/InnoDI`, 한국어 DocC는 `.build/docc/InnoDI/ko`에 생성됩니다.
+한국어 원본이 없거나 렌더링된 언어별 문서가 유효하지 않으면 문서 빌드를 실패 처리합니다.
 공개 문서: [English](https://innosquadcorp.github.io/InnoDI/documentation/innodi/) ·
 [한국어](https://innosquadcorp.github.io/InnoDI/ko/documentation/innodi/).
 

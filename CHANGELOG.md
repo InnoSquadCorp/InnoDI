@@ -14,7 +14,8 @@ Current development train: `7.0.3` (unreleased)
 
 - Render the maintained Korean DocC catalog under `/InnoDI/ko`, alongside
   the English site, and reject missing, stale or incorrectly hosted current API
-  articles before publishing documentation.
+  articles before publishing documentation. Require the Korean source catalog
+  and read rendered locale payloads explicitly as UTF-8.
 
 ### Breaking and Behavior Changes
 

@@ -30,13 +30,13 @@ def failures(root: Path, version: str):
         if not index.is_file():
             errors.append(f'{locale}: missing index.html')
         else:
-            match = re.search(r'var baseUrl\s*=\s*"([^"]+)"', index.read_text())
+            match = re.search(r'var baseUrl\s*=\s*"([^"]+)"', index.read_text(encoding='utf-8'))
             if not match or match.group(1).rstrip('/') != expected_base:
                 errors.append(f'{locale}: expected hosting base {expected_base}')
         for article in ARTICLES:
             path = catalog / 'data/documentation' / ('innodi/' + article + '.json' if article else 'innodi.json')
             try:
-                node = json.loads(path.read_text())
+                node = json.loads(path.read_text(encoding='utf-8'))
             except (OSError, ValueError) as error:
                 errors.append(f'{locale}/{article or "Overview"}: cannot read rendered article: {error}')
                 continue
@@ -59,7 +59,7 @@ def main():
     version = args.version
     if version is None:
         changelog = Path(__file__).resolve().parents[1] / 'CHANGELOG.md'
-        match = re.search(r'Latest stable public release: `(\d+\.\d+\.\d+)`', changelog.read_text())
+        match = re.search(r'Latest stable public release: `(\d+\.\d+\.\d+)`', changelog.read_text(encoding='utf-8'))
         if not match:
             parser.error('CHANGELOG.md has no stable release metadata')
         version = match.group(1)

@@ -875,7 +875,8 @@ Tools/generate-docc.sh
 ```
 
 The script renders English DocC in `.build/docc/InnoDI` and Korean DocC in
-`.build/docc/InnoDI/ko`. Published documentation: [English](https://innosquadcorp.github.io/InnoDI/documentation/innodi/) ·
+`.build/docc/InnoDI/ko`. Missing Korean source or invalid rendered locale
+articles fail the documentation build. Published documentation: [English](https://innosquadcorp.github.io/InnoDI/documentation/innodi/) ·
 [한국어](https://innosquadcorp.github.io/InnoDI/ko/documentation/innodi/).
 
 Release notes and upgrade notes live in [CHANGELOG.md](CHANGELOG.md).

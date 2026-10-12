@@ -8,9 +8,15 @@ OUTPUT_DIR="${1:-$ROOT_DIR/.build/docc/InnoDI}"
 TARGET="${2:-InnoDI}"
 DOCC_PLUGIN_VERSION="1.5.0"
 DOCS_RESOLVED_PATH="$ROOT_DIR/Tools/docc/Package.resolved"
+KOREAN_CATALOG="$ROOT_DIR/Sources/$TARGET/$TARGET.docc/ko.lproj"
 
 if [[ ! -s "$DOCS_RESOLVED_PATH" ]]; then
   echo "DocC dependency lock is missing or empty: $DOCS_RESOLVED_PATH" >&2
+  exit 1
+fi
+
+if [[ "$TARGET" == "InnoDI" && ! -d "$KOREAN_CATALOG" ]]; then
+  echo "Required Korean DocC catalog is missing: $KOREAN_CATALOG" >&2
   exit 1
 fi
 
@@ -151,7 +157,6 @@ generate_language_documentation "$OUTPUT_DIR" InnoDI
 # DocC does not select the maintained *.lproj Markdown as a rendered locale.
 # Overlay the Korean articles in the isolated package and reuse its compiled
 # symbol graphs; publish that rendered catalog under its own hosting root.
-KOREAN_CATALOG="$ROOT_DIR/Sources/$TARGET/$TARGET.docc/ko.lproj"
 if [[ -d "$KOREAN_CATALOG" ]]; then
   rsync -a "$KOREAN_CATALOG/" "$DOCS_PACKAGE_DIR/Sources/$TARGET/$TARGET.docc/"
   generate_language_documentation "$OUTPUT_DIR/ko" InnoDI/ko
