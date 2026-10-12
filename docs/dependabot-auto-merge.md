@@ -18,10 +18,13 @@ The coordinator refuses to arm a bot PR unless all of these conditions are true:
 
 - `DEPENDABOT_AUTO_MERGE_ENABLED` repository Actions variable equals `true`.
 - Repository native auto-merge and squash merging are enabled.
-- Active repository-native main protection strictly requires **CI Required** and
+- Active repository-native main protection requires **CI Required** and
   **Dependabot Merge Ready**, each pinned to GitHub Actions integration `15368`.
-  Strict checks require the branch to be current with main. Owner activation
-  verifies that the coordinator app has no bypass; it never requests bypass.
+  The explicit native strict-mode boolean may be `true` or `false`; the policy
+  does not require the owner to turn the branch-up-to-date setting back on.
+  Missing or malformed strict-mode metadata is unverified, not `false`.
+  Owner activation verifies that the coordinator app has no bypass; it never
+  requests bypass.
 - An active, verifiable repository-native `pull_request` rule requires resolved
   review threads. A configured approving-review count of zero remains allowed;
   this code does not add or change an approval count.
@@ -38,8 +41,13 @@ merge immediately when Ready is already successful; they are not a post-merge
 rollback guard. Failed fresh proof protectively cancels any still-outstanding
 verified bot request. Ready is a snapshot, not an attestation of a
 newer CI/base tuple: the coordinator always independently re-proves that current
-tuple before arming. Native strict required checks own actual merging and base
-freshness after the final read.
+tuple before arming. Native required checks own actual merging. The existing
+exact current-head/base/test-merge CI proof is retained even with strict mode
+`false`; this does not require rebasing the PR branch. Base changes before a
+fresh proof still block stale CI evidence. After the final read, strict mode
+`false` does not provide GitHub's branch-up-to-date barrier, so this snapshot
+must not be advertised as an atomic latest-base guarantee. No setting is changed
+by the policy.
 
 The REST API hides `bypass_actors` from tokens without ruleset write access.
 A missing field is not evidence of an empty list. Runtime checks reject any
@@ -67,6 +75,34 @@ barrier, and the feature flag must also allow approval. The coordinator does not
 assume either review protection or runtime no-bypass evidence exists. Effective inherited/classic protections must be inspected separately;
 an unavailable API is not evidence that they are absent. No live setting changes
 are part of this follow-up.
+
+## Read-only merge settings and current operating mismatch
+
+The 2026-10-12 PR #62 reporter stopped at `native auto-merge/squash feature
+disabled` even though repository auto-merge and squash were enabled. The
+[REST repository API](https://docs.github.com/en/rest/repos/repos#get-a-repository)
+only exposes merge settings to tokens with both Contents read and write. The
+read-only reporter must not gain write access merely to inspect those settings.
+
+An explicit REST `false` remains disabled; a present non-boolean value remains
+unverified. When a merge setting is omitted, the policy queries the same
+repository's [GraphQL merge settings](https://docs.github.com/en/graphql/reference/repos#repository)
+(`autoMergeAllowed` and `squashMergeAllowed`) using the existing token. Its numeric
+repository ID and full name must match the REST identity, both values must be
+real booleans, any visible REST values must agree, and both settings must be
+`true`. An unavailable/error/null/malformed/foreign response remains blocked
+with an **unverified** reason, never assumed enabled. This query adds no token,
+permission, workflow writer, cached owner assertion, or API mutation.
+
+At the same observation, main ruleset `15303479` required only **CI Required**,
+with strict mode `false`, plus deletion/non-fast-forward protection. Missing
+**Dependabot Merge Ready** and native PR/resolved-thread protections remain
+separate activation blockers. Supporting strict mode `false` and repairing the
+read-only query does not silently remove those barriers or activate bot merging.
+Any live protection change needs separate owner approval. PR-target reporter
+code comes from trusted main, so an unmerged implementation PR cannot repair an
+existing bot check; deployment and a fresh compatible reporter lifecycle remain
+necessary before live verification.
 
 ## Native Ready reporting and bounded refresh
 
@@ -273,8 +309,9 @@ A zero approval count remains allowed only with a verified native PR/resolved-th
 barrier. Extra API-only review conditions and the interval between the final read
 and arming are still **not an atomic review lock**. Ready failure and cancellation occur after the supported event is
 processed; this must not be described as a complete server-side review-race
-guarantee. Native strict CI is enforced independently. If atomic review locking
-is required, it needs a separately approved review-policy decision.
+guarantee. Native required CI is enforced independently; latest-base enforcement
+is controlled by the owner's explicit strict-mode setting. If atomic review
+locking is required, it needs a separately approved review-policy decision.
 
 Failed current proof protectively cancels a verified bot's outstanding native
 request. If a completed reporter's verdict is stale, the bounded refresh path
@@ -357,8 +394,10 @@ and CI do not substitute for that observation.
    the new reporter definition.
 3. Preserve the existing main deletion/non-fast-forward rules and no-bypass
    policy. Add one `required_status_checks` rule to ruleset `15303479` with
-   `strict_required_status_checks_policy: true`, and contexts `CI Required` and
-   `Dependabot Merge Ready`, both `integration_id: 15368`. Leave existing review
+   the owner's existing explicit `strict_required_status_checks_policy` value
+   preserved (currently `false`), and contexts `CI Required` and
+   `Dependabot Merge Ready`, both `integration_id: 15368`. Do not re-enable the
+   branch-up-to-date requirement as part of this repair. Leave existing review
    count policy and credentials unchanged. The runtime also requires a verified
    native PR/resolved-thread rule and no-bypass capability; their absence remains
    standby until the owner separately approves any needed policy change. This
@@ -373,8 +412,9 @@ and CI do not substitute for that observation.
    merged SHA receives main CI/DocC recovery. Creating missing ecosystem labels
    is a separate approved optional settings step.
 
-Required activation changes: repository feature, strict check rule, repository
-variable and the reviewed job token scopes above. They are **prepared, not
+Required activation controls: repository feature, required-check rule, repository
+variable and the reviewed job token scopes above. Preserve the owner's strict-mode
+choice; no additional token scopes are needed for the read-only settings repair. They are **prepared, not
 applied by this PR**. Native runtime capability, reporter-only rerun behavior,
 review-race limitations and post-merge recovery must be observed on real bot
 updates before reporting that automatic merging is operational.

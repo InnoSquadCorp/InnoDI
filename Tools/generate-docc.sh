@@ -8,12 +8,15 @@ OUTPUT_DIR="${1:-$ROOT_DIR/.build/docc/InnoDI}"
 TARGET="${2:-InnoDI}"
 DOCC_PLUGIN_VERSION="1.5.0"
 DOCS_RESOLVED_PATH="$ROOT_DIR/Tools/docc/Package.resolved"
-INDEX_HTML_PATH="$OUTPUT_DIR/index.html"
-INDEX_JSON_PATH="$OUTPUT_DIR/index/index.json"
-NOT_FOUND_HTML_PATH="$OUTPUT_DIR/404.html"
+KOREAN_CATALOG="$ROOT_DIR/Sources/$TARGET/$TARGET.docc/ko.lproj"
 
 if [[ ! -s "$DOCS_RESOLVED_PATH" ]]; then
   echo "DocC dependency lock is missing or empty: $DOCS_RESOLVED_PATH" >&2
+  exit 1
+fi
+
+if [[ "$TARGET" == "InnoDI" && ! -d "$KOREAN_CATALOG" ]]; then
+  echo "Required Korean DocC catalog is missing: $KOREAN_CATALOG" >&2
   exit 1
 fi
 
@@ -73,26 +76,34 @@ replacement = match.group(1) + dependency_line
 manifest_path.write_text(text[:match.start(1)] + replacement + text[match.end(1):])
 PY
 
-echo "[docc] Generating DocC for target '$TARGET' -> $OUTPUT_DIR"
-swift package \
-  --package-path "$DOCS_PACKAGE_DIR" \
-  --disable-automatic-resolution \
-  --allow-writing-to-directory "$OUTPUT_DIR" \
-  generate-documentation \
-  --target "$TARGET" \
-  --output-path "$OUTPUT_DIR" \
-  --disable-indexing \
-  --transform-for-static-hosting \
-  --hosting-base-path InnoDI
+generate_language_documentation() {
+  local OUTPUT_DIR="$1"
+  local HOSTING_BASE_PATH="$2"
+  local INDEX_HTML_PATH="$OUTPUT_DIR/index.html"
+  local INDEX_JSON_PATH="$OUTPUT_DIR/index/index.json"
+  local NOT_FOUND_HTML_PATH="$OUTPUT_DIR/404.html"
+  local THEME_SETTINGS_PATH="$OUTPUT_DIR/theme-settings.json"
+  mkdir -p "$OUTPUT_DIR"
 
-# Some DocC frontend builds unconditionally fetch theme-settings.json.
-# Generate an empty settings file when DocC doesn't emit one.
-THEME_SETTINGS_PATH="$OUTPUT_DIR/theme-settings.json"
-if [[ ! -f "$THEME_SETTINGS_PATH" ]]; then
-  printf '{}\n' > "$THEME_SETTINGS_PATH"
-fi
+  echo "[docc] Generating DocC for target '$TARGET' -> $OUTPUT_DIR"
+  swift package \
+    --package-path "$DOCS_PACKAGE_DIR" \
+    --disable-automatic-resolution \
+    --allow-writing-to-directory "$OUTPUT_DIR" \
+    generate-documentation \
+    --target "$TARGET" \
+    --output-path "$OUTPUT_DIR" \
+    --disable-indexing \
+    --transform-for-static-hosting \
+    --hosting-base-path "$HOSTING_BASE_PATH"
 
-python3 - "$INDEX_JSON_PATH" "$INDEX_HTML_PATH" <<'PY'
+  # Some DocC frontend builds unconditionally fetch theme-settings.json.
+  # Generate an empty settings file when DocC doesn't emit one.
+  if [[ ! -f "$THEME_SETTINGS_PATH" ]]; then
+    printf '{}\n' > "$THEME_SETTINGS_PATH"
+  fi
+
+  python3 - "$INDEX_JSON_PATH" "$INDEX_HTML_PATH" <<'PY'
 import json
 import pathlib
 import re
@@ -137,6 +148,22 @@ replacement = (
 index_html_path.write_text(html.replace(match.group(0), replacement, 1))
 PY
 
-cp "$INDEX_HTML_PATH" "$NOT_FOUND_HTML_PATH"
+  cp "$INDEX_HTML_PATH" "$NOT_FOUND_HTML_PATH"
+
+}
+
+generate_language_documentation "$OUTPUT_DIR" InnoDI
+
+# DocC does not select the maintained *.lproj Markdown as a rendered locale.
+# Overlay the Korean articles in the isolated package and reuse its compiled
+# symbol graphs; publish that rendered catalog under its own hosting root.
+if [[ -d "$KOREAN_CATALOG" ]]; then
+  rsync -a "$KOREAN_CATALOG/" "$DOCS_PACKAGE_DIR/Sources/$TARGET/$TARGET.docc/"
+  generate_language_documentation "$OUTPUT_DIR/ko" InnoDI/ko
+fi
+
+if [[ -d "$KOREAN_CATALOG" ]]; then
+  python3 "$ROOT_DIR/Tools/check-docc-locales.py" "$OUTPUT_DIR"
+fi
 
 echo "[docc] Done"
