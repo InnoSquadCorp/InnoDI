@@ -4,9 +4,10 @@
 
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
-> This page documents **InnoDI 7.0.2**. For source changes from 6.x, follow the
-> [migration guide](Sources/InnoDI/InnoDI.docc/MigrationGuide.md#6x--70).
-> [Versioned 7.0.2 documentation](https://github.com/InnoSquadCorp/InnoDI/blob/7.0.2/README.md).
+> [!IMPORTANT]
+> This page contains examples for the **InnoDI 7.0.3 development checkout (unreleased)**.
+> Stable users should follow the [7.0.2 documentation](https://github.com/InnoSquadCorp/InnoDI/blob/7.0.2/README.md).
+> For source changes from 6.x, follow the [migration guide](Sources/InnoDI/InnoDI.docc/MigrationGuide.md#6x--70).
 
 Macro-driven dependency injection for Swift with compile-time and build-time
 validation, dependency-graph tooling, hierarchy checks, and SwiftUI helpers.
@@ -156,13 +157,21 @@ plugin, and write a first container.
 
 Add InnoDI to your `Package.swift`:
 
+Use a sibling checkout for the current development examples:
+
+```swift
+.package(name: "InnoDI", path: "../InnoDI")
+```
+
+For the stable installation, follow the [7.0.2 documentation](https://github.com/InnoSquadCorp/InnoDI/blob/7.0.2/README.md):
+
 ```swift
 dependencies: [
     .package(url: "https://github.com/InnoSquadCorp/InnoDI.git", from: "7.0.2")
 ]
 ```
 
-The product, plugin, and API examples on this page use **InnoDI 7.0.2**.
+The product, plugin, and API examples on this page use the **InnoDI 7.0.3 development checkout (unreleased)**.
 For the source changes from 6.x, follow the
 [migration guide](Sources/InnoDI/InnoDI.docc/MigrationGuide.md#6x--70).
 
@@ -864,6 +873,10 @@ Generate DocC:
 ```bash
 Tools/generate-docc.sh
 ```
+
+The script renders English DocC in `.build/docc/InnoDI` and Korean DocC in
+`.build/docc/InnoDI/ko`. Published documentation: [English](https://innosquadcorp.github.io/InnoDI/documentation/innodi/) ·
+[한국어](https://innosquadcorp.github.io/InnoDI/ko/documentation/innodi/).
 
 Release notes and upgrade notes live in [CHANGELOG.md](CHANGELOG.md).
 
