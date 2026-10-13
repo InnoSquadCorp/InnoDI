@@ -281,7 +281,10 @@ def proof(api, number, notification=None):
     require([p["sha"] for p in parents] == [main, head], "test-merge parents do not match base/head")
     graph = reviews(api, number)
     require(graph["headRefOid"] == head, "head raced during reviews")
-    require(not pr.get("requested_reviewers") and not pr.get("requested_teams"), "review request pending")
+    # basic() has verified Dependabot. Optional reviewer/team requests (including
+    # CODEOWNERS notifications) do not add an approval requirement. reviews()
+    # still enforces actual blocking reviews, native review policy and threads;
+    # leave requests intact rather than removing them to manufacture readiness.
     workflow = api.get(route("actions/workflows/macro-tests.yml"))
     require(workflow.get("path") == CI_PATH and workflow.get("state") == "active", "wrong/inactive CI workflow")
     runs = api.pages(route(f"actions/workflows/macro-tests.yml/runs?event=pull_request&head_sha={head}"), "workflow_runs")

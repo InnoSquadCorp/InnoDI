@@ -106,6 +106,34 @@ class NativeReadyTests(unittest.TestCase):
         self.assertEqual(len(self.api.merge_settings_reads), 2)
         self.assertFalse(self.api.mutations)
 
+    def test_snapshot_allows_optional_requests_without_removing_them(self):
+        self.api.pr.update(requested_reviewers=[dict(id=3)], requested_teams=[dict(id=4)])
+        self.running()
+        before = copy.deepcopy(self.api.pr)
+        ready, reason = self.snapshot()
+        self.assertTrue(ready, reason)
+        self.assertEqual(self.api.pr, before)
+        self.assertFalse(self.api.mutations)
+
+    def test_optional_requests_do_not_hide_actual_snapshot_blockers(self):
+        for alter in [
+            lambda a: a.review_list.append(dict(id=1, user=dict(id=3), state='CHANGES_REQUESTED')),
+            lambda a: a.review_list.append(dict(id=1, user=dict(id=3), state='PENDING')),
+            lambda a: setattr(a, 'review_decision', 'REVIEW_REQUIRED'),
+            lambda a: a.threads.append(dict(isResolved=False)),
+            lambda a: a.run.update(conclusion='failure'),
+        ]:
+            with self.subTest(blocker=alter):
+                self.api = Transcript()
+                self.api.pr.update(requested_reviewers=[dict(id=3)], requested_teams=[dict(id=4)])
+                alter(self.api)
+                self.running()
+                before = copy.deepcopy(self.api.pr)
+                ready, reason = self.snapshot()
+                self.assertFalse(ready, reason)
+                self.assertEqual(self.api.pr, before)
+                self.assertFalse(self.api.mutations)
+
     def test_read_only_snapshot_distinguishes_disabled_unverified_and_missing_protection(self):
         cases = [
             (lambda a: a.repo.update(allow_auto_merge=False), 'feature disabled'),
