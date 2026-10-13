@@ -288,7 +288,7 @@ jobs:
         run: bash Tools/qualify-ci-product-tests.sh
       - name: Upload product test qualification evidence
         if: ${{ always() && (steps.qualify-product-tests.outcome == 'success' || steps.qualify-product-tests.outcome == 'failure') }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ci-test-qualification-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/ci-test-qualification
@@ -303,7 +303,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload Escape Hatch Report
         # Keep lane-specific artifact names for targeted fast runs.
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: escape-hatch-report-fast-pr
           path: build/escape-hatch-report.json
@@ -314,14 +314,14 @@ jobs:
             swift run --quiet InnoDI-DeferredAliasScan --root . --json build/deferred-aliases.json
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload Deferred-Wrapper Alias Report
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: deferred-aliases-report-fast-pr
           path: build/deferred-aliases.json
           if-no-files-found: error
       - name: Upload scoped product test evidence
         if: ${{ always() && fromJSON(needs.ci-plan.outputs.plan).product_test_scope.product != '' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: scoped-product-tests-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -378,7 +378,7 @@ jobs:
         run: Tools/run-coverage-gate.sh --api-checker-in-policy
       - name: Upload Coverage Artifacts
         if: ${{ always() && hashFiles('coverage/summary.json') != '' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage
           path: |
@@ -408,7 +408,7 @@ jobs:
       - name: Upload current public API contract
         # Preserve the compiler contract for review when the baseline differs.
         if: ${{ always() && hashFiles('build/public-api-current.json') != '' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: public-api-current-${{ github.sha }}
           path: build/public-api-current.json
@@ -419,7 +419,7 @@ jobs:
         run: bash Tools/qualify-ci-product-tests.sh
       - name: Upload product test qualification evidence
         if: ${{ always() && (steps.qualify-product-tests.outcome == 'success' || steps.qualify-product-tests.outcome == 'failure') }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ci-test-qualification-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/ci-test-qualification
@@ -440,7 +440,7 @@ jobs:
             Tools/report-validate-dag-escape-hatches.sh
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload Escape Hatch Report
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: escape-hatch-report
           path: build/escape-hatch-report.json
@@ -456,7 +456,7 @@ jobs:
             swift run --quiet InnoDI-DeferredAliasScan --root . --json build/deferred-aliases.json
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload Deferred-Wrapper Alias Report
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: deferred-aliases-report
           path: build/deferred-aliases.json
@@ -478,7 +478,7 @@ jobs:
         # Preserve the report when measurement itself fails, but do not turn an
         # earlier test/build failure into a second missing-artifact failure.
         if: ${{ always() && steps.macro_performance.outcome != 'skipped' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: macro-performance-report
           path: build/macro-performance-report.json
@@ -501,7 +501,7 @@ jobs:
       # runtime-trace-diagnostics.yml workflow, not a release performance gate.
       - name: Upload Performance Trend Report
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: perf-trend-report
           path: build/perf-trend-report.json
@@ -514,7 +514,7 @@ jobs:
         run: Tools/measure-macro-features.sh
       - name: Upload Macro Feature Performance Report
         if: ${{ always() && hashFiles('build/macro-feature-performance-report.json') != '' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: macro-feature-performance-report
           path: build/macro-feature-performance-report.json
@@ -701,7 +701,7 @@ jobs:
           Tools/check-public-api.py
       - name: Upload minimum-toolchain package evidence
         if: ${{ always() && hashFiles('build/swift-62-package-contracts.log') != '' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: swift-62-package-contracts
           path: build/swift-62-package-contracts.log
@@ -946,7 +946,7 @@ jobs:
             exit 1
           fi
       - name: Download validated macro performance report
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: macro-performance-report
           path: build/performance
