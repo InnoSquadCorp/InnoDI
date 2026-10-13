@@ -294,9 +294,18 @@ earlier CI runs/attempts are superseded only by the fully validated latest
 run/attempt. Other current checks must succeed.
 
 Latest effective reviews must contain no `CHANGES_REQUESTED` or pending review;
-a later comment does not clear requested changes. Requested reviewers/teams,
-native review decision and unresolved threads also block approval. Review
-submitted/edited/dismissed and review-comment changes trigger a zero-permission
+a later comment does not clear requested changes. Native required approvals,
+blocking native review decisions and unresolved threads still block approval.
+For a verified same-repository Dependabot PR, an optional requested reviewer or
+team is a notification, not an additional mandatory approval. This includes
+automatic CODEOWNERS requests: with a native approval count of zero and no
+required code-owner approval, they do not require a human response before
+automatic merging. Requests and CODEOWNERS remain intact; the coordinator does
+not remove requests, dismiss reviews, resolve threads or change protection.
+Manually requesting or re-requesting an optional reviewer/team likewise does
+not pause auto-merge; an actual blocking review or native approval policy does.
+Human or unverified bot PRs do not gain automatic merging from this exception.
+Review submitted/edited/dismissed and review-comment changes trigger a zero-permission
 notice. Its `workflow_run` wakes the trusted API coordinator; rerun `in_progress`
 also invalidates readiness (`requested` is not emitted for reruns). Main pushes,
 PR lifecycle/base edits, hourly reconciliation and manual dispatch re-evaluate

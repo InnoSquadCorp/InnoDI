@@ -377,9 +377,73 @@ class DependabotPolicyTests(unittest.TestCase):
         self.api.review_list.append(dict(id=3, user=dict(id=3), state='DISMISSED'))
         p.proof(self.api, NUMBER)
         self.reject(lambda a: a.threads.append(dict(isResolved=False)))
-        self.reject(lambda a: a.pr.update(requested_reviewers=[dict(id=3)]))
         self.reject(lambda a: a.__setattr__('graph_head', 'd' * 40))
         self.reject(lambda a: a.__setattr__('review_decision', 'REVIEW_REQUIRED'))
+
+    def test_optional_review_requests_do_not_add_an_approval_requirement(self):
+        for reviewers, teams in [([dict(id=3)], []), ([], [dict(id=4)]),
+                                 ([dict(id=3)], [dict(id=4)])]:
+            for strict in [False, True]:
+                with self.subTest(reviewers=reviewers, teams=teams, strict=strict):
+                    api = Transcript()
+                    api.pr.update(requested_reviewers=reviewers, requested_teams=teams)
+                    api.rules[0]['parameters']['strict_required_status_checks_policy'] = strict
+                    before = copy.deepcopy(api.pr)
+                    self.assertEqual(p.proof(api, NUMBER)['head'], HEAD)
+                    self.assertEqual(api.pr, before)
+                    self.assertFalse(api.mutations)
+                    self.assertIn('armed', p.coordinate(api, NUMBER, True))
+                    self.assertEqual(api.pr['requested_reviewers'], reviewers)
+                    self.assertEqual(api.pr['requested_teams'], teams)
+                    self.assertEqual(len(api.mutations), 1)
+                    method, query, variables = api.mutations[0]
+                    self.assertEqual(method, 'graphql')
+                    self.assertIn('enablePullRequestAutoMerge', query)
+                    self.assertIn('expectedHeadOid', query)
+                    self.assertIn('mergeMethod:SQUASH', query)
+                    self.assertEqual(variables['head'], HEAD)
+
+    def test_optional_requests_keep_review_native_ci_and_identity_barriers(self):
+        blockers = [
+            lambda a: a.review_list.extend([dict(id=1, user=dict(id=3), state='CHANGES_REQUESTED'),
+                                           dict(id=2, user=dict(id=3), state='COMMENTED')]),
+            lambda a: a.review_list.append(dict(id=1, user=dict(id=3), state='PENDING')),
+            lambda a: setattr(a, 'review_decision', 'CHANGES_REQUESTED'),
+            lambda a: (a.rules[-1]['parameters'].update(required_approving_review_count=1),
+                       setattr(a, 'review_decision', 'REVIEW_REQUIRED')),
+            lambda a: (a.rules[-1]['parameters'].update(require_code_owner_review=True),
+                       setattr(a, 'review_decision', 'REVIEW_REQUIRED')),
+            lambda a: a.threads.append(dict(isResolved=False)),
+            lambda a: setattr(a, 'graph_head', 'd' * 40),
+            lambda a: setattr(a, 'base', 'd' * 40),
+            lambda a: a.run.update(conclusion='failure'),
+            lambda a: a.rules.pop(),
+            lambda a: a.pr['user'].update(id=123),
+        ]
+        for alter in blockers:
+            with self.subTest(blocker=alter):
+                api = Transcript()
+                api.pr.update(requested_reviewers=[dict(id=3)], requested_teams=[dict(id=4)])
+                alter(api)
+                before = copy.deepcopy(api.pr)
+                with self.assertRaises(p.Rejected):
+                    p.proof(api, NUMBER)
+                self.assertEqual(api.pr, before)
+                self.assertFalse(api.mutations)
+
+    def test_actual_blocking_review_cancels_armed_bot_despite_optional_requests(self):
+        for state in ['CHANGES_REQUESTED', 'PENDING']:
+            with self.subTest(state=state):
+                api = Transcript()
+                api.pr.update(requested_reviewers=[dict(id=3)], requested_teams=[dict(id=4)],
+                              auto_merge=dict(enabled_by=dict(p.BOT)))
+                api.review_list = [dict(id=1, user=dict(id=3), state=state)]
+                self.assertIn('review blocks auto-merge', p.coordinate(api, NUMBER, True))
+                self.assertIsNone(api.pr['auto_merge'])
+                self.assertEqual(api.pr['requested_reviewers'], [dict(id=3)])
+                self.assertEqual(api.pr['requested_teams'], [dict(id=4)])
+                self.assertEqual(len(api.mutations), 1)
+                self.assertIn('disablePullRequestAutoMerge', api.mutations[0][1])
 
     def test_older_success_cannot_override_latest_failure_or_pending(self):
         self.api.run.update(run_attempt=2, conclusion='failure')
