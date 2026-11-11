@@ -48,8 +48,8 @@ optional; do it when your change touches build support, packaging, or the
 examples.
 
 External-consumer contracts keep compatible dependency products in
-`.build/external-consumer-contracts` so pass, fail, signature, CLI, and fix-it
-fixtures do not rebuild SwiftSyntax from scratch. SwiftPM still rebuilds each disposable
+`.build/external-consumer-contracts` so pass, fail, signature, CLI, fix-it, and
+macro-only strict-concurrency fixtures do not rebuild SwiftSyntax from scratch. SwiftPM still rebuilds each disposable
 consumer root and separates macro-prebuilt from plugin-source graphs. Use
 `swift package clean` for a cold run, or set `INNODI_EXTERNAL_SCRATCH_PATH` to
 an isolated absolute path when comparing clean-build timings.

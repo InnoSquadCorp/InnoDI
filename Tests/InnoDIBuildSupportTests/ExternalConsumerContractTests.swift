@@ -609,7 +609,7 @@ private struct ExternalConsumerFixture: Sendable {
     let scratchProfile: ExternalConsumerScratchProfile
 }
 
-private enum ExternalConsumerScratchProfile: String, Sendable {
+enum ExternalConsumerScratchProfile: String, Sendable {
     case sharedSource = "shared-source"
     case macroOnlyPrebuilt = "macro-only-prebuilt"
     case dagPluginSource = "dag-plugin-source"
@@ -747,6 +747,15 @@ private func externalConsumerScratchProfile(
     #endif
 }
 
+/// The scratch profile of a consumer that attaches no build plugin.
+func externalConsumerMacroOnlyScratchProfile() -> ExternalConsumerScratchProfile {
+    #if compiler(>=6.4)
+    return .macroOnlyPrebuilt
+    #else
+    return .sharedSource
+    #endif
+}
+
 private func materializeExternalConsumerFixture(
     _ fixture: ExternalConsumerFixture,
     localizingRemoteRevision: Bool = false
@@ -858,7 +867,7 @@ private func materializeExternalConsumerFixture(
 /// always checked inside that expectation boundary.
 /// `swift package clean` removes the default cache when a true cold run is
 /// required; CI can also supply an isolated absolute override.
-private func externalConsumerScratchRoot(
+func externalConsumerScratchRoot(
     environment: [String: String] = ProcessInfo.processInfo.environment
 ) -> URL {
     if let override = environment[
@@ -879,7 +888,7 @@ private func externalConsumerScratchPath(
         .appendingPathComponent(fixture.expectation.rawValue, isDirectory: true)
 }
 
-private func externalConsumerScratchPath(
+func externalConsumerScratchPath(
     for profile: ExternalConsumerScratchProfile,
     under root: URL
 ) -> URL {
