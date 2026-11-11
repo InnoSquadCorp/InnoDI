@@ -53,6 +53,14 @@ consumer root and separates macro-prebuilt from plugin-source graphs. Use
 `swift package clean` for a cold run, or set `INNODI_EXTERNAL_SCRATCH_PATH` to
 an isolated absolute path when comparing clean-build timings.
 
+The compile-pass and compile-fail fixture loops build one fixture at a time.
+On a workstation with spare cores, `INNODI_EXTERNAL_FIXTURE_LANES=<2...8>`
+builds them in that many concurrent lanes. Lane 0 keeps the scratch path
+above; each further lane uses a sibling such as `pass-lane1` with its own copy
+of the dependency products, so the first run of a lane builds SwiftSyntax and
+InnoDI again and every later InnoDI source change rebuilds InnoDI once per
+lane. CI leaves the variable unset.
+
 ## Documentation Contract
 
 If behavior changes, update the docs in the same change.
