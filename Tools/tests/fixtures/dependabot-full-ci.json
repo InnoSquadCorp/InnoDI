@@ -224,6 +224,14 @@
         "conclusion": "success"
       },
       {
+        "name": "Macro Performance Paired Gate",
+        "conclusion": "success"
+      },
+      {
+        "name": "Upload Paired Macro Performance Report",
+        "conclusion": "success"
+      },
+      {
         "name": "Macro Performance Trend",
         "conclusion": "success"
       },

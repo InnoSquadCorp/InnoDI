@@ -122,11 +122,31 @@ report so it tracks the library surface, not fixtures or third-party code.
 `Tools/measure-macro-performance.sh --enforce` compares every validated
 `main` revision against the pinned baseline JSON in
 `Tools/macro-performance-baseline.json`. Alongside that, the `main` pipeline
-also runs `Tools/check-performance-trend.sh`, which compares the current
-measurement against the rolling median of the last entries on the
-`perf-history` branch. The dual gate is intentional: the pinned baseline
-catches single-PR regressions, while the trend gate catches gradual
-creep that under-threshold PRs accumulate over time.
+runs `Tools/check-paired-macro-performance.py`. It builds the released commit
+pinned in `Tools/macro-performance-paired-baseline.json` beside the candidate,
+gives both the candidate's benchmark source, alternates the two benchmark
+processes in paired blocks on the same machine, and fails when the median
+per-block ratio of their fastest samples exceeds the 20% budget. Because the
+baseline is a released commit, the comparison also covers creep that
+under-threshold PRs accumulate over a release train. A baseline that cannot be
+fetched or does not build the candidate's benchmark is reported as
+insufficient evidence, not as a pass.
+
+`Tools/check-performance-trend.sh` compares the current measurement against
+the rolling median of the last entries on the `perf-history` branch. It is a
+report on every event. Those entries come from different hosted runners, and
+the fastest sample for unchanged code has differed by more than the 20% budget
+between them, so the comparison cannot distinguish a runner from a regression.
+
+To run the paired comparison locally:
+
+```sh
+python3 -B Tools/check-paired-macro-performance.py --report-only
+# → build/paired-macro-performance-report.json
+```
+
+`--baseline-commit <rev>` compares against another revision for an experiment.
+The checked-in baseline moves only to a released commit, in a reviewed change.
 
 Source PRs use a separate 30-minute fast lane selected by CI Plan. It keeps all in-process unit,
 macro-expansion, graph, runtime, migration, documentation, public-API, and DAG
@@ -146,20 +166,21 @@ script reads only that index — locally you do not need to checkout
 `perf-history` yourself; the script fetches it and is a no-op when the
 branch is empty or unreachable.
 
-Tunables for the trend gate (set as environment variables):
+Tunables for the trend report (set as environment variables):
 
 - `INNODI_TREND_WINDOW` (default 7) — trailing entries used for the
   median.
-- `INNODI_TREND_THRESHOLD_PCT` (default 20) — fail above this delta.
-- `INNODI_TREND_MIN_SAMPLES` (default 5) — below this the gate just
-  reports.
+- `INNODI_TREND_THRESHOLD_PCT` (default 20) — report a regression above
+  this delta.
+- `INNODI_TREND_MIN_SAMPLES` (default 5) — below this the comparison is
+  skipped as insufficient history.
 - `INNODI_TREND_REQUIRE_SAME_TOOLCHAIN` (default 1) — drop history
   entries that used a different `swift_version` than the current run.
 
 When a Swift toolchain bump moves the absolute number, refresh
 `Tools/macro-performance-baseline.json` with
 `Tools/measure-macro-performance.sh --update-baseline` and let the trend
-gate's same-toolchain filter fall through naturally.
+report's same-toolchain filter fall through naturally.
 
 ## Governance
 

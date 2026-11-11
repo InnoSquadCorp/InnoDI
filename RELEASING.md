@@ -95,8 +95,14 @@ Before dispatching the `Release Gate` workflow:
      Trend/history retain the benchmark version and compare like workloads only.
      Fewer than five version-2 history entries means insufficient trend evidence,
      not a measured trend pass. Keep version-1 history unchanged.
-     CI still runs trend after a macro failure, without suppressing
-     the original job failure.
+     CI still runs the paired comparison and trend after a macro failure,
+     without suppressing the original job failure.
+   - On `main`, `Tools/check-paired-macro-performance.py` also enforces the 20%
+     budget against the released commit pinned in
+     `Tools/macro-performance-paired-baseline.json`, measured beside the
+     candidate on the same runner. The history trend is a report on every
+     event because its entries come from different runners. An unmeasurable
+     paired baseline is insufficient evidence, not a measured pass.
    - Runtime trace timing is **optional diagnostic evidence, not a release
      gate**. The user approved this policy change on 2026-09-28 after review
      found scheduler-dependent overlap and measurement-definition limitations.
@@ -215,7 +221,10 @@ Before dispatching the `Release Gate` workflow:
 16. After publication, verify the peeled remote tag SHA, GitHub Release notes,
     release immutability, the two checksum-covered assets, and `SHA256SUMS`.
     Add a fresh empty `## Unreleased` section and the next development-train
-    metadata to `CHANGELOG.md` in a separate post-release commit. For public-discovery releases,
+    metadata to `CHANGELOG.md` in a separate post-release commit. In that
+    commit, move `Tools/macro-performance-paired-baseline.json` to the released
+    tag and its peeled commit, so the next train is measured against this
+    release. For public-discovery releases,
     confirm that the semantic-version tag is visible and that the existing
     [SPI listing](https://swiftpackageindex.com/InnoSquadCorp/InnoDI) indexes
     that exact tag/revision and links working documentation. InnoDI is already

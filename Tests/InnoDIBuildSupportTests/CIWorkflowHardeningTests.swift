@@ -589,6 +589,10 @@ struct CIWorkflowHardeningTests {
         #expect(guidance.contains("minimum 5 comparable entries, 20% threshold"))
         #expect(guidance.contains("report-only-unbaselined"))
         #expect(guidance.contains("Perf History` is manual recovery"))
+        #expect(guidance.contains("Tools/check-paired-macro-performance.py"))
+        #expect(guidance.contains("Tools/macro-performance-paired-baseline.json"))
+        #expect(guidance.contains("report-only on every event"))
+        #expect(guidance.contains("is insufficient evidence, not a measured"))
     }
 
     @Test("Agent guidance distinguishes version promotion from verified publication")

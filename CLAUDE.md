@@ -164,22 +164,32 @@ workflow's step summary. The script is informational — set
 `INNODI_ESCAPE_HATCH_FAIL=1` to flip it into a blocker for orgs that treat new
 opt-outs as release blockers.
 
-`Tools/measure-macro-performance.sh --enforce` keeps the single-PR
-regression gate against the pinned `macro-performance-baseline.json`, and
-`Tools/check-performance-trend.sh` runs alongside it in `macro-tests` to
-compare against the rolling median of the `perf-history` branch (last 7
-entries, minimum 5 comparable entries, 20% threshold, same-toolchain and
-same-workload-version filters). In `CI`, only that exhaustive job runs them:
-pull requests, whether labeled `release-validation` or selected by CI Plan,
-run them with `--report-only`, while pushes to `main`, merge queue runs, and
-manual dispatch enforce them. Both compare `min_ms`, while reports retain
-every raw sample and dispersion statistics. The successful-expansion workload
-is version 2; never relabel version-1 history or replace the pinned CI baseline
-with a developer-machine result. The `CI` workflow reuses the gated
-report for normal `main` history appends after CI Required succeeds;
-`Perf History` is manual recovery. Missing/unreachable history or
-fewer than five comparable entries is insufficient trend evidence, not a
-measured trend pass.
+`Tools/measure-macro-performance.sh --enforce` keeps the regression gate
+against the pinned `macro-performance-baseline.json`, and
+`Tools/check-paired-macro-performance.py` enforces the same 20% budget on one
+machine. It builds the released commit pinned in
+`Tools/macro-performance-paired-baseline.json` beside the candidate, gives
+both the candidate's benchmark source, alternates their processes in paired
+blocks, and gates the median per-block ratio of `min_ms`. In `CI`, only the
+exhaustive `macro-tests` job runs them: pull requests, whether labeled
+`release-validation` or selected by CI Plan, run both with `--report-only`,
+while pushes to `main`, merge queue runs, and manual dispatch enforce them.
+`Tools/check-performance-trend.sh` compares against the rolling median of the
+`perf-history` branch (last 7 entries,
+minimum 5 comparable entries, 20% threshold, same-toolchain and
+same-workload-version filters) and is report-only on every event: those
+entries come from different hosted runners, whose `min_ms` for unchanged code
+differs by more than the budget. Reports retain every raw sample and
+dispersion statistics. The successful-expansion workload is version 2; never
+relabel version-1 history or replace the pinned CI baseline with a
+developer-machine result. Move the paired baseline only to a released commit,
+in a reviewed change. A paired baseline that cannot be fetched or does not
+build the candidate's benchmark is insufficient evidence, not a measured
+pass. The `CI` workflow reuses the gated report for normal `main` history
+appends after CI Required succeeds;
+`Perf History` is manual recovery. Missing/unreachable history or fewer than
+five comparable entries is insufficient trend evidence, not a measured trend
+pass.
 
 `Tools/measure-macro-features.sh` separately measures assisted factory, large
 multibinding, and mock generation. These independent v1 workloads are
