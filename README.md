@@ -134,6 +134,18 @@ The development checkout accepts `603.0.2...604.0.0` instead. A graph with no
 other constraint still resolves `604.0.0`, and a graph that another macro
 package holds below it resolves `603.0.2`. Both endpoints are tested.
 
+The SwiftSyntax build decides most of a consumer's first build. These are cold
+builds of a synthetic consumer with 100 bindings (release configuration, empty
+SwiftPM caches) from the scheduled
+[Cold Build Benchmark](.github/workflows/cold-build-benchmark.yml) run on
+2026-11-09. Hosted-runner timings vary between runs.
+
+| Toolchain | SwiftSyntax 604.0.0 | Cold build |
+|---|---|---:|
+| Xcode 27.1 (Swift 6.4) | prebuilt | 68 s |
+| Xcode 26.6 (Swift 6.3.3) | compiled from source | 365 s |
+| Xcode 26.5 (Swift 6.3.2) | compiled from source | 409 s |
+
 The build-time validator keeps its lock and cache under SwiftPM's scratch
 directory, which must be on a local filesystem such as APFS. It refuses NFS,
 SMB, WebDAV, and FUSE mounts by default; see

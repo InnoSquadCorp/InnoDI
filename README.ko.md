@@ -133,6 +133,18 @@ InnoDI 7.0.2는 7.0.0에서 사용한 `swift-syntax`의 `604.0.0` 고정을 유�
 graph는 그대로 `604.0.0`으로 해석되고, 다른 매크로 패키지가 그 아래로 묶은
 graph는 `603.0.2`로 해석됩니다. 두 끝 버전 모두 테스트합니다.
 
+소비자의 첫 빌드 시간은 대부분 SwiftSyntax 빌드가 결정합니다. 아래는 binding
+100개짜리 합성 소비자의 cold 빌드(release configuration, 빈 SwiftPM 캐시)이며,
+2026-11-09에 실행된 정기
+[Cold Build Benchmark](.github/workflows/cold-build-benchmark.yml) 결과입니다.
+hosted runner의 시간은 실행마다 달라집니다.
+
+| Toolchain | SwiftSyntax 604.0.0 | Cold 빌드 |
+|---|---|---:|
+| Xcode 27.1 (Swift 6.4) | prebuilt | 68초 |
+| Xcode 26.6 (Swift 6.3.3) | source에서 컴파일 | 365초 |
+| Xcode 26.5 (Swift 6.3.2) | source에서 컴파일 | 409초 |
+
 빌드 시점 validator는 lock과 cache를 SwiftPM scratch 디렉터리 아래에 두며, 이
 디렉터리는 APFS 같은 로컬 파일시스템에 있어야 합니다. NFS, SMB, WebDAV, FUSE
 mount는 기본적으로 거부합니다. 파일시스템 표와 복구 절차는
