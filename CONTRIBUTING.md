@@ -15,6 +15,7 @@ establish remote CI success. The following commands cover a source PR:
 # clean-build consumer contracts that remain exhaustive main gates)
 swift test --no-parallel \
   -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors \
+  --skip 'InnoDIBuildSupportTests.PublicAPIContractTests/compilerDefaultArgumentContract' \
   --skip 'InnoDIBuildSupportTests.(ExternalConsumerContractTests|StrictConcurrencyBuildTests)' \
   --skip 'InnoDIMigrationCoreTests.InnoDIMigrationCoreTests/publicExecutableRunsFromFreshConsumer' \
   --skip 'InnoDIMacrosTests.MechanicalFixItTests/uniqueBindingRepairBuildsAndGraphs'

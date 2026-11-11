@@ -20,6 +20,36 @@ checklist below and collect evidence for its own exact candidate SHA. Only the
 final candidate transition changes the release metadata; opening or validating
 a preparation PR does not publish a release.
 
+## Versioning Policy
+
+InnoDI follows [Semantic Versioning](https://semver.org). The public contract
+is the API recorded in `Tools/public-api-baseline.json`, the documented
+attribute grammar, and the generated symbol shape of every surface in the `GA`
+phase. Experimental surfaces follow the
+[promotion rules in the roadmap](ROADMAP.md#experimental-features--promotion-criteria)
+instead.
+
+| Release | May contain |
+|---|---|
+| Patch | Fixes, documentation, tooling and CI changes, and dependency requirement changes that keep every previously resolvable consumer graph resolvable. |
+| Minor | Additive API, new opt-in options, new warnings, and promotion of an experimental surface. Source that compiled without warnings keeps compiling. |
+| Major | Source-breaking changes. |
+
+The current major line receives fixes and additive work. Breaking work
+accumulates for the next major, which needs all of the following:
+
+1. Every source break is described in an accepted RFC, as
+   [RFC 0009](docs/rfcs/0009-7.0-source-breaks.md) did for 7.0.
+2. A break that can be announced ahead of time ships as a deprecation or a
+   warning in a minor release of the current major first.
+3. Each break has an `InnoDI-Migrate` rule or a manual step in the
+   [migration guide](Sources/InnoDI/InnoDI.docc/MigrationGuide.md).
+4. Accepted breaks are released together. A single break waits for the next
+   major instead of starting one.
+
+A warning that a minor release adds can fail a consumer that builds with
+warnings as errors. The release notes of that minor name each new warning.
+
 ## Release Checklist
 
 Before dispatching the `Release Gate` workflow:

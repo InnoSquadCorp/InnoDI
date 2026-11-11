@@ -33,6 +33,12 @@ swift test --filter InnoDIMacrosTests
 swift test --filter InnoDIDependencyGraphCLITests
 ```
 
+The full suite takes roughly half an hour serially, almost all of it in
+contracts that build separate consumer packages. `CONTRIBUTING.md` lists the PR
+fast-lane command, which skips those contracts and runs in a few minutes. Use
+it while iterating and run the full suite before reporting a change as
+verified.
+
 ### DocC
 
 ```bash
