@@ -2,9 +2,8 @@
 
 `@GenerateMock` (RFC 0001) synthesizes a call-recording mock peer for a
 protocol so tests can plug into the existing `Overrides` builder without
-hand-writing the mock body. The attribute is available as an
-**experimental** opt-in. Its generated
-shape may evolve until RFC 0001's dedicated GA criteria pass.
+hand-writing the mock body. The attribute is generally available from
+InnoDI 7.1.0, and semantic versioning covers the shape it generates.
 
 ## Usage
 
@@ -88,8 +87,8 @@ For each supported protocol member the macro emits the following:
   mock; the synthesized method does not need to be marked `mutating`.
 * **Access level** — mocks for `private` and `fileprivate` protocols inherit
   that narrow access so the generated conformance remains legal. Mocks for
-  internal, package, and public protocols remain internal while this API is
-  experimental; attaching the macro never expands a package's public API.
+  internal, package, and public protocols are internal; attaching the macro
+  never expands a package's public API.
 * **Escaping closure arguments** — recorded with property-safe function types
   (`@escaping` / `@autoclosure` are removed from the call-record field while
   the conforming method keeps the original parameter spelling). An
@@ -160,11 +159,11 @@ requirements. Collisions with the fixed aggregate API (`recordedCallCounts`,
 `missingStubSelectors`, and the public reset/history members) fail closed.
 Parameter names such as `handler` and `generation` remain valid; generated
 locals cannot replace their values. Inspect the expansion when referring to a
-disambiguated helper, since the experimental generated names are not frozen.
+disambiguated helper; its name is part of the generated shape.
 
 ## Currently unsupported
 
-The first drop intentionally rejects the following requirements with a
+The macro intentionally rejects the following requirements with a
 `mock.unsupported-member` warning. InnoDI does not synthesize a partial mock
 when any of these appear, because that would generate a broken conformance:
 
@@ -185,8 +184,8 @@ when any of these appear, because that would generate a broken conformance:
   non-generic requirements; generic typed-throws requirements fail at the
   source attribute instead of emitting a partial conformance.
 * Opaque `some` return types.
-* Associated types — hand-roll those mocks until the RFC settles on the
-  pinning and cross-module resolution path.
+* Associated types — hand-roll those mocks. RFC 0010 tracks the pinning and
+  cross-module resolution path.
 * Protocol inheritance other than `AnyObject` and `Sendable`. Attached peer macros cannot
   inspect inherited requirements across files or modules, so InnoDI fails
   closed instead of emitting a mock with a potentially incomplete
@@ -236,11 +235,14 @@ validation.
 
 ## Stability
 
-* `@GenerateMock` is an experimental opt-in API. The attribute is
-  stable; the *generated* member shape (storage names, helper struct
-  names, recorded-call internals) is **not yet stable** and may change
-  before GA. Pin the generated names through `Overrides`
-  builder slots rather than reaching into the synthesized internals.
+* `@GenerateMock` is generally available from InnoDI 7.1.0. Semantic
+  versioning covers the attribute and the *generated* member shape: storage
+  names, helper struct names, and the recorded-call members. A change to that
+  shape needs a major version.
+* The diagnostic code `mock.experimental-skeleton` keeps its name, because
+  diagnostic codes are stable identifiers.
+* A requirement listed under "Currently unsupported" stays rejected. Supporting
+  one later is additive.
 * The `bundleWithOverrides:` parameter from RFC 0001 remains reserved for a
   later stage. `Sendable` behavior is inferred from protocol inheritance so
   isolation cannot drift from the production contract.

@@ -11,7 +11,7 @@ before a PR lands.
 
 | ID   | Title                                 | Status |
 |------|---------------------------------------|--------|
-| 0001 | [Macro-driven mock generation](0001-macro-mock-generation.md) | Accepted (experimental) |
+| 0001 | [Macro-driven mock generation](0001-macro-mock-generation.md) | Accepted (GA in 7.1.0) |
 | 0002 | [SubContainer wiring simplification](0002-subcontainer-wiring-simplification.md) | Implemented |
 | 0003 | [Scoped TaskLocal overrides](0003-scoped-task-local-overrides.md) | Rejected |
 | 0004 | [API surface simplification](0004-api-surface-simplification.md) | Draft (partially superseded) |
@@ -20,6 +20,7 @@ before a PR lands.
 | 0007 | [Symbol-graph semantic validation (spike)](0007-symbol-graph-semantic-validation.md) | Rejected |
 | 0008 | [Asynchronous on-demand providers](0008-async-on-demand-providers.md) | Accepted |
 | 0009 | [7.0 source breaks](0009-7.0-source-breaks.md) | Accepted |
+| 0010 | [`@GenerateMock` scope after GA](0010-generate-mock-post-ga-scope.md) | Draft |
 
 ## Conventions
 

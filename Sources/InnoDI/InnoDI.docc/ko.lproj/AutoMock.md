@@ -2,9 +2,8 @@
 
 `@GenerateMock`(RFC 0001)은 protocol의 호출을 기록하는 mock peer를 합성해,
 테스트가 mock 본문을 손으로 쓰지 않고 기존 `Overrides` builder에 끼워 넣을 수
-있게 합니다. 이 attribute는 **experimental** opt-in으로 제공됩니다.
-생성되는 형태는 RFC 0001의 전용 GA 기준을
-통과할 때까지 바뀔 수 있습니다.
+있게 합니다. 이 attribute는 InnoDI 7.1.0부터 정식(GA)으로 제공되며, 생성되는
+형태에도 semantic versioning이 적용됩니다.
 
 ## 사용법
 
@@ -87,8 +86,8 @@ let completed = mock.innoDIReset(.calls)
   메서드에 `mutating`을 붙일 필요가 없습니다.
 * **접근 수준** — `private`와 `fileprivate` protocol의 mock은 그 좁은 접근
   수준을 물려받아 생성된 conformance가 유효하게 남습니다. internal, package,
-  public protocol의 mock은 이 API가 experimental인 동안 internal로 남으므로,
-  매크로를 붙여도 패키지의 public API가 넓어지지 않습니다.
+  public protocol의 mock은 internal이므로, 매크로를 붙여도 패키지의 public
+  API가 넓어지지 않습니다.
 * **escaping 클로저 인자** — property에 담을 수 있는 함수 타입으로 기록합니다
   (호출 기록 필드에서는 `@escaping` / `@autoclosure`를 빼고, conforming
   메서드는 원래 파라미터 표기를 유지합니다). `@autoclosure @escaping` 인자는
@@ -155,12 +154,12 @@ storage는 protocol requirement와 이름이 겹치지 않도록 조정합니다
 API(`recordedCallCounts`, `missingStubSelectors`, public reset/history 멤버)와
 충돌하면 fail closed합니다. `handler`나 `generation`이라는 파라미터 이름은
 계속 사용할 수 있으며, 생성된 지역 변수가 그 값을 가리지 않습니다. 조정된
-helper를 참조할 때는 expansion을 확인하세요. experimental 생성 이름은 아직
-고정된 API가 아닙니다.
+helper를 참조할 때는 expansion을 확인하세요. 그 이름도 생성되는 형태의
+일부입니다.
 
 ## 아직 지원하지 않는 것
 
-첫 버전은 다음 requirement를 `mock.unsupported-member` 경고로 의도적으로
+매크로는 다음 requirement를 `mock.unsupported-member` 경고로 의도적으로
 거부합니다. 이 중 하나라도 있으면 깨진 conformance가 생성되므로, InnoDI는 부분
 mock을 합성하지 않습니다.
 
@@ -181,8 +180,8 @@ mock을 합성하지 않습니다.
   requirement에서 지원하며, generic typed-throws requirement는 부분
   conformance를 생성하지 않고 소스 attribute에서 실패합니다.
 * opaque `some` 반환 타입.
-* associated type. RFC가 pinning과 모듈 간 해석 경로를 정할 때까지 그런 mock은
-  직접 작성하세요.
+* associated type. 그런 mock은 직접 작성하세요. pinning과 모듈 간 해석 경로는
+  RFC 0010에서 다룹니다.
 * `AnyObject`와 `Sendable`이 아닌 protocol 상속. attached peer 매크로는
   파일이나 모듈을 넘어 상속된 requirement를 볼 수 없으므로, InnoDI는
   conformance가 불완전할 수 있는 mock을 생성하지 않고 fail closed합니다.
@@ -228,11 +227,13 @@ InnoDI overrides builder는 conforming 인스턴스라면 무엇이든 받으므
 
 ## 안정성
 
-* `@GenerateMock`은 experimental opt-in API입니다. attribute 자체는
-  안정적이지만, *생성되는* 멤버 형태(storage 이름, helper struct 이름, 호출
-  기록 내부)는 **아직 안정적이지 않으며** GA 전에 바뀔 수 있습니다. 합성된
-  내부에 직접 접근하지 말고, 생성된 이름은 `Overrides` builder slot을 통해서만
-  쓰세요.
+* `@GenerateMock`은 InnoDI 7.1.0부터 정식(GA) API입니다. attribute와
+  *생성되는* 멤버 형태(storage 이름, helper struct 이름, 호출 기록 멤버)에
+  semantic versioning이 적용됩니다. 그 형태를 바꾸려면 major 버전이 필요합니다.
+* 진단 코드 `mock.experimental-skeleton`은 이름을 유지합니다. 진단 코드는
+  안정적인 식별자이기 때문입니다.
+* "아직 지원하지 않는 것"에 있는 requirement는 계속 거부됩니다. 나중에 그중
+  하나를 지원하는 것은 호환되는 추가입니다.
 * RFC 0001의 `bundleWithOverrides:` 파라미터는 이후 단계를 위해 예약돼
   있습니다. `Sendable` 동작은 protocol 상속에서 추론하므로, 격리가 production
   계약과 어긋날 수 없습니다.

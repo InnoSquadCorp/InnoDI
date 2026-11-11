@@ -5,7 +5,7 @@
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
 > [!IMPORTANT]
-> This page contains examples for the **InnoDI 7.0.3 development checkout (unreleased)**.
+> This page contains examples for the **InnoDI 7.1.0 development checkout (unreleased)**.
 > Stable users should follow the [7.0.2 documentation](https://github.com/InnoSquadCorp/InnoDI/blob/7.0.2/README.md).
 > For source changes from 6.x, follow the [migration guide](Sources/InnoDI/InnoDI.docc/MigrationGuide.md#6x--70).
 
@@ -171,7 +171,7 @@ dependencies: [
 ]
 ```
 
-The product, plugin, and API examples on this page use the **InnoDI 7.0.3 development checkout (unreleased)**.
+The product, plugin, and API examples on this page use the **InnoDI 7.1.0 development checkout (unreleased)**.
 For the source changes from 6.x, follow the
 [migration guide](Sources/InnoDI/InnoDI.docc/MigrationGuide.md#6x--70).
 

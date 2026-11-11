@@ -6,7 +6,7 @@ process, including how a development train becomes a stable version, lives in
 [RELEASING.md](RELEASING.md).
 
 Latest stable public release: `7.0.2`
-Current development train: `7.0.3` (unreleased)
+Current development train: `7.1.0` (unreleased)
 
 ## Unreleased
 
@@ -21,8 +21,21 @@ Current development train: `7.0.3` (unreleased)
   that includes Mockable 0.6.4, now resolves `603.0.2` instead of failing to
   resolve. Both endpoints pass the in-process contracts under complete strict
   concurrency with warnings as errors.
+- Promote `@GenerateMock` to general availability. Semantic versioning now
+  covers the generated mock shape as well as the attribute. The expansion is
+  unchanged.
 
 ### Breaking and Behavior Changes
+
+`@GenerateMock` leaves the experimental phase, which makes this a minor
+release. From 7.1.0 a change to the generated symbol shape (mock helper names,
+storage suffixes, override slot names) needs a major version. Requirements the
+macro cannot mock, such as associated types and custom global actors, are
+still rejected with `mock.unsupported-member`;
+[RFC 0010](docs/rfcs/0010-generate-mock-post-ga-scope.md) tracks them. The
+promotion was a maintainer decision made without the adopter reports the
+roadmap asks for; [RFC 0001](docs/rfcs/0001-macro-mock-generation.md#promotion-record)
+records that deviation.
 
 The SwiftSyntax requirement changes from `exact: "604.0.0"` to
 `"603.0.2"..."604.0.0"`. A graph with no other SwiftSyntax constraint still
@@ -37,9 +50,11 @@ yet; the weekly cold-build benchmark now records it.
 
 ### Upgrade Actions
 
-No source change is required. To use InnoDI beside a macro package that
-requires SwiftSyntax below `604.0.0`, resolve the graph and confirm the
-selected version:
+No source change is required. Code that already uses `@GenerateMock` keeps
+compiling without edits.
+
+To use InnoDI beside a macro package that requires SwiftSyntax below
+`604.0.0`, resolve the graph and confirm the selected version:
 
 ```bash
 swift package resolve
@@ -54,6 +69,8 @@ swift package show-dependencies
 - Mockable 0.6.4처럼 SwiftSyntax를 `604.0.0` 아래로 요구하는 매크로 패키지와
   함께 쓰면 해석에 실패하는 대신 `603.0.2`로 해석됩니다. 위 명령으로 선택된
   버전을 확인하세요.
+- `@GenerateMock`이 정식(GA)이 됐습니다. 이미 쓰고 있는 코드는 수정 없이
+  컴파일되며, 7.1.0부터 생성되는 mock 형태에도 semantic versioning이 적용됩니다.
 
 ## 7.0.2
 
