@@ -261,7 +261,7 @@ struct MechanicalFixItTests {
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = [
             "swift", "build", "--package-path", fixture.path,
-            "--scratch-path", fixture.appendingPathComponent("build").path,
+            "--scratch-path", fixItConsumerScratchPath(packageRoot: packageRoot).path,
             "--jobs", "1",
             // SwiftPM 6.3.3 can schedule a nested local-package target before
             // its experimental SwiftSyntax prebuilt is materialized when the
@@ -275,6 +275,7 @@ struct MechanicalFixItTests {
         // A cold SwiftSyntax source build on the slowest supported hosted
         // runner can take longer than three minutes. Keep a bounded timeout,
         // but leave enough headroom for the deterministic source-build path.
+        // Only the first run in a scratch directory is cold.
         let build = try runCapturedProcess(process, timeoutSeconds: 360)
         #expect(build.exitCode == 0, Comment(rawValue: build.combinedOutput))
 
@@ -286,6 +287,22 @@ struct MechanicalFixItTests {
         #expect(service.dependencyBindings.count == 1)
         #expect(service.dependencyBindings.first?.parameter == "baseURL")
         #expect(service.dependencyBindings.first?.providerID.hasSuffix(".baseURL") == true)
+    }
+
+    /// Dependency products persist across runs, as they do for the external
+    /// consumer contracts. The fixture root is new each time, so SwiftPM still
+    /// compiles the repaired source; only the SwiftSyntax source build is reused.
+    private func fixItConsumerScratchPath(packageRoot: URL) -> URL {
+        let environment = ProcessInfo.processInfo.environment
+        let root: URL
+        if let override = environment["INNODI_EXTERNAL_SCRATCH_PATH"], !override.isEmpty {
+            root = URL(fileURLWithPath: override, isDirectory: true)
+        } else {
+            root = packageRoot
+                .appendingPathComponent(".build", isDirectory: true)
+                .appendingPathComponent("external-consumer-contracts", isDirectory: true)
+        }
+        return root.appendingPathComponent("fix-it-source", isDirectory: true)
     }
 
     private func applyUniqueBindingFixIt(to source: String) throws -> String {
