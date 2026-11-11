@@ -25,9 +25,12 @@ def fingerprint(manifest, swift, xcode, system, architecture, contract):
                   architecture=architecture, contract=contract)
     if any(not isinstance(v, str) or not v.strip() for v in values.values()):
         raise ValueError("missing manifest, compiler, Xcode, OS, architecture or profile contract")
-    pins = re.findall(r'\.package\(url:\s*"([^"\n]+)",\s*exact:\s*"([^"\n]+)"\)', manifest)
+    # An exact pin or a closed range between two tested versions. `from:`,
+    # branches and open ranges float with upstream releases and are rejected.
+    pins = re.findall(
+        r'\.package\(url:\s*"([^"\n]+)",\s*(exact:\s*"[^"\n]+"|"[^"\n]+"\.\.\."[^"\n]+")\)', manifest)
     if not pins or len(pins) != len(re.findall(r"\.package\(", manifest)):
-        raise ValueError("cache requires explicit exact pins for every package dependency")
+        raise ValueError("cache requires an exact pin or a closed version range for every package dependency")
     compiler = re.search(r"Apple Swift version (6\.[234])(?:\.|\s)", swift)
     if not compiler or not re.search(r"^Xcode [0-9]+(?:\.[0-9]+)*\nBuild version \S+", xcode):
         raise ValueError("unsupported or incomplete Apple compiler/Xcode identity")

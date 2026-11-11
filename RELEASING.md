@@ -274,21 +274,29 @@ this document and the release-contract tests in the same change.
 
 ## Dependency Policy
 
-InnoDI pins `swiftlang/swift-syntax` with `exact:`. SwiftPM uses a SwiftSyntax
-prebuilt only when the resolved version matches the one the toolchain ships, so
-the exact pin keeps the primary consumer toolchain on the prebuilt path. The
-5.0.0 notes record the measured effect of moving the pin to `603.0.2`, and the
-7.0.0 notes record moving it to `604.0.0` with Xcode 27 as the primary consumer
-toolchain. The cost is that every package in a consumer graph must agree on
-that exact version.
+InnoDI requires `swiftlang/swift-syntax` in a closed range between two tested
+versions, currently `"603.0.2"..."604.0.0"`. SwiftPM resolves the highest
+version a graph allows, so a consumer with no other constraint gets the upper
+bound, whose prebuilt matches the primary consumer toolchain. A consumer whose
+graph another macro package holds below the upper bound gets the lower bound
+instead of a resolution failure. `Package.resolved`, `Tools/docc/Package.resolved`
+and every ordinary lane use the upper bound; `Tools/check-swift-syntax-lower-bound.sh`
+runs the in-process contracts on the lower bound.
 
-Re-evaluate the pin when a supported toolchain ships a prebuilt for a newer
+Releases 5.0.0 through 7.0.2 used an `exact:` pin. The 5.0.0 notes record the
+measured effect of moving it to `603.0.2`, the 7.0.0 notes record moving it to
+`604.0.0` with Xcode 27 as the primary consumer toolchain, and the 7.0.1 notes
+record the resulting conflict with Mockable 0.6.4. Never use `from:`, an open
+range, or a branch: an upstream release would then change consumer builds
+without a tested endpoint.
+
+Re-evaluate the range when a supported toolchain ships a prebuilt for a newer
 swift-syntax release, or when a consumer reports a resolution conflict with
-another macro package. Either move the exact pin to the version whose prebuilt
-matches the primary consumer toolchain, or return to a range requirement if
-SwiftPM starts matching prebuilts across a range. Record the result of
-`Tools/cold-build-benchmark.sh --target consumer` and the consumer resolution
-impact in the release notes of the version that changes the pin.
+another macro package. Move a bound only to a version that the full gate and
+the lower-bound lane have passed. Record the result of
+`Tools/cold-build-benchmark.sh --target consumer` for each bound and the
+consumer resolution impact in the release notes of the version that changes
+the range.
 
 ## Documentation Sync
 

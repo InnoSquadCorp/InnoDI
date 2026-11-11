@@ -130,6 +130,9 @@ It cannot resolve in the same SwiftPM graph as
 [Mockable 0.6.4](https://github.com/Kolos65/Mockable/blob/0.6.4/Package.swift),
 which requires `509.0.0..<604.0.0`. See the
 [7.0.1 upgrade notes](CHANGELOG.md#701) for consumer validation steps.
+The development checkout accepts `603.0.2...604.0.0` instead. A graph with no
+other constraint still resolves `604.0.0`, and a graph that another macro
+package holds below it resolves `603.0.2`. Both endpoints are tested.
 
 The build-time validator keeps its lock and cache under SwiftPM's scratch
 directory, which must be on a local filesystem such as APFS. It refuses NFS,

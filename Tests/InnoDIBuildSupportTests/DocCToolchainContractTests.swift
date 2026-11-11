@@ -14,7 +14,7 @@ struct DocCToolchainContractTests {
             contentsOf: root.appendingPathComponent("Package.swift"),
             encoding: .utf8
         )
-        let syntaxVersion = try exactSwiftSyntaxVersion(manifest)
+        let syntax = try swiftSyntaxRequirement(manifest)
         #expect(source.contains(#"DOCC_PLUGIN_VERSION="1.5.0""#))
         #expect(
             source.contains(
@@ -33,8 +33,14 @@ struct DocCToolchainContractTests {
             )
         )
         #expect(source.contains(#"exact: "{docc_plugin_version}""#))
-        let escapedVersion = syntaxVersion.replacingOccurrences(of: ".", with: #"\."#)
-        #expect(source.contains(#"swift-syntax\.git\", exact: \""# + escapedVersion + #"\""#))
+        // The generator finds the dependency line by its closed-range spelling.
+        let escapedLower = syntax.lower.replacingOccurrences(of: ".", with: #"\."#)
+        let escapedUpper = syntax.upper.replacingOccurrences(of: ".", with: #"\."#)
+        #expect(
+            source.contains(
+                #"swift-syntax\.git\", \""# + escapedLower + #"\"\.\.\.\""# + escapedUpper + #"\""#
+            )
+        )
         #expect(source.contains("--disable-automatic-resolution"))
         #expect(source.contains(#"--allow-writing-to-directory "$OUTPUT_DIR""#))
         #expect(!source.contains(#"from: "1.4.0""#))
@@ -79,7 +85,8 @@ struct DocCToolchainContractTests {
         #expect(swiftSyntax.location == "https://github.com/swiftlang/swift-syntax.git")
         let root = packageRootURL()
         let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
-        let syntaxVersion = try exactSwiftSyntaxVersion(manifest)
+        // Both locks hold the upper bound of the manifest's closed range.
+        let syntaxVersion = try swiftSyntaxRequirement(manifest).upper
         // Compare against the graph SwiftPM actually resolved for the build,
         // rather than repeating a soon-stale version/revision literal.
         let rootResolved = try JSONDecoder().decode(
@@ -94,15 +101,16 @@ struct DocCToolchainContractTests {
     }
 }
 
-private func exactSwiftSyntaxVersion(_ manifest: String) throws -> String {
+private func swiftSyntaxRequirement(_ manifest: String) throws -> (lower: String, upper: String) {
     let regex = try NSRegularExpression(
-        pattern: #"swift-syntax\.git", exact: "([0-9]+\.[0-9]+\.[0-9]+)""#
+        pattern: #"swift-syntax\.git", "([0-9]+\.[0-9]+\.[0-9]+)"\.\.\."([0-9]+\.[0-9]+\.[0-9]+)"\)"#
     )
     let matches = regex.matches(in: manifest, range: NSRange(manifest.startIndex..., in: manifest))
     #expect(matches.count == 1)
     let match = try #require(matches.first)
-    let range = try #require(Range(match.range(at: 1), in: manifest))
-    return String(manifest[range])
+    let lower = try #require(Range(match.range(at: 1), in: manifest))
+    let upper = try #require(Range(match.range(at: 2), in: manifest))
+    return (String(manifest[lower]), String(manifest[upper]))
 }
 
 private struct DocCResolvedFile: Decodable {

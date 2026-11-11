@@ -58,6 +58,17 @@ class PerformanceWorkflowTests(unittest.TestCase):
         for scenario in ("consumer-xcode-26.5", "consumer-xcode-26.6"):
             observed = source.split("          - scenario: " + scenario, 1)[1].split("          - scenario:", 1)[0]
             self.assertIn('expected_swift_syntax_mode: ""', observed)
+        # The lower-bound observation follows the manifest's range instead of
+        # repeating a version that a later range change would leave stale.
+        manifest = (WORKFLOWS.parents[1] / "Package.swift").read_text()
+        lower = re.search(r'swift-syntax\.git", "([0-9.]+)"\.\.\."[0-9.]+"\)', manifest)[1]
+        held = source.split("          - scenario: consumer-xcode-26.6-swift-syntax-lower-bound", 1)[1].split(
+            "          - scenario:", 1)[0]
+        self.assertIn(f'swift_syntax_version: "{lower}"', held)
+        self.assertIn('expected_swift_syntax_mode: ""', held)
+        self.assertEqual(source.count("swift_syntax_version:"), 1)
+        self.assertIn("SWIFT_SYNTAX_VERSION: ${{ matrix.swift_syntax_version }}", source)
+        self.assertIn('${SWIFT_SYNTAX_VERSION:+--swift-syntax-version "$SWIFT_SYNTAX_VERSION"}', source)
         self.assertIn("fail-fast: false", source)
         self.assertIn("Verify expected SwiftSyntax mode", source)
         self.assertIn("actual=\"$(jq -r '.swift_syntax_mode'", source)

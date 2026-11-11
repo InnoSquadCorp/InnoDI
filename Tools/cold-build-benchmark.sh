@@ -11,6 +11,7 @@
 # Usage:
 #   Tools/cold-build-benchmark.sh --target root [--config release]
 #   Tools/cold-build-benchmark.sh --target consumer --bindings 100
+#   Tools/cold-build-benchmark.sh --target consumer --swift-syntax-version 603.0.2
 #
 # Output: a single-line JSON object on stdout with the elapsed milliseconds
 # and a few environment markers. Exit non-zero if the build fails. Designed
@@ -26,6 +27,7 @@ BINDINGS="100"
 KEEP_USER_CACHE=0
 BUILD_LOG_PATH=""
 GENERATE_OWNED=0
+SWIFT_SYNTAX_VERSION=""
 
 usage() {
     cat <<USAGE
@@ -37,6 +39,8 @@ Options:
   --bindings <N>               Synthetic consumer @Provide count (default: 100)
   --owned                     Include generated owned API in the consumer
                               (same ordinary construction, separate scenario)
+  --swift-syntax-version <V>   Hold the consumer graph at this SwiftSyntax
+                              version, as another macro package would
   --keep-user-cache            Skip wiping ~/Library/Caches/org.swift.swiftpm
   --build-log <path>           Preserve the underlying Swift build log
   --help                       Show this help
@@ -60,6 +64,10 @@ while [[ $# -gt 0 ]]; do
         --owned)
             GENERATE_OWNED=1
             shift
+            ;;
+        --swift-syntax-version)
+            SWIFT_SYNTAX_VERSION="${2:?--swift-syntax-version requires a value}"
+            shift 2
             ;;
         --keep-user-cache)
             KEEP_USER_CACHE=1
@@ -92,6 +100,17 @@ esac
 if [[ "$GENERATE_OWNED" == 1 && "$TARGET" != consumer ]]; then
     echo "--owned requires --target consumer" >&2
     exit 1
+fi
+
+if [[ -n "$SWIFT_SYNTAX_VERSION" ]]; then
+    if [[ "$TARGET" != consumer ]]; then
+        echo "--swift-syntax-version requires --target consumer" >&2
+        exit 1
+    fi
+    if ! [[ "$SWIFT_SYNTAX_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "--swift-syntax-version must be an exact version such as 603.0.2" >&2
+        exit 1
+    fi
 fi
 
 case "$CONFIG" in
@@ -134,6 +153,15 @@ else
     fi
     mkdir -p "$ROOT_DIR/Tools/.synthetic"
     "${GENERATOR_COMMAND[@]}" 1>&2
+    if [[ -n "$SWIFT_SYNTAX_VERSION" ]]; then
+        # SwiftPM can pin a dependency only after the package has a resolved
+        # workspace. The generator recreates the consumer, so only this lock
+        # survives the cache eviction below and decides the timed build.
+        SCENARIO="${SCENARIO}-swift-syntax-${SWIFT_SYNTAX_VERSION}"
+        swift package --package-path "$PACKAGE_DIR" resolve 1>&2
+        swift package --package-path "$PACKAGE_DIR" resolve swift-syntax \
+            --version "$SWIFT_SYNTAX_VERSION" 1>&2
+    fi
 fi
 
 clear_caches "$PACKAGE_DIR"
@@ -175,11 +203,28 @@ else
     SWIFT_SYNTAX_MODE="not-observed"
 fi
 
-printf '{"scenario":"%s","config":"%s","elapsed_ms":%s,"swift_syntax_mode":"%s","xcode_version":"%s","swift_version":"%s","timestamp":"%s"}\n' \
+# The version SwiftPM built, read from the lock the timed build used.
+RESOLVED_SWIFT_SYNTAX_VERSION="$(
+    python3 - "$PACKAGE_DIR/Package.resolved" <<'PY' 2>/dev/null || true
+import json
+import sys
+
+pins = json.load(open(sys.argv[1]))["pins"]
+versions = [pin["state"].get("version") for pin in pins if pin["identity"] == "swift-syntax"]
+print(versions[0] if len(versions) == 1 and versions[0] else "")
+PY
+)"
+if [[ -n "$SWIFT_SYNTAX_VERSION" && "$RESOLVED_SWIFT_SYNTAX_VERSION" != "$SWIFT_SYNTAX_VERSION" ]]; then
+    echo "Expected SwiftSyntax $SWIFT_SYNTAX_VERSION, built '${RESOLVED_SWIFT_SYNTAX_VERSION}'." >&2
+    exit 1
+fi
+
+printf '{"scenario":"%s","config":"%s","elapsed_ms":%s,"swift_syntax_mode":"%s","swift_syntax_version":"%s","xcode_version":"%s","swift_version":"%s","timestamp":"%s"}\n' \
     "$SCENARIO" \
     "$CONFIG" \
     "$ELAPSED_MS" \
     "$SWIFT_SYNTAX_MODE" \
+    "${RESOLVED_SWIFT_SYNTAX_VERSION:-unknown}" \
     "${XCODE_VERSION//\"/}" \
     "${SWIFT_VERSION//\"/}" \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)"

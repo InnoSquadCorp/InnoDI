@@ -129,6 +129,9 @@ InnoDI 7.0.2는 7.0.0에서 사용한 `swift-syntax`의 `604.0.0` 고정을 유�
 [Mockable 0.6.4](https://github.com/Kolos65/Mockable/blob/0.6.4/Package.swift)와는
 같은 SwiftPM graph에서 해석할 수 없습니다. 소비자 검증 절차는
 [7.0.1 업그레이드 노트](CHANGELOG.md#701)를 참고하세요.
+개발 checkout은 대신 `603.0.2...604.0.0`을 허용합니다. 다른 제약이 없는
+graph는 그대로 `604.0.0`으로 해석되고, 다른 매크로 패키지가 그 아래로 묶은
+graph는 `603.0.2`로 해석됩니다. 두 끝 버전 모두 테스트합니다.
 
 빌드 시점 validator는 lock과 cache를 SwiftPM scratch 디렉터리 아래에 두며, 이
 디렉터리는 APFS 같은 로컬 파일시스템에 있어야 합니다. NFS, SMB, WebDAV, FUSE

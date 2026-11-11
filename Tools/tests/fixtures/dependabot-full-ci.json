@@ -286,6 +286,10 @@
         "conclusion": "success"
       },
       {
+        "name": "Run in-process contracts on the SwiftSyntax lower bound",
+        "conclusion": "success"
+      },
+      {
         "name": "Report cache and validation observations",
         "conclusion": "success"
       }

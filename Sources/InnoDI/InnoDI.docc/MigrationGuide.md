@@ -295,6 +295,10 @@ builds InnoDI's macros with the matching SwiftSyntax prebuilt. Xcode 26.x
 (Swift 6.3) and Swift 6.2 compile SwiftSyntax from source, which slows clean
 builds but changes no behavior.
 
+Versions after 7.0.2 accept `603.0.2...604.0.0`. A graph with no other
+constraint still resolves `604.0.0`. A graph that another macro package holds
+below `604.0.0` resolves `603.0.2` instead of failing to resolve.
+
 ---
 
 ## 4.2 → 4.3

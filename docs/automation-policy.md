@@ -255,13 +255,17 @@ DocC packages, scratch consumers, or intentionally pinned negative contracts.
 `Tools/docc/Package.resolved` has no persistent companion manifest: update it
 through the documented DocC generator in a coordinated maintainer PR.
 
-SwiftSyntax stays exact `604.0.0`. A proposed bump must coordinate the root exact
-requirement, DocC lock and injection regex, matching prebuilt consumer proof,
-Swift 6.2 minimum, the Xcode 27 primary consumer toolchain, the Xcode 26.6
-in-package lanes, and calibrated performance baselines. The public-operations
-guard rejects partial manifest/lock/generator changes. Review toolchain selection
-separately from low-risk dependency groups, and retain the `release-validation`
-label until those checks pass.
+SwiftSyntax stays a closed range between two tested versions,
+`603.0.2...604.0.0`. The root lock, the DocC lock, and every ordinary lane use
+the upper bound; `Tools/check-swift-syntax-lower-bound.sh` runs the in-process
+contracts on the lower bound. A proposed change to either bound must coordinate
+the root requirement and lock, DocC lock and injection regex, the lower-bound
+lane, matching prebuilt consumer proof, Swift 6.2 minimum, the Xcode 27 primary
+consumer toolchain, the Xcode 26.6 in-package lanes, and calibrated performance
+baselines. The public-operations guard rejects floating requirements (`from:`,
+open ranges, branches), a narrowed exact pin, and partial manifest/lock/generator
+changes. Review toolchain selection separately from low-risk dependency groups,
+and retain the `release-validation` label until those checks pass.
 
 SwiftSyntax 604.0.0 has a matching prebuilt on Swift 6.4 and none on Swift 6.3,
 so Xcode 27 is the primary consumer toolchain. The exact-revision remote

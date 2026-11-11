@@ -604,6 +604,12 @@ jobs:
         run: |
           Tools/summarize-test-durations.py build/consumer-contracts-output.log \
             --title "Slowest test suites (consumer contracts)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Run in-process contracts on the SwiftSyntax lower bound
+        # Package.resolved and every other lane use the upper bound of the
+        # manifest's closed SwiftSyntax range. A consumer graph that another
+        # macro package holds below it resolves the lower bound, so this
+        # endpoint is tested here from a scratch copy of the package.
+        run: Tools/check-swift-syntax-lower-bound.sh
       - name: Report cache and validation observations
         if: ${{ always() && steps.cache-inputs.outcome == 'success' }}
         run: python3 -B Tools/ci-cache.py report

@@ -816,6 +816,31 @@ func runExternalConsumerExecutable(
     )
 }
 
+func runExternalConsumerResolution(
+    packageURL: URL,
+    scratchPath: URL
+) throws -> StrictConcurrencyBuildResult {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    process.arguments = [
+        "swift",
+        "package",
+        "--package-path",
+        packageURL.path(percentEncoded: false),
+        "--scratch-path",
+        scratchPath.path(percentEncoded: false),
+        "resolve",
+    ]
+    process.currentDirectoryURL = packageRootURL()
+
+    return try runCapturedProcess(
+        process,
+        timeoutSeconds: strictConcurrencyBuildTimeoutSeconds,
+        terminationGraceSeconds: strictConcurrencyTerminationGracePeriodSeconds,
+        hardKillGraceSeconds: strictConcurrencyHardKillGracePeriodSeconds
+    )
+}
+
 func runExternalDependencyGraphExecutable(
     packageURL: URL,
     scratchPath: URL? = nil

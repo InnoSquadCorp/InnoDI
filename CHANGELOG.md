@@ -16,10 +16,44 @@ Current development train: `7.0.3` (unreleased)
   the English site, and reject missing, stale or incorrectly hosted current API
   articles before publishing documentation. Require the Korean source catalog
   and read rendered locale payloads explicitly as UTF-8.
+- Accept SwiftSyntax `603.0.2...604.0.0` instead of exactly `604.0.0`. A
+  consumer graph that another macro package holds below `604.0.0`, such as one
+  that includes Mockable 0.6.4, now resolves `603.0.2` instead of failing to
+  resolve. Both endpoints pass the in-process contracts under complete strict
+  concurrency with warnings as errors.
 
 ### Breaking and Behavior Changes
 
+The SwiftSyntax requirement changes from `exact: "604.0.0"` to
+`"603.0.2"..."604.0.0"`. A graph with no other SwiftSyntax constraint still
+resolves `604.0.0`, so its build is unchanged. Public container APIs, supported
+toolchains and platform minimums are unchanged.
+
+`Tools/cold-build-benchmark.sh --target consumer --keep-user-cache` with 100
+bindings reported `prebuilt` at both endpoints on a local Apple silicon Mac
+with Xcode 27.2 (Swift 6.4.2): 40.5 s at `604.0.0` and 42.8 s at `603.0.2`
+(`--swift-syntax-version 603.0.2`). Swift 6.3 at `603.0.2` is not measured
+yet; the weekly cold-build benchmark now records it.
+
 ### Upgrade Actions
+
+No source change is required. To use InnoDI beside a macro package that
+requires SwiftSyntax below `604.0.0`, resolve the graph and confirm the
+selected version:
+
+```bash
+swift package resolve
+swift package show-dependencies
+```
+
+한국어 업그레이드 안내:
+
+- 소스 변경은 필요하지 않습니다. SwiftSyntax 요구 사항이 `604.0.0` 고정에서
+  `603.0.2...604.0.0`으로 바뀌었습니다. 다른 제약이 없는 graph는 그대로
+  `604.0.0`으로 해석됩니다.
+- Mockable 0.6.4처럼 SwiftSyntax를 `604.0.0` 아래로 요구하는 매크로 패키지와
+  함께 쓰면 해석에 실패하는 대신 `603.0.2`로 해석됩니다. 위 명령으로 선택된
+  버전을 확인하세요.
 
 ## 7.0.2
 

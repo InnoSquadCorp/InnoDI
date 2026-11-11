@@ -388,6 +388,85 @@ struct ExternalConsumerContractTests {
         )
     }
 
+    @Test("A graph held below the SwiftSyntax upper bound resolves the tested lower bound")
+    func graphHeldBelowUpperBoundResolvesLowerBound() throws {
+        let rootURL = packageRootURL()
+        let manifest = try String(
+            contentsOf: rootURL.appendingPathComponent("Package.swift"),
+            encoding: .utf8
+        )
+        let requirement = try #require(
+            manifest.firstMatch(of: #/swift-syntax\.git", "([0-9.]+)"\.\.\."([0-9.]+)"\)/#)
+        )
+        let lower = String(requirement.1)
+        let upper = String(requirement.2)
+
+        // Mockable 0.6.4 requires `"509.0.0"..<"604.0.0"`. Hold this graph
+        // below InnoDI's upper bound the same way without fetching Mockable.
+        let consumerURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "InnoDI-LowerSwiftSyntaxConsumer-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        defer { try? FileManager.default.removeItem(at: consumerURL) }
+        let sourcesURL = consumerURL.appendingPathComponent("Sources/Consumer", isDirectory: true)
+        try FileManager.default.createDirectory(at: sourcesURL, withIntermediateDirectories: true)
+        try """
+        // swift-tools-version: 6.2
+
+        import PackageDescription
+
+        let package = Package(
+            name: "LowerSwiftSyntaxConsumer",
+            platforms: [.macOS(.v14)],
+            dependencies: [
+                .package(path: "\(escapedSwiftString(rootURL.path(percentEncoded: false)))"),
+                .package(url: "https://github.com/swiftlang/swift-syntax.git", "509.0.0"..<"\(upper)"),
+            ],
+            targets: [
+                .target(
+                    name: "Consumer",
+                    dependencies: [
+                        .product(name: "InnoDI", package: "\(packageIdentity(for: rootURL))")
+                    ]
+                )
+            ]
+        )
+
+        """.write(
+            to: consumerURL.appendingPathComponent("Package.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try "import InnoDI\n".write(
+            to: sourcesURL.appendingPathComponent("Consumer.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let result = try runExternalConsumerResolution(
+            packageURL: consumerURL,
+            scratchPath: consumerURL.appendingPathComponent(".build", isDirectory: true)
+        )
+        #expect(!result.timedOut)
+        #expect(result.exitCode == 0, "The held graph must resolve:\n\(result.stdout)\n\(result.stderr)")
+
+        struct ResolvedFile: Decodable {
+            struct Pin: Decodable {
+                struct State: Decodable { let version: String? }
+                let identity: String
+                let state: State
+            }
+            let pins: [Pin]
+        }
+        let resolved = try JSONDecoder().decode(
+            ResolvedFile.self,
+            from: Data(contentsOf: consumerURL.appendingPathComponent("Package.resolved"))
+        )
+        let syntax = resolved.pins.filter { $0.identity == "swift-syntax" }
+        #expect(syntax.count == 1)
+        #expect(syntax.first?.state.version == lower)
+    }
+
     @Test("Committed fixture templates are invisible to workspace source discovery")
     func fixtureTemplatesDoNotPolluteWorkspaceAnalysis() throws {
         let sources = try discoverWorkspaceSourceFiles(
