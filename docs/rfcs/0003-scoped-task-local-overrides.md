@@ -1,12 +1,17 @@
 # RFC 0003 — Scoped TaskLocal overrides
 
-- **Status**: Draft
+- **Status**: Rejected
 - **Authors**: InnoDI maintainers
 - **Created**: 2026-05-06
-- **Last updated**: 2026-05-06
-- **Target release**: TBD — minimum 5.x; can stay deferred while the
-  layered swift-dependencies pattern in the README covers most use
-  cases.
+- **Last updated**: 2026-11-11
+- **Rejected**: 2026-11-11, maintainer decision. See
+  [Rejection](#rejection-2026-11-11)
+- **Target release**: none
+
+The sections from Summary to GA Criteria record the proposal drafted on
+2026-05-06 and are kept as design history. Its grammar (`@Provide(.input)`,
+`@DIContainer(scopedOverrides:)`) predates 6.0 and nothing in it was
+implemented.
 
 ## Summary
 
@@ -235,12 +240,13 @@ explicitly keeps `withOverrides` as the canonical app-wide swap.
 
 ## GA Criteria
 
-This RFC is currently **Draft**. The maintainers do not consider scoped
-TaskLocal overrides eligible for a `skeleton` implementation phase until the
-RFC moves to `Accepted` with the open questions above answered. Once a
-skeleton lands, the same five gates documented in
+This RFC was rejected while still a draft, so no `skeleton` phase follows
+and the gates below no longer apply. As drafted, the maintainers did not
+consider scoped TaskLocal overrides eligible for a `skeleton` implementation
+phase until the RFC moved to `Accepted` with the open questions above
+answered. Once a skeleton landed, the five gates documented in
 [ROADMAP — GA criteria for experimental macros](../../ROADMAP.md#ga-criteria-for-experimental-macros)
-apply, with the following surface-specific specializations:
+would have applied, with the following surface-specific specializations:
 
 1. **Open questions resolved.** Every bullet in `## Open questions` either
    has a written answer in this RFC or is explicitly marked
@@ -268,6 +274,51 @@ apply, with the following surface-specific specializations:
 If the macro/runtime work for this surface ever ships behind a feature flag
 or package trait, document the flag/trait and its removal plan inline above
 this section before the next minor release.
+
+## Rejection (2026-11-11)
+
+The maintainer rejected this RFC for five reasons.
+
+1. **6.0 excluded the behavior.** The
+   [6.0.0 specification](../specs/6.0.0-excellence.md) lists as a non-goal a
+   task-local override that appears to change the dependencies of a shared
+   object that already exists. The example in Proposed API has that shape.
+   `logger` is a `.shared` value built from `clock`, so a scope that overrides
+   `clock` leaves `logger` holding the original clock, and the operation runs
+   with dependencies from two generations.
+2. **The need is met without ambient state.** The static
+   `withOverrides(...) { overrides in } operation: { container in }` builds a
+   container that lives for one operation, and its initializer constructs
+   every dependent from the overridden values. Alternative 2 says a container
+   per call repeats DAG validation. It does not: validation runs when the
+   code is compiled and built, and the run-time cost is constructing the eager
+   shared members. `DIOverridePreset` in `InnoDITesting` composes reusable
+   override sets and is documented as introducing no global or task-local
+   state. For a value that has to follow a call tree without a container
+   being passed, the README still recommends layering `swift-dependencies`.
+3. **It needs `Sendable` where the generated surface does not.** The design
+   requires a `Sendable` `Overrides` and a `Sendable` type for every
+   overridable member. The generated asynchronous `withOverrides` overloads
+   of a container without `mainActor: true` are `nonisolated(nonsending)` so
+   that a container can hold non-`Sendable` services; such a container could
+   not opt in. The macro also sees only syntax, so it cannot emit the
+   structured `Sendable` diagnostic that Validation contract describes. The
+   compiler would report the failure inside generated code instead.
+4. **Task-local binding has costs the proposal does not weigh.** The storage
+   is `static` on the container type, so an override bound through one
+   instance applies to every instance of that type in the task tree.
+   `Task.detached`, dispatch queues and delegate callbacks do not inherit the
+   binding, and code running there reads the live dependency with no
+   diagnostic. Every accessor of an opt-in container reads the task local
+   before its storage.
+5. **Nobody asked for it.** No issue in the repository requests the surface
+   and the RFC cites no adopter. It would add four overloads, accessor
+   changes, merge rules and diagnostics, and after promotion it could be
+   removed only in a major version.
+
+One report would reopen the question: a container whose eager shared members
+cost too much to construct for each test. That case needs a new RFC written
+against the current grammar, not a revision of this one.
 
 ## See Also
 

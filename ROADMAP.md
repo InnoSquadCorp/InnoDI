@@ -376,7 +376,8 @@ its earlier compatibility tests remain non-voting evidence.
 
 The train does not add runtime registration, an `@Injected` service locator,
 or arbitrary global lifetime scopes. `@GenerateMock` and scoped task-local
-overrides retain their independent promotion gates.
+overrides kept their independent promotion gates through this train. Scoped
+task-local overrides were rejected with RFC 0003 on 2026-11-11.
 
 ## Experimental Features & Promotion Criteria
 
@@ -401,7 +402,11 @@ true before the next minor release can promote them.
 | Surface | RFC | Phase | Target version | GA criteria |
 |---|---|---|---|---|
 | `@GenerateMock` | [RFC 0001](docs/rfcs/0001-macro-mock-generation.md) | `stage-2` | TBD after GA criteria | All five criteria below must hold simultaneously. |
-| Scoped task-local overrides | [RFC 0003](docs/rfcs/0003-scoped-task-local-overrides.md) | `skeleton` (Draft RFC) | 5.x or later | RFC must move from Draft to Accepted with all open questions answered before a `skeleton` implementation lands. |
+
+Scoped task-local overrides were listed here as a `skeleton` candidate.
+[RFC 0003](docs/rfcs/0003-scoped-task-local-overrides.md#rejection-2026-11-11)
+was rejected on 2026-11-11 before any implementation landed. Per-operation
+overrides use the generated `withOverrides` and `InnoDITesting` presets.
 
 ### GA criteria for experimental macros
 
