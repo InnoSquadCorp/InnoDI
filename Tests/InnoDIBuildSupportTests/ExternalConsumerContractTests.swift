@@ -413,8 +413,8 @@ struct ExternalConsumerContractTests {
         )
     }
 
-    @Test("A graph held below the SwiftSyntax upper bound resolves the tested lower bound")
-    func graphHeldBelowUpperBoundResolvesLowerBound() throws {
+    @Test("A graph held below the SwiftSyntax upper bound resolves inside the supported range")
+    func graphHeldBelowUpperBoundResolvesInsideRange() throws {
         let rootURL = packageRootURL()
         let manifest = try String(
             contentsOf: rootURL.appendingPathComponent("Package.swift"),
@@ -489,7 +489,21 @@ struct ExternalConsumerContractTests {
         )
         let syntax = resolved.pins.filter { $0.identity == "swift-syntax" }
         #expect(syntax.count == 1)
-        #expect(syntax.first?.state.version == lower)
+        // SwiftPM selects the newest version both requirements admit, so a
+        // later 603 patch release changes the pin. The exact lower bound is
+        // exercised by `Tools/check-swift-syntax-lower-bound.sh`.
+        func components(_ version: String) -> [Int] {
+            version.split(separator: ".").map { Int($0) ?? -1 }
+        }
+        let pinned = try #require(syntax.first?.state.version)
+        #expect(
+            !components(pinned).lexicographicallyPrecedes(components(lower)),
+            "\(pinned) is below the supported lower bound \(lower)"
+        )
+        #expect(
+            components(pinned).lexicographicallyPrecedes(components(upper)),
+            "\(pinned) is not below the bound \(upper) this graph holds"
+        )
     }
 
     @Test("Committed fixture templates are invisible to workspace source discovery")

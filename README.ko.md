@@ -115,9 +115,11 @@ InnoDI 7.0.2는 7.0.0에서 사용한 `swift-syntax`의 `604.0.0` 고정을 유�
 [Mockable 0.6.4](https://github.com/Kolos65/Mockable/blob/0.6.4/Package.swift)와는
 같은 SwiftPM graph에서 해석할 수 없습니다. 소비자 검증 절차는
 [7.0.1 업그레이드 노트](CHANGELOG.md#701)를 참고하세요.
-개발 checkout은 대신 `603.0.2...604.0.0`을 허용합니다. 다른 제약이 없는
-graph는 그대로 `604.0.0`으로 해석되고, 다른 매크로 패키지가 그 아래로 묶은
-graph는 `603.0.2`로 해석됩니다. 두 끝 버전 모두 테스트합니다.
+개발 checkout은 대신 `603.0.2...604.0.0`을 허용합니다. 다른 SwiftSyntax 제약이
+없는 graph를 새로 해석하거나 `swift package update`를 실행하면 `604.0.0`이
+선택되고, 기존 `Package.resolved`는 고정된 버전이 범위 안에 있는 동안 그대로
+유지됩니다. 다른 매크로 패키지가 `604.0.0` 아래로 제한한 graph는 두 범위가
+겹칠 때 해석되며, 현재는 `603.0.2`로 해석됩니다. 두 끝 버전 모두 테스트합니다.
 
 소비자의 첫 빌드 시간은 대부분 SwiftSyntax 빌드가 결정합니다. 아래는 binding
 100개짜리 합성 소비자의 cold 빌드(release configuration, 빈 SwiftPM 캐시)이며,

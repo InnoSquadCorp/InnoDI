@@ -14,10 +14,13 @@ class FastLaneDocumentationTests(unittest.TestCase):
     def test_contributing_command_skips_exactly_what_the_fast_lane_skips(self):
         workflow = (ROOT / ".github/workflows/macro-tests.yml").read_text()
         job = workflow.split("\n  fast-tests:\n", 1)[1].split("\n  macro-tests:\n", 1)[0]
-        # CONTRIBUTING introduces the command as "exactly as the PR fast lane
-        # runs it", so a skip added to one side must appear on the other.
-        documented = (ROOT / "CONTRIBUTING.md").read_text().split("```bash\n", 1)[1].split("```", 1)[0]
-        self.assertIn("exactly as the PR fast lane runs it", documented)
+        # CONTRIBUTING presents its test command as the PR fast lane, so a
+        # skip added to one side must appear on the other. The block is found
+        # by its command, not by the wording around it.
+        blocks = re.findall(r"```bash\n(.*?)```", (ROOT / "CONTRIBUTING.md").read_text(), re.S)
+        commands = [block for block in blocks if "swift test" in block and "--skip" in block]
+        self.assertEqual(len(commands), 1, "CONTRIBUTING documents one fast-lane test command")
+        documented = commands[0]
         self.assertGreaterEqual(len(skipped(job)), 1)
         self.assertEqual(skipped(documented), skipped(job))
         for flag in ("--no-parallel", "-strict-concurrency=complete", "-warnings-as-errors"):

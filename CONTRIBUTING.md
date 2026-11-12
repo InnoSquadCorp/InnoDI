@@ -139,7 +139,8 @@ per-block ratio of their fastest samples exceeds the 20% budget. Because the
 baseline is a released commit, the comparison also covers creep that
 under-threshold PRs accumulate over a release train. A baseline that cannot be
 fetched or does not build the candidate's benchmark is reported as
-insufficient evidence, not as a pass.
+insufficient evidence, not as a pass. An enforcing run fails on it, and
+`--report-only` prints a warning.
 
 `Tools/check-performance-trend.sh` compares the current measurement against
 the rolling median of the last entries on the `perf-history` branch. It is a

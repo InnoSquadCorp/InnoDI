@@ -132,7 +132,8 @@ Before dispatching the `Release Gate` workflow:
      `Tools/macro-performance-paired-baseline.json`, measured beside the
      candidate on the same runner. The history trend is a report on every
      event because its entries come from different runners. An unmeasurable
-     paired baseline is insufficient evidence, not a measured pass.
+     paired baseline is insufficient evidence, not a measured pass: it fails
+     an enforcing run and is a warning on a pull request.
    - Runtime trace timing is **optional diagnostic evidence, not a release
      gate**. The user approved this policy change on 2026-09-28 after review
      found scheduler-dependent overlap and measurement-definition limitations.
@@ -305,11 +306,14 @@ this document and the release-contract tests in the same change.
 ## Dependency Policy
 
 InnoDI requires `swiftlang/swift-syntax` in a closed range between two tested
-versions, currently `"603.0.2"..."604.0.0"`. SwiftPM resolves the highest
-version a graph allows, so a consumer with no other constraint gets the upper
-bound, whose prebuilt matches the primary consumer toolchain. A consumer whose
-graph another macro package holds below the upper bound gets the lower bound
-instead of a resolution failure. `Package.resolved`, `Tools/docc/Package.resolved`
+versions, currently `"603.0.2"..."604.0.0"`. A fresh resolution selects the
+highest version a graph allows, so a consumer with no other constraint gets
+the upper bound, whose prebuilt matches the primary consumer toolchain. An
+existing consumer lock keeps its pin while that version stays in range. A
+consumer whose graph another macro package limits to versions below the upper
+bound resolves when that limit overlaps the range, to the lower bound today,
+instead of failing. A limit that ends below the lower bound still fails to
+resolve. `Package.resolved`, `Tools/docc/Package.resolved`
 and every ordinary lane use the upper bound; `Tools/check-swift-syntax-lower-bound.sh`
 runs the in-process contracts on the lower bound.
 
