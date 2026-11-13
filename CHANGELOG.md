@@ -17,9 +17,10 @@ Current development train: `7.1.0` (unreleased)
   articles before publishing documentation. Require the Korean source catalog
   and read rendered locale payloads explicitly as UTF-8.
 - Accept SwiftSyntax `603.0.2...604.0.0` instead of exactly `604.0.0`. A
-  consumer graph that another macro package holds below `604.0.0`, such as one
-  that includes Mockable 0.6.4, now resolves `603.0.2` instead of failing to
-  resolve. Both endpoints pass the in-process contracts under complete strict
+  consumer graph that another macro package limits to versions below
+  `604.0.0`, such as one that includes Mockable 0.6.4, now resolves when that
+  limit overlaps the range, to `603.0.2` today, instead of failing to resolve.
+  Both endpoints pass the in-process contracts under complete strict
   concurrency with warnings as errors.
 - Promote `@GenerateMock` to general availability. Semantic versioning now
   covers the generated mock shape as well as the attribute. The expansion is
@@ -38,8 +39,11 @@ roadmap asks for; [RFC 0001](docs/rfcs/0001-macro-mock-generation.md#promotion-r
 records that deviation.
 
 The SwiftSyntax requirement changes from `exact: "604.0.0"` to
-`"603.0.2"..."604.0.0"`. A graph with no other SwiftSyntax constraint still
-resolves `604.0.0`, so its build is unchanged. Public container APIs, supported
+`"603.0.2"..."604.0.0"`. A fresh resolution or `swift package update` of a
+graph with no other SwiftSyntax constraint still selects `604.0.0`, and a
+consumer lock that already pins `604.0.0` keeps it, so those builds are
+unchanged. An existing `Package.resolved` that pins another version in the
+range keeps that version until it is updated. Public container APIs, supported
 toolchains and platform minimums are unchanged.
 
 `Tools/cold-build-benchmark.sh --target consumer --keep-user-cache` with 100
@@ -53,8 +57,10 @@ yet; the weekly cold-build benchmark now records it.
 No source change is required. Code that already uses `@GenerateMock` keeps
 compiling without edits.
 
-To use InnoDI beside a macro package that requires SwiftSyntax below
-`604.0.0`, resolve the graph and confirm the selected version:
+To use InnoDI beside a macro package that limits SwiftSyntax to versions below
+`604.0.0`, its requirement has to admit `603.0.2` or a later 603 release; one
+that ends below `603.0.2` still fails to resolve. Resolve the graph and confirm
+the selected version:
 
 ```bash
 swift package resolve
@@ -64,11 +70,14 @@ swift package show-dependencies
 한국어 업그레이드 안내:
 
 - 소스 변경은 필요하지 않습니다. SwiftSyntax 요구 사항이 `604.0.0` 고정에서
-  `603.0.2...604.0.0`으로 바뀌었습니다. 다른 제약이 없는 graph는 그대로
-  `604.0.0`으로 해석됩니다.
-- Mockable 0.6.4처럼 SwiftSyntax를 `604.0.0` 아래로 요구하는 매크로 패키지와
-  함께 쓰면 해석에 실패하는 대신 `603.0.2`로 해석됩니다. 위 명령으로 선택된
-  버전을 확인하세요.
+  `603.0.2...604.0.0`으로 바뀌었습니다. 다른 SwiftSyntax 제약이 없는 graph는
+  새로 해석하거나 `swift package update`를 실행하면 그대로 `604.0.0`이
+  선택됩니다. 기존 `Package.resolved`는 고정된 버전이 범위 안에 있는 동안
+  유지됩니다.
+- Mockable 0.6.4처럼 SwiftSyntax를 `604.0.0` 아래로 제한하는 매크로 패키지와
+  함께 쓰려면 그 요구 범위가 `603.0.2` 이상을 포함해야 합니다. 포함하면 해석에
+  실패하는 대신 겹치는 범위에서 해석되고(현재 `603.0.2`), `603.0.2` 아래에서
+  끝나는 범위는 여전히 해석에 실패합니다. 위 명령으로 선택된 버전을 확인하세요.
 - `@GenerateMock`이 정식(GA)이 됐습니다. 이미 쓰고 있는 코드는 수정 없이
   컴파일되며, 7.1.0부터 생성되는 mock 형태에도 semantic versioning이 적용됩니다.
 

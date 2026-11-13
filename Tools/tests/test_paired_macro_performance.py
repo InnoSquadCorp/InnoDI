@@ -186,13 +186,43 @@ class PairedGateProcessTests(unittest.TestCase):
 
     def test_unmeasurable_baseline_is_insufficient_evidence_not_a_pass(self):
         for options in [{"fail_baseline_build": True}, {"unreachable_baseline": True}]:
+            # Enforcing: a run that measured nothing fails the gate.
             result, report, _ = self.run_gate(candidate_ms=500.0, **options)
+            self.assertEqual(result.returncode, 1, options)
+            self.assertEqual(report["status"], "insufficient-evidence")
+            self.assertNotIn("ratio", report)
+            self.assertIn("::error::paired macro-performance comparison has insufficient evidence",
+                          result.stdout)
+            self.assertIn("not a measured pass", result.stdout)
+            self.assertNotIn("::warning::", result.stdout)
+            # Report-only: the same condition is a warning.
+            result, report, _ = self.run_gate(candidate_ms=500.0, extra=["--report-only"], **options)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(report["status"], "insufficient-evidence")
             self.assertNotIn("ratio", report)
             self.assertIn("::warning::paired macro-performance comparison has insufficient evidence",
                           result.stdout)
             self.assertIn("not a measured pass", result.stdout)
+            self.assertNotIn("::error::", result.stdout)
+
+    def test_overflowing_derived_metric_is_invalid_and_writes_no_report(self):
+        # Both samples are finite and the ratio is too, but the percentage
+        # overflows; `json` would otherwise serialize it as `Infinity`.
+        with self.assertRaises(paired.PairedPerformanceError):
+            paired.summarize(
+                [{"baseline_samples_ms": [1.0], "candidate_samples_ms": [1e308]}], 20.0)
+        for extra in [(), ("--report-only",)]:
+            result, report, _ = self.run_gate(candidate_ms=1e308, baseline_ms=1.0, extra=extra)
+            self.assertEqual(result.returncode, 1, extra)
+            self.assertIsNone(report)
+            self.assertIn("is not a finite number", result.stderr)
+
+    def test_report_never_serializes_a_non_finite_value(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "report.json"
+            with self.assertRaises(paired.PairedPerformanceError):
+                paired.write_report(path, {"ratio": float("inf")})
+            self.assertFalse(path.exists())
 
     def test_candidate_that_does_not_build_fails_even_in_report_only_mode(self):
         result, report, _ = self.run_gate(candidate_ms=100.0, fail_candidate_build=True,

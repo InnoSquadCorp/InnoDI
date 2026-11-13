@@ -490,7 +490,8 @@ jobs:
         # budget is enforced on a ratio that hosted-runner speed cancels out
         # of. Pull requests report; pushes to main, merge queue runs, and
         # manual dispatch enforce. A baseline that cannot be fetched or built
-        # is insufficient evidence, not a measured pass.
+        # is insufficient evidence, not a measured pass: it fails an
+        # enforcing run and is a warning on a pull request.
         env:
           PAIRED_MODE: ${{ github.event_name == 'pull_request' && '--report-only' || '' }}
         run: |

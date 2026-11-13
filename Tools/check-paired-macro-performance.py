@@ -8,11 +8,13 @@ in alternating paired blocks, and gates the median of the per-block ratios of
 their lower envelopes. Both sides run the candidate's benchmark source, so the
 workload is identical by construction.
 
-Exit status: 0 for a measured pass, for a regression in --report-only mode,
-and for insufficient evidence (the baseline revision cannot be fetched or does
-not build the candidate's benchmark). Insufficient evidence is reported as a
-warning and is not a measured pass. 1 for a regression, an invalid
-measurement, or a candidate that does not build.
+Insufficient evidence means the baseline revision cannot be fetched or does
+not build the candidate's benchmark. It is never a measured pass.
+
+Exit status: 0 for a measured pass, and in --report-only mode also for a
+regression or insufficient evidence, both reported as warnings. 1 for a
+regression or insufficient evidence when enforcing, and in either mode for an
+invalid measurement or a candidate that does not build.
 """
 
 from __future__ import annotations
@@ -112,6 +114,13 @@ def validated_samples(report: Any, rows: int) -> list[float]:
     return values
 
 
+def finite(value: float, name: str) -> float:
+    """Reject a derived metric that JSON cannot represent."""
+    if not math.isfinite(value):
+        raise PairedPerformanceError(f"{name} is not a finite number")
+    return value
+
+
 def percentile(sorted_values: list[float], fraction: float) -> float:
     position = fraction * (len(sorted_values) - 1)
     lower = math.floor(position)
@@ -135,14 +144,18 @@ def summarize(
     for pair in pairs:
         baseline_min = min(pair["baseline_samples_ms"])
         candidate_min = min(pair["candidate_samples_ms"])
-        ratios.append(candidate_min / baseline_min)
+        ratios.append(finite(candidate_min / baseline_min, "block ratio"))
     ratio = statistics.median(ratios)
     generator = random.Random(seed)
     resampled = sorted(
         statistics.median(generator.choices(ratios, k=len(ratios)))
         for _ in range(draws)
     )
-    regression_pct = (ratio - 1.0) * 100.0
+    # Finite samples can still overflow here, and `json` would then write
+    # `Infinity`, which a strict parser rejects.
+    regression_pct = finite((ratio - 1.0) * 100.0, "regression percentage")
+    for bound in (resampled[0], resampled[-1]):
+        finite(bound, "ratio interval")
     return {
         "status": "regression" if regression_pct > threshold_pct else "ok",
         "ratio": round(ratio, 5),
@@ -308,7 +321,13 @@ def resolve(path: str) -> Path:
 
 def write_report(path: Path, report: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    try:
+        text = json.dumps(report, indent=2, allow_nan=False)
+    except ValueError as error:
+        raise PairedPerformanceError(
+            f"report contains a value JSON cannot represent: {error}"
+        ) from error
+    path.write_text(text + "\n", encoding="utf-8")
     print(f"[paired-perf] report saved to {path}")
 
 
@@ -372,11 +391,16 @@ def main(argv: list[str]) -> int:
         report["note"] = str(error).splitlines()[0]
         write_report(output, report)
         print(f"[paired-perf] insufficient evidence: {error}")
-        print(
-            "::warning::paired macro-performance comparison has insufficient "
-            "evidence; this is not a measured pass"
+        message = (
+            "paired macro-performance comparison has insufficient evidence; "
+            "this is not a measured pass"
         )
-        return 0
+        if arguments.report_only:
+            print(f"::warning::{message} (report-only)")
+            return 0
+        # An enforcing run that measured nothing must not look like a pass.
+        print(f"::error::{message}")
+        return 1
 
     print("[paired-perf] building candidate")
     candidate_log = work_dir / "candidate-build.log"
@@ -402,7 +426,9 @@ def main(argv: list[str]) -> int:
             )
             pair[f"{side}_samples_ms"] = samples
             pair[f"{side}_min_ms"] = min(samples)
-        pair["ratio"] = round(pair["candidate_min_ms"] / pair["baseline_min_ms"], 5)
+        pair["ratio"] = round(
+            finite(pair["candidate_min_ms"] / pair["baseline_min_ms"], "block ratio"), 5
+        )
         pairs.append(pair)
         print(
             f"[paired-perf] block {block + 1}/{arguments.blocks}: "

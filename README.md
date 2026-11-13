@@ -115,9 +115,12 @@ It cannot resolve in the same SwiftPM graph as
 [Mockable 0.6.4](https://github.com/Kolos65/Mockable/blob/0.6.4/Package.swift),
 which requires `509.0.0..<604.0.0`. See the
 [7.0.1 upgrade notes](CHANGELOG.md#701) for consumer validation steps.
-The development checkout accepts `603.0.2...604.0.0` instead. A graph with no
-other constraint still resolves `604.0.0`, and a graph that another macro
-package holds below it resolves `603.0.2`. Both endpoints are tested.
+The development checkout accepts `603.0.2...604.0.0` instead. A fresh
+resolution or `swift package update` with no other SwiftSyntax constraint
+selects `604.0.0`; an existing `Package.resolved` keeps its pin while that
+version stays in range. A graph that another macro package limits to versions
+below `604.0.0` resolves when the two ranges overlap, to `603.0.2` today. Both
+endpoints are tested.
 
 The SwiftSyntax build decides most of a consumer's first build. These are cold
 builds of a synthetic consumer with 100 bindings (release configuration, empty

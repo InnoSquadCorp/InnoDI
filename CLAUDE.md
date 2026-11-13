@@ -191,8 +191,9 @@ relabel version-1 history or replace the pinned CI baseline with a
 developer-machine result. Move the paired baseline only to a released commit,
 in a reviewed change. A paired baseline that cannot be fetched or does not
 build the candidate's benchmark is insufficient evidence, not a measured
-pass. The `CI` workflow reuses the gated report for normal `main` history
-appends after CI Required succeeds;
+pass: an enforcing run fails on it and a `--report-only` run warns. The `CI`
+workflow reuses the gated report for normal `main` history appends after CI
+Required succeeds;
 `Perf History` is manual recovery. Missing/unreachable history or fewer than
 five comparable entries is insufficient trend evidence, not a measured trend
 pass.
