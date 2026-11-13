@@ -33,8 +33,12 @@ let package = Package(
         .executable(name: "InnoDI-Doctor", targets: ["InnoDI-Doctor"]),
         .plugin(name: "InnoDIDAGValidationPlugin", targets: ["InnoDIDAGValidationPlugin"]),
     ],
+    // Both SwiftSyntax endpoints are tested. Package.resolved and every ordinary
+    // lane use the upper bound, whose prebuilt matches the primary consumer
+    // toolchain; Tools/check-swift-syntax-lower-bound.sh proves the lower bound
+    // for graphs that another macro package holds below it. See RELEASING.md.
     dependencies: [
-        .package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "604.0.0"),
+        .package(url: "https://github.com/swiftlang/swift-syntax.git", "603.0.2"..."604.0.0"),
     ],
     targets: [
         .target(

@@ -13,7 +13,7 @@ before a PR lands.
 |------|---------------------------------------|--------|
 | 0001 | [Macro-driven mock generation](0001-macro-mock-generation.md) | Accepted (experimental) |
 | 0002 | [SubContainer wiring simplification](0002-subcontainer-wiring-simplification.md) | Implemented |
-| 0003 | [Scoped TaskLocal overrides](0003-scoped-task-local-overrides.md) | Draft |
+| 0003 | [Scoped TaskLocal overrides](0003-scoped-task-local-overrides.md) | Rejected |
 | 0004 | [API surface simplification](0004-api-surface-simplification.md) | Draft (partially superseded) |
 | 0005 | [5.0 contract hardening](0005-5.0-contract-hardening.md) | Accepted |
 | 0006 | [Assisted subgraphs and container roles](0006-assisted-subgraphs-and-container-roles.md) | Accepted |

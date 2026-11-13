@@ -224,6 +224,14 @@
         "conclusion": "success"
       },
       {
+        "name": "Macro Performance Paired Gate",
+        "conclusion": "success"
+      },
+      {
+        "name": "Upload Paired Macro Performance Report",
+        "conclusion": "success"
+      },
+      {
         "name": "Macro Performance Trend",
         "conclusion": "success"
       },
@@ -275,6 +283,10 @@
       },
       {
         "name": "Summarize test suite durations",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run in-process contracts on the SwiftSyntax lower bound",
         "conclusion": "success"
       },
       {

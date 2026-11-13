@@ -42,23 +42,8 @@ precondition(live.apiClient.baseURL == "https://api.example.com")
 precondition(test.apiClient.baseURL == "https://test.example.com")
 ```
 
-For expensive shared services that may never be used, opt into first-access
-construction. Container copies retain one logical cache, while separately
-initialized containers remain isolated:
-
-```swift
-@Provide(.shared, initialization: .onDemand, factory: MetricsClient())
-var metrics: MetricsClient
-```
-
-The generated `prewarm` method resolves only selected on-demand providers;
-`Lazy` and `Provider` dependencies remain deferred. The same
-`initialization: .onDemand` option works with `asyncFactory:`, and the
-container then gains `closeAsyncProviders()`. For asynchronous work that needs
-readiness, retry, and explicit shutdown, start with
-[`generateOwned: true` and owned containers](Sources/InnoDI/InnoDI.docc/OwnedContainers.md).
-`makeOwned` does not mean ready. When using the report-returning `prepare`,
-check `report.isReady` before proceeding.
+On-demand construction, asynchronous providers, and owned containers are
+described under [Core API](#core-api).
 
 ## Why InnoDI
 
@@ -130,6 +115,24 @@ It cannot resolve in the same SwiftPM graph as
 [Mockable 0.6.4](https://github.com/Kolos65/Mockable/blob/0.6.4/Package.swift),
 which requires `509.0.0..<604.0.0`. See the
 [7.0.1 upgrade notes](CHANGELOG.md#701) for consumer validation steps.
+The development checkout accepts `603.0.2...604.0.0` instead. A fresh
+resolution or `swift package update` with no other SwiftSyntax constraint
+selects `604.0.0`; an existing `Package.resolved` keeps its pin while that
+version stays in range. A graph that another macro package limits to versions
+below `604.0.0` resolves when the two ranges overlap, to `603.0.2` today. Both
+endpoints are tested.
+
+The SwiftSyntax build decides most of a consumer's first build. These are cold
+builds of a synthetic consumer with 100 bindings (release configuration, empty
+SwiftPM caches) from the scheduled
+[Cold Build Benchmark](.github/workflows/cold-build-benchmark.yml) run on
+2026-11-09. Hosted-runner timings vary between runs.
+
+| Toolchain | SwiftSyntax 604.0.0 | Cold build |
+|---|---|---:|
+| Xcode 27.1 (Swift 6.4) | prebuilt | 68 s |
+| Xcode 26.6 (Swift 6.3.3) | compiled from source | 365 s |
+| Xcode 26.5 (Swift 6.3.2) | compiled from source | 409 s |
 
 The build-time validator keeps its lock and cache under SwiftPM's scratch
 directory, which must be on a local filesystem such as APFS. It refuses NFS,
@@ -358,48 +361,6 @@ the generated initializer complete and prevents memberwise-initializer drift.
 | `initializationOrder` | `ContainerInitializationOrder.declaration` | Opt into `.dependency` with the full named token to construct shared providers in dependency order. Review factory side effects before adopting. |
 | `generateOwned` | `false` | Generates `makeOwned(...)` and a separate owned view for readiness, retry, and shutdown. Custom methods and conformances on the original container do not transfer to the view. |
 
-## Opt-in Dependency Ordering
-
-The default `ContainerInitializationOrder.declaration` preserves the existing
-construction rules. Select `ContainerInitializationOrder.dependency` to wire
-acyclic shared providers without moving their declarations above their users.
-Only these named tokens, optionally qualified with `InnoDI.`, are accepted;
-string literals, variables, and shorthand `.dependency` are not supported.
-
-```swift
-@DIContainer(initializationOrder: ContainerInitializationOrder.dependency)
-struct AppContainer {
-    @Provide(.shared, factory: { (configuration: Configuration) in
-        Client(configuration: configuration)
-    }) var client: Client
-    @Provide(.shared, factory: Configuration()) var configuration: Configuration
-}
-```
-
-The macro orders synchronous shared construction first, then asynchronous
-shared handle creation. Within each stage, a hard dependency precedes its
-consumer; among ready providers the earliest source declaration wins. Already
-valid declaration-ordered containers retain their construction order. Inputs,
-initializer argument order, override fields and child mounting stay unchanged.
-
-This is an explicit behavior choice: a forward dependency can move observable
-factory side effects. Review initialization traces when adopting it; no factory
-is assumed pure. Async completion order is still determined by execution, and
-independent tasks are not serialized. On-demand providers remain on-demand;
-ordering their capture/cell setup does not prewarm unused services.
-
-`Lazy` and `Provider` edges remain deferred, but still count for ownership-cycle
-validation. Cycles remain errors, including with `validateDAG: false`. The opt-in
-does not permit a sync factory to consume async work, a shared hard edge to a
-transient provider, or a provider to depend on a child container. It does not
-change close, cancellation, retry, or container-copy lifetime contracts.
-
-Existing containers need no migration. Adoption adds one argument; do not
-mechanically reorder declarations or change the default across an app without
-reviewing side effects. This API is included in InnoDI 7.0; the release retains
-public API baseline and supported Apple toolchain checks.
-
-
 In 6.0, generic component-mounting helpers must distinguish the two marker
 protocols. Keep `_InnoDIComponentMountable` for ordinary components and add an
 `@MainActor` overload constrained to `_InnoDIMainActorComponentMountable`, with
@@ -538,6 +499,24 @@ Additional rules:
   type uses concrete storage, while `any Protocol` uses existential storage.
 - Name resolution for factory parameters and `with:` wiring is strict by member name.
 
+For expensive shared services that may never be used, opt into first-access
+construction. Container copies retain one logical cache, while separately
+initialized containers remain isolated:
+
+```swift
+@Provide(.shared, initialization: .onDemand, factory: MetricsClient())
+var metrics: MetricsClient
+```
+
+The generated `prewarm` method resolves only selected on-demand providers;
+`Lazy` and `Provider` dependencies remain deferred. The same
+`initialization: .onDemand` option works with `asyncFactory:`, and the
+container then gains `closeAsyncProviders()`. For asynchronous work that needs
+readiness, retry, and explicit shutdown, start with
+[`generateOwned: true` and owned containers](Sources/InnoDI/InnoDI.docc/OwnedContainers.md).
+`makeOwned` does not mean ready. When using the report-returning `prepare`,
+check `report.isReady` before proceeding.
+
 Sibling DI edges use a closed syntax:
 
 - A root `factory:` or `asyncFactory:` closure literal declares one edge for
@@ -575,6 +554,47 @@ the generated `closeAsyncProviders()` cancels in-flight work and closes the
 provider. See
 [Asynchronous Shared Lifetime](Sources/InnoDI/InnoDI.docc/Provide.md#asynchronous-shared-lifetime)
 for the cancellation contract and alternatives.
+
+## Opt-in Dependency Ordering
+
+The default `ContainerInitializationOrder.declaration` preserves the existing
+construction rules. Select `ContainerInitializationOrder.dependency` to wire
+acyclic shared providers without moving their declarations above their users.
+Only these named tokens, optionally qualified with `InnoDI.`, are accepted;
+string literals, variables, and shorthand `.dependency` are not supported.
+
+```swift
+@DIContainer(initializationOrder: ContainerInitializationOrder.dependency)
+struct AppContainer {
+    @Provide(.shared, factory: { (configuration: Configuration) in
+        Client(configuration: configuration)
+    }) var client: Client
+    @Provide(.shared, factory: Configuration()) var configuration: Configuration
+}
+```
+
+The macro orders synchronous shared construction first, then asynchronous
+shared handle creation. Within each stage, a hard dependency precedes its
+consumer; among ready providers the earliest source declaration wins. Already
+valid declaration-ordered containers retain their construction order. Inputs,
+initializer argument order, override fields and child mounting stay unchanged.
+
+This is an explicit behavior choice: a forward dependency can move observable
+factory side effects. Review initialization traces when adopting it; no factory
+is assumed pure. Async completion order is still determined by execution, and
+independent tasks are not serialized. On-demand providers remain on-demand;
+ordering their capture/cell setup does not prewarm unused services.
+
+`Lazy` and `Provider` edges remain deferred, but still count for ownership-cycle
+validation. Cycles remain errors, including with `validateDAG: false`. The opt-in
+does not permit a sync factory to consume async work, a shared hard edge to a
+transient provider, or a provider to depend on a child container. It does not
+change close, cancellation, retry, or container-copy lifetime contracts.
+
+Existing containers need no migration. Adoption adds one argument; do not
+mechanically reorder declarations or change the default across an app without
+reviewing side effects. This API is included in InnoDI 7.0; the release retains
+public API baseline and supported Apple toolchain checks.
 
 ## Validation Model
 
@@ -879,7 +899,10 @@ The script renders English DocC in `.build/docc/InnoDI` and Korean DocC in
 articles fail the documentation build. Published documentation: [English](https://innosquadcorp.github.io/InnoDI/documentation/innodi/) ·
 [한국어](https://innosquadcorp.github.io/InnoDI/ko/documentation/innodi/).
 
-Release notes and upgrade notes live in [CHANGELOG.md](CHANGELOG.md).
+Release notes and upgrade notes live in [CHANGELOG.md](CHANGELOG.md). InnoDI
+follows semantic versioning; the
+[versioning policy](RELEASING.md#versioning-policy) states what each release
+kind may change and what a new major version requires.
 
 ## AI Agent Skill
 

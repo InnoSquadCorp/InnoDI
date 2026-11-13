@@ -53,7 +53,9 @@ class CacheTests(unittest.TestCase):
                     p.fingerprint(**{**self.inputs(), key: value})
         for key, value in [('swift', 'Swift version 6.4.0'), ('swift', 'Apple Swift version 6.5.0'),
                            ('swift', 'Apple Swift version 6.1.0'), ('xcode', 'Xcode 26.6'),
-                           ('manifest', self.inputs()['manifest'].replace('exact:', 'from:')),
+                           ('manifest', self.inputs()['manifest'].replace('"603.0.2"..."604.0.0"', 'from: "603.0.2"')),
+                           ('manifest', self.inputs()['manifest'].replace('"603.0.2"..."604.0.0"', '"603.0.2"..<"605.0.0"')),
+                           ('manifest', self.inputs()['manifest'].replace('"603.0.2"..."604.0.0"', 'branch: "main"')),
                            ('manifest', '// swift-tools-version: 6.2')]:
             with self.subTest(key=key, value=value), self.assertRaises(ValueError):
                 p.fingerprint(**{**self.inputs(), key: value})

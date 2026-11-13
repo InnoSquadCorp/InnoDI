@@ -67,7 +67,10 @@ struct StrictConcurrencyBuildTests {
             """)
         defer { try? FileManager.default.removeItem(at: fixture) }
 
-        let result = try runStrictConcurrencyBuild(packageURL: fixture)
+        let result = try runStrictConcurrencyBuild(
+            packageURL: fixture,
+            scratchPath: strictConcurrencyScratchPath("strict-pass")
+        )
 
         if result.timedOut || result.exitCode != 0 {
             Issue.record("swift build failed:\n\(result.stdout)\n\(result.stderr)")
@@ -134,7 +137,10 @@ struct StrictConcurrencyBuildTests {
             """)
         defer { try? FileManager.default.removeItem(at: fixture) }
 
-        let result = try runStrictConcurrencyBuild(packageURL: fixture)
+        let result = try runStrictConcurrencyBuild(
+            packageURL: fixture,
+            scratchPath: strictConcurrencyScratchPath("strict-pass")
+        )
 
         if result.timedOut || result.exitCode != 0 {
             Issue.record("swift build failed:\n\(result.stdout)\n\(result.stderr)")
@@ -261,7 +267,10 @@ struct StrictConcurrencyBuildTests {
             """)
         defer { try? FileManager.default.removeItem(at: fixture) }
 
-        let result = try runStrictConcurrencyBuild(packageURL: fixture)
+        let result = try runStrictConcurrencyBuild(
+            packageURL: fixture,
+            scratchPath: strictConcurrencyScratchPath("strict-pass")
+        )
 
         if result.timedOut || result.exitCode != 0 {
             Issue.record("swift build failed:\n\(result.stdout)\n\(result.stderr)")
@@ -305,7 +314,10 @@ struct StrictConcurrencyBuildTests {
         )
         defer { try? FileManager.default.removeItem(at: fixture) }
 
-        let result = try runStrictConcurrencyBuild(packageURL: fixture)
+        let result = try runStrictConcurrencyBuild(
+            packageURL: fixture,
+            scratchPath: strictConcurrencyScratchPath("strict-pass")
+        )
 
         if result.timedOut || result.exitCode != 0 {
             Issue.record("swift build failed:\n\(result.stdout)\n\(result.stderr)")
@@ -503,7 +515,10 @@ struct StrictConcurrencyBuildTests {
             """)
         defer { try? FileManager.default.removeItem(at: fixture) }
 
-        let result = try runStrictConcurrencyBuild(packageURL: fixture)
+        let result = try runStrictConcurrencyBuild(
+            packageURL: fixture,
+            scratchPath: strictConcurrencyScratchPath("strict-fail")
+        )
         let combinedOutput = result.stdout + "\n" + result.stderr
 
         #expect(!result.timedOut)
@@ -552,9 +567,7 @@ struct StrictConcurrencyBuildTests {
             @Provide(.shared, asyncFactory: { (second: Int) async in second + 1 }) var result: Int
         }
         """
-        let scratch = FileManager.default.temporaryDirectory
-            .appendingPathComponent("InnoDI-OnDemandSendability-\(UUID().uuidString)")
-        defer { try? FileManager.default.removeItem(at: scratch) }
+        let scratch = strictConcurrencyScratchPath("strict-on-demand")
         for scenario in ["control", "holders", "factory", "payload"] {
             let invalid = scenario != "control"
             let rejectionSource: String
@@ -654,9 +667,7 @@ struct StrictConcurrencyBuildTests {
 
     @Test("Public collection metadata rejects captured non-Sendable key paths")
     func collectionMetadataSendabilityBoundary() throws {
-        let scratch = FileManager.default.temporaryDirectory
-            .appendingPathComponent("InnoDI-MetadataSendability-\(UUID().uuidString)")
-        defer { try? FileManager.default.removeItem(at: scratch) }
+        let scratch = strictConcurrencyScratchPath("strict-collection-metadata")
         for scenario in ["control", "ordered", "providers", "keyed", "erased"] {
             let construction: String = switch scenario {
             case "ordered": "_ = DICollectionMetadata.ordered([\\Root.[key]])"
@@ -816,6 +827,31 @@ func runExternalConsumerExecutable(
     )
 }
 
+func runExternalConsumerResolution(
+    packageURL: URL,
+    scratchPath: URL
+) throws -> StrictConcurrencyBuildResult {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    process.arguments = [
+        "swift",
+        "package",
+        "--package-path",
+        packageURL.path(percentEncoded: false),
+        "--scratch-path",
+        scratchPath.path(percentEncoded: false),
+        "resolve",
+    ]
+    process.currentDirectoryURL = packageRootURL()
+
+    return try runCapturedProcess(
+        process,
+        timeoutSeconds: strictConcurrencyBuildTimeoutSeconds,
+        terminationGraceSeconds: strictConcurrencyTerminationGracePeriodSeconds,
+        hardKillGraceSeconds: strictConcurrencyHardKillGracePeriodSeconds
+    )
+}
+
 func runExternalDependencyGraphExecutable(
     packageURL: URL,
     scratchPath: URL? = nil
@@ -852,6 +888,20 @@ func runExternalDependencyGraphExecutable(
         terminationGraceSeconds: strictConcurrencyTerminationGracePeriodSeconds,
         hardKillGraceSeconds: strictConcurrencyHardKillGracePeriodSeconds
     )
+}
+
+/// Macro-only compile fixtures share dependency products across tests and
+/// runs, as the external consumer contracts do. Every fixture root is new, so
+/// SwiftPM still compiles the fixture's own target. A fixture that must fail
+/// to compile never shares a directory with one that must build, except in
+/// the scenario loops that already built both kinds in one scratch directory.
+/// The plugin-state tests keep their isolated scratch directories.
+private func strictConcurrencyScratchPath(_ name: String) -> URL {
+    externalConsumerScratchPath(
+        for: externalConsumerMacroOnlyScratchProfile(),
+        under: externalConsumerScratchRoot()
+    )
+    .appendingPathComponent(name, isDirectory: true)
 }
 
 private func makeStrictConcurrencyFixture(

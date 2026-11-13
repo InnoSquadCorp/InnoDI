@@ -6,6 +6,8 @@
 - **Last updated**: 2026-09-30
 - **Rejected**: 2026-09-30, repository-owner decision; the compile-time alias
   probe moves to 7.1
+- **Follow-up**: 2026-11-11, maintainer decision; the alias probe moves from
+  7.1 to 8.0. See [Follow-up](#follow-up-2026-11-11)
 - **Target release**: none; spike for the 7.0.0 train
 - **Tracking plan**: [7.0.0 post-audit plan](../plans/7.0.0-post-audit.md), item X1
 
@@ -166,3 +168,28 @@ framework.
 - Whether the probe should warn or fail. A deprecation warning becomes an
   error under `-warnings-as-errors`, and an alias use almost always fails
   to compile anyway.
+
+## Follow-up (2026-11-11)
+
+A prototype of the alias probe confirmed the mechanism in a real build. The
+type checker reported a plain, a nested, a generic and a `Provider` alias at
+the `@DIContainer` expansion, and stayed silent for ordinary, existential,
+optional and function types under warnings as errors.
+
+It also found a cost this RFC did not measure. The probe call is an
+expression in a generated member body, so it is module-qualified like
+`InnoDI._innoDITrap`. Until now a container needed the `InnoDI` qualifier
+there only for on-demand, deferred, owned or trap support. With the probe,
+every container with a typed hard factory parameter needs it, and a consumer
+that imports a module exporting a type named `InnoDI` no longer compiles. The
+`generated-qualifier-usage-sensitive-shadows` pass fixture covers that case.
+An unqualified call avoids the break, but it gives up the rule that generated
+code names runtime support through the module, which the
+`generated-identifier-hygiene` pass fixture covers.
+
+The probe therefore moves to 8.0. The qualified form is the candidate there
+because it keeps every runtime reference module-qualified; its changed
+qualifier contract is a source break and ships with the other accepted breaks.
+The work that remains is the probe itself, the matching entry in
+`GeneratedQualifierUsage.container` and the build-support scanner, and the
+decision this RFC left open on whether the probe warns or fails.

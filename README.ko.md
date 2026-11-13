@@ -42,22 +42,8 @@ precondition(live.apiClient.baseURL == "https://api.example.com")
 precondition(test.apiClient.baseURL == "https://test.example.com")
 ```
 
-사용되지 않을 수 있는 무거운 shared 서비스는 첫 접근 시 생성하도록 명시할
-수 있습니다. 컨테이너 값 복사본은 하나의 논리 cache를 공유하고 별도로 만든
-컨테이너는 서로 격리됩니다.
-
-```swift
-@Provide(.shared, initialization: .onDemand, factory: MetricsClient())
-var metrics: MetricsClient
-```
-
-생성되는 `prewarm` 메서드는 선택한 on-demand provider만 준비하며 `Lazy`와
-`Provider` 의존성은 계속 지연합니다. 같은 `initialization: .onDemand` 옵션을
-`asyncFactory:`에도 쓸 수 있으며, 이때 컨테이너에 `closeAsyncProviders()`가
-생성됩니다. 준비, 재시도, 명시적인 종료가 필요한 비동기 작업은
-[`generateOwned: true`와 owned container](Sources/InnoDI/InnoDI.docc/ko.lproj/OwnedContainers.md)에서
-시작하세요. `makeOwned`는 준비 완료를 뜻하지 않습니다. report를 반환하는
-`prepare`를 쓸 때는 `report.isReady`를 확인한 뒤 서비스를 사용하세요.
+첫 접근 시 생성, 비동기 provider, owned container는 [핵심 API](#핵심-api)에서
+설명합니다.
 
 ## 왜 InnoDI인가
 
@@ -129,6 +115,23 @@ InnoDI 7.0.2는 7.0.0에서 사용한 `swift-syntax`의 `604.0.0` 고정을 유�
 [Mockable 0.6.4](https://github.com/Kolos65/Mockable/blob/0.6.4/Package.swift)와는
 같은 SwiftPM graph에서 해석할 수 없습니다. 소비자 검증 절차는
 [7.0.1 업그레이드 노트](CHANGELOG.md#701)를 참고하세요.
+개발 checkout은 대신 `603.0.2...604.0.0`을 허용합니다. 다른 SwiftSyntax 제약이
+없는 graph를 새로 해석하거나 `swift package update`를 실행하면 `604.0.0`이
+선택되고, 기존 `Package.resolved`는 고정된 버전이 범위 안에 있는 동안 그대로
+유지됩니다. 다른 매크로 패키지가 `604.0.0` 아래로 제한한 graph는 두 범위가
+겹칠 때 해석되며, 현재는 `603.0.2`로 해석됩니다. 두 끝 버전 모두 테스트합니다.
+
+소비자의 첫 빌드 시간은 대부분 SwiftSyntax 빌드가 결정합니다. 아래는 binding
+100개짜리 합성 소비자의 cold 빌드(release configuration, 빈 SwiftPM 캐시)이며,
+2026-11-09에 실행된 정기
+[Cold Build Benchmark](.github/workflows/cold-build-benchmark.yml) 결과입니다.
+hosted runner의 시간은 실행마다 달라집니다.
+
+| Toolchain | SwiftSyntax 604.0.0 | Cold 빌드 |
+|---|---|---:|
+| Xcode 27.1 (Swift 6.4) | prebuilt | 68초 |
+| Xcode 26.6 (Swift 6.3.3) | source에서 컴파일 | 365초 |
+| Xcode 26.5 (Swift 6.3.2) | source에서 컴파일 | 409초 |
 
 빌드 시점 validator는 lock과 cache를 SwiftPM scratch 디렉터리 아래에 두며, 이
 디렉터리는 APFS 같은 로컬 파일시스템에 있어야 합니다. NFS, SMB, WebDAV, FUSE
@@ -371,48 +374,6 @@ preflight가 없으면 extension custom initializer가 정책을 우회할 수 �
 | `initializationOrder` | `ContainerInitializationOrder.declaration` | full named token의 `.dependency`로 shared provider를 의존성 순서로 생성합니다. 도입 전에 factory 부수효과를 검토하세요. |
 | `generateOwned` | `false` | `makeOwned(...)`와 준비·재시도·종료를 위한 별도 owned view를 생성합니다. 원래 컨테이너의 custom method와 conformance는 view에 옮겨지지 않습니다. |
 
-## 의존성 순서 초기화 opt-in
-
-기본값 `ContainerInitializationOrder.declaration`은 기존 생성 규칙을 유지합니다.
-순환 없는 shared provider를 선언 위치와 관계없이 연결하려면
-`ContainerInitializationOrder.dependency`를 명시합니다. 두 named token과
-`InnoDI.`로 한정한 표현만 허용하며 문자열 literal, 변수, `.dependency` 축약은
-지원하지 않습니다.
-
-```swift
-@DIContainer(initializationOrder: ContainerInitializationOrder.dependency)
-struct AppContainer {
-    @Provide(.shared, factory: { (configuration: Configuration) in
-        Client(configuration: configuration)
-    }) var client: Client
-    @Provide(.shared, factory: Configuration()) var configuration: Configuration
-}
-```
-
-매크로는 동기 shared 생성 단계를 먼저 수행하고, 그다음 비동기 shared handle을
-생성합니다. 각 단계에서 hard dependency가 consumer보다 먼저 오며, 준비된
-provider가 여러 개이면 원래 선언 위치가 빠른 것을 선택합니다. 이미 유효한
-선언 순서의 생성 순서는 유지됩니다. 입력, initializer 인자 순서, override field와
-child mount 방식은 바뀌지 않습니다.
-
-이 옵션은 명시적인 동작 선택입니다. forward dependency는 factory 부수효과의
-순서를 바꿀 수 있으므로 도입 시 초기화 trace를 검토하세요. factory의 순수성을
-추측하지 않습니다. 비동기 완료 순서는 실행에 따라 달라지며 독립 task를 직렬화하지
-않습니다. on-demand provider의 capture/cell 준비 순서만 바뀌고, 사용하지 않은
-서비스를 미리 만들지는 않습니다.
-
-`Lazy`와 `Provider`는 계속 지연되지만 ownership cycle 검사에는 포함됩니다.
-`validateDAG: false`여도 순환은 거부합니다. 동기 factory의 async 의존성,
-shared의 transient hard dependency, provider의 child-container 의존성을
-새롭게 허용하지 않습니다. close, cancellation, retry와 container copy의 수명
-계약도 바꾸지 않습니다.
-
-기존 container는 migration이 필요하지 않습니다. 도입에는 인자 하나를 추가하며,
-부수효과 검토 없이 선언을 자동 재배치하거나 앱 전체의 기본값을 바꾸지 마세요.
-이 API는 InnoDI 7.0에 포함되며, 릴리스에서 공개 API baseline과 지원 Apple
-toolchain 검사를 계속 수행합니다.
-
-
 6.0의 generic component mounting helper는 두 marker protocol을 구분해야
 합니다. 일반 component에는 `_InnoDIComponentMountable`을 유지하고,
 `mainActor: true` component에는 `_InnoDIMainActorComponentMountable` constraint와
@@ -521,6 +482,23 @@ misuse 진단과 함께 Swift 자체의 구조 진단도 발생할 수 있습니
   concrete storage를, `any Protocol`은 existential storage를 사용합니다.
 - factory 파라미터와 `with:` wiring의 이름 해석은 멤버 이름 기준으로 엄격하게 이뤄집니다.
 
+사용되지 않을 수 있는 무거운 shared 서비스는 첫 접근 시 생성하도록 명시할
+수 있습니다. 컨테이너 값 복사본은 하나의 논리 cache를 공유하고 별도로 만든
+컨테이너는 서로 격리됩니다.
+
+```swift
+@Provide(.shared, initialization: .onDemand, factory: MetricsClient())
+var metrics: MetricsClient
+```
+
+생성되는 `prewarm` 메서드는 선택한 on-demand provider만 준비하며 `Lazy`와
+`Provider` 의존성은 계속 지연합니다. 같은 `initialization: .onDemand` 옵션을
+`asyncFactory:`에도 쓸 수 있으며, 이때 컨테이너에 `closeAsyncProviders()`가
+생성됩니다. 준비, 재시도, 명시적인 종료가 필요한 비동기 작업은
+[`generateOwned: true`와 owned container](Sources/InnoDI/InnoDI.docc/ko.lproj/OwnedContainers.md)에서
+시작하세요. `makeOwned`는 준비 완료를 뜻하지 않습니다. report를 반환하는
+`prepare`를 쓸 때는 `report.isReady`를 확인한 뒤 서비스를 사용하세요.
+
 Sibling DI edge는 다음처럼 닫힌 문법에서만 만들어집니다.
 
 - root `factory:` 또는 `asyncFactory:` 클로저 리터럴의 이름 있는 파라미터마다
@@ -556,6 +534,47 @@ initializer 안에서 생성 task를 시작하고, 컨테이너는 그 task를 �
 계약과 대안은
 [비동기 shared 수명](Sources/InnoDI/InnoDI.docc/ko.lproj/Provide.md#비동기-shared-수명)을
 참고하세요.
+
+## 의존성 순서 초기화 opt-in
+
+기본값 `ContainerInitializationOrder.declaration`은 기존 생성 규칙을 유지합니다.
+순환 없는 shared provider를 선언 위치와 관계없이 연결하려면
+`ContainerInitializationOrder.dependency`를 명시합니다. 두 named token과
+`InnoDI.`로 한정한 표현만 허용하며 문자열 literal, 변수, `.dependency` 축약은
+지원하지 않습니다.
+
+```swift
+@DIContainer(initializationOrder: ContainerInitializationOrder.dependency)
+struct AppContainer {
+    @Provide(.shared, factory: { (configuration: Configuration) in
+        Client(configuration: configuration)
+    }) var client: Client
+    @Provide(.shared, factory: Configuration()) var configuration: Configuration
+}
+```
+
+매크로는 동기 shared 생성 단계를 먼저 수행하고, 그다음 비동기 shared handle을
+생성합니다. 각 단계에서 hard dependency가 consumer보다 먼저 오며, 준비된
+provider가 여러 개이면 원래 선언 위치가 빠른 것을 선택합니다. 이미 유효한
+선언 순서의 생성 순서는 유지됩니다. 입력, initializer 인자 순서, override field와
+child mount 방식은 바뀌지 않습니다.
+
+이 옵션은 명시적인 동작 선택입니다. forward dependency는 factory 부수효과의
+순서를 바꿀 수 있으므로 도입 시 초기화 trace를 검토하세요. factory의 순수성을
+추측하지 않습니다. 비동기 완료 순서는 실행에 따라 달라지며 독립 task를 직렬화하지
+않습니다. on-demand provider의 capture/cell 준비 순서만 바뀌고, 사용하지 않은
+서비스를 미리 만들지는 않습니다.
+
+`Lazy`와 `Provider`는 계속 지연되지만 ownership cycle 검사에는 포함됩니다.
+`validateDAG: false`여도 순환은 거부합니다. 동기 factory의 async 의존성,
+shared의 transient hard dependency, provider의 child-container 의존성을
+새롭게 허용하지 않습니다. close, cancellation, retry와 container copy의 수명
+계약도 바꾸지 않습니다.
+
+기존 container는 migration이 필요하지 않습니다. 도입에는 인자 하나를 추가하며,
+부수효과 검토 없이 선언을 자동 재배치하거나 앱 전체의 기본값을 바꾸지 마세요.
+이 API는 InnoDI 7.0에 포함되며, 릴리스에서 공개 API baseline과 지원 Apple
+toolchain 검사를 계속 수행합니다.
 
 ## 검증 모델
 
@@ -841,6 +860,8 @@ Tools/generate-docc.sh
 [한국어](https://innosquadcorp.github.io/InnoDI/ko/documentation/innodi/).
 
 릴리즈 노트와 업그레이드 노트는 [CHANGELOG.md](CHANGELOG.md)에 모여 있습니다.
+InnoDI는 semantic versioning을 따르며, 릴리스 종류별로 바뀔 수 있는 범위와 새
+major 버전의 조건은 [버전 정책](RELEASING.md#versioning-policy)에 있습니다.
 
 ## AI 에이전트 스킬
 

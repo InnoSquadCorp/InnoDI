@@ -58,6 +58,17 @@ class PerformanceWorkflowTests(unittest.TestCase):
         for scenario in ("consumer-xcode-26.5", "consumer-xcode-26.6"):
             observed = source.split("          - scenario: " + scenario, 1)[1].split("          - scenario:", 1)[0]
             self.assertIn('expected_swift_syntax_mode: ""', observed)
+        # The lower-bound observation follows the manifest's range instead of
+        # repeating a version that a later range change would leave stale.
+        manifest = (WORKFLOWS.parents[1] / "Package.swift").read_text()
+        lower = re.search(r'swift-syntax\.git", "([0-9.]+)"\.\.\."[0-9.]+"\)', manifest)[1]
+        held = source.split("          - scenario: consumer-xcode-26.6-swift-syntax-lower-bound", 1)[1].split(
+            "          - scenario:", 1)[0]
+        self.assertIn(f'swift_syntax_version: "{lower}"', held)
+        self.assertIn('expected_swift_syntax_mode: ""', held)
+        self.assertEqual(source.count("swift_syntax_version:"), 1)
+        self.assertIn("SWIFT_SYNTAX_VERSION: ${{ matrix.swift_syntax_version }}", source)
+        self.assertIn('${SWIFT_SYNTAX_VERSION:+--swift-syntax-version "$SWIFT_SYNTAX_VERSION"}', source)
         self.assertIn("fail-fast: false", source)
         self.assertIn("Verify expected SwiftSyntax mode", source)
         self.assertIn("actual=\"$(jq -r '.swift_syntax_mode'", source)
@@ -70,7 +81,8 @@ class PerformanceWorkflowTests(unittest.TestCase):
     def test_independent_gates_preserve_failure(self):
         # GitHub's default success() would suppress both independent checks
         # after the first failure. Evaluate their actual explicit conditions.
-        for workflow, name in [("macro-tests.yml", "Macro Performance Trend")]:
+        for workflow, name in [("macro-tests.yml", "Macro Performance Paired Gate"),
+                               ("macro-tests.yml", "Macro Performance Trend")]:
             body = step(name, workflow)
             condition = re.search(r"if: \$\{\{ (.+) \}\}", body)
             self.assertIsNotNone(condition, name)
@@ -97,9 +109,9 @@ class PerformanceWorkflowTests(unittest.TestCase):
                                         {"pull_request": "--report-only", "push": "--enforce",
                                          "merge_group": "--enforce",
                                          "workflow_dispatch": "--enforce"}),
-            "Macro Performance Trend": ("TREND_MODE",
-                                        {"pull_request": "--report-only", "push": "",
-                                         "merge_group": "", "workflow_dispatch": ""}),
+            "Macro Performance Paired Gate": ("PAIRED_MODE",
+                                              {"pull_request": "--report-only", "push": "",
+                                               "merge_group": "", "workflow_dispatch": ""}),
         }
         for name, (variable, by_event) in expectations.items():
             body = step(name)
@@ -113,6 +125,27 @@ class PerformanceWorkflowTests(unittest.TestCase):
                     {"__builtins__": {}},
                 )
                 self.assertEqual(actual, expected, (name, event))
+
+    def test_cross_runner_trend_reports_while_the_paired_gate_enforces(self):
+        # perf-history entries come from different hosted runners, so the
+        # trend is a report on every event. The same-machine paired comparison
+        # owns the budget and must run after the measured candidate report.
+        trend = step("Macro Performance Trend")
+        self.assertNotIn("${{ github.event_name", trend)
+        self.assertRegex(trend, r"(?m)^\s+--report-only\n")
+        paired = step("Macro Performance Paired Gate")
+        self.assertIn("python3 -B Tools/check-paired-macro-performance.py", paired)
+        self.assertIn("--output build/paired-macro-performance-report.json", paired)
+        self.assertIn('${PAIRED_MODE:+"$PAIRED_MODE"}', paired)
+        source = (WORKFLOWS / "macro-tests.yml").read_text()
+        order = [source.index("      - name: " + name + "\n") for name in (
+            "Macro Performance Check", "Macro Performance Paired Gate", "Macro Performance Trend")]
+        self.assertEqual(order, sorted(order))
+        upload = step("Upload Paired Macro Performance Report")
+        self.assertIn("hashFiles('build/paired-macro-performance-report.json') != ''", upload)
+        self.assertIn("if-no-files-found: error", upload)
+        for name in ("Macro Performance Paired Gate", "Macro Performance Trend"):
+            self.assertNotIn("||", step(name).split("run:", 1)[1])
 
     def test_trace_is_not_an_automatic_or_release_gate(self):
         for filename in ["macro-tests.yml", "release.yml"]:

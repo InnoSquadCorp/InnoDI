@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "packageLinePercent": 90.0,
   "modules": {
-    "InnoDI": 55.0,
+    "InnoDI": 92.0,
     "InnoDI-Doctor": 0.0,
     "InnoDI-DependencyGraph": 100.0,
     "InnoDI-Migrate": 0.0,
@@ -14,7 +14,7 @@
     "InnoDIMacros": 90.7,
     "InnoDIMigrationCore": 85.0,
     "InnoDISwiftUI": 100.0,
-    "InnoDITesting": 85.0,
+    "InnoDITesting": 93.0,
     "InnoDIWorkspaceAnalysis": 91.8
   }
 }

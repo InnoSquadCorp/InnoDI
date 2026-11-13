@@ -89,6 +89,75 @@ struct DICollectionCompositionTests {
         #expect(counter.snapshot() == [1, 1])
     }
 
+    @Test("keyed collections keep an explicit empty contribution and miss absent keys")
+    func keyedEmptyContribution() throws {
+        let empty = DIKeyedCollection<String, Int>.empty
+        let module = try DIKeyedCollection([
+            DIKeyedCollection<String, Int>.Entry(key: "a", value: 1),
+        ])
+        let composed = try DIKeyedCollection.compose([empty, module, .empty])
+
+        #expect(empty.isEmpty)
+        #expect(empty[key: "a"] == nil)
+        #expect(composed.map(\.key) == ["a"])
+        #expect(composed[key: "missing"] == nil)
+    }
+
+    @Test("provider collections compose in order and resolve once per read")
+    func providerComposition() {
+        let counter = LockedCounter()
+        let moduleA = DIProviderCollection<any CollectionService>([
+            { counter.increment(0); return AlphaService() },
+        ])
+        let moduleB = DIProviderCollection<any CollectionService>([
+            { counter.increment(1); return BetaService() },
+        ])
+        let composed = DIProviderCollection.compose([moduleA, .empty, moduleB])
+
+        #expect(DIProviderCollection<any CollectionService>.empty.isEmpty)
+        #expect(composed.count == 2)
+        // Composition and counting resolve nothing.
+        #expect(counter.snapshot() == [0, 0])
+        #expect(composed.map(\.name) == ["alpha", "beta"])
+        #expect(counter.snapshot() == [1, 1])
+    }
+
+    @Test("keyed provider collections compose, select by position, and reject collisions")
+    func keyedProviderComposition() throws {
+        let counter = LockedCounter()
+        let moduleA = try DIKeyedProviderCollection([
+            DIKeyedProviderCollection<String, Int>.Entry(key: "a") {
+                counter.increment(0); return 1
+            },
+        ])
+        let moduleB = try DIKeyedProviderCollection([
+            DIKeyedProviderCollection<String, Int>.Entry(key: "b") {
+                counter.increment(1); return 2
+            },
+        ])
+        let composed = try DIKeyedProviderCollection.compose([moduleA, .empty, moduleB])
+
+        #expect(DIKeyedProviderCollection<String, Int>.empty.isEmpty)
+        #expect(composed.map(\.key) == ["a", "b"])
+        #expect(composed[key: "missing"] == nil)
+        // Reading keys and missing a lookup resolve nothing.
+        #expect(counter.snapshot() == [0, 0])
+        #expect(composed[1]() == 2)
+        #expect(counter.snapshot() == [0, 1])
+
+        #expect(throws: DIKeyedCollectionDuplicateError(key: "a")) {
+            try DIKeyedProviderCollection.compose([composed, moduleA])
+        }
+        #expect(throws: DIKeyedCollectionDuplicateError(key: "b")) {
+            try DIKeyedProviderCollection([
+                DIKeyedProviderCollection<String, Int>.Entry(key: "b") { 1 },
+                DIKeyedProviderCollection<String, Int>.Entry(key: "b") { 2 },
+            ])
+        }
+        // A rejected composition resolves no provider.
+        #expect(counter.snapshot() == [0, 1])
+    }
+
     @Test("collection metadata preserves public kind key and contributor identity")
     func collectionMetadataContract() {
         let keyed = DICollectionMetadata.keyedProviders([

@@ -21,9 +21,10 @@ Add `InnoDITesting` to test or preview-support targets when using its helpers.
 
 Swift tools 6.2 is the minimum; supported deployment targets are iOS 17,
 macOS 14, watchOS 10, tvOS 17 and visionOS 1 or newer. Linux is not a supported
-package configuration. SwiftSyntax is pinned to 604.0.0, which conflicts with
-Mockable 0.6.4's range. Check dependency resolution for the entire consumer
-graph before selecting another macro package.
+package configuration. InnoDI 7.0.0 through 7.0.2 pin SwiftSyntax to 604.0.0,
+which conflicts with Mockable 0.6.4's range; later versions accept
+603.0.2...604.0.0. Check dependency resolution for the entire consumer graph
+before selecting another macro package.
 
 ## API and Composition Map
 

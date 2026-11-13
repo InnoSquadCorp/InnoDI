@@ -19,10 +19,17 @@ The symbol-graph semantic validator spike ended with a no-go, and
 [RFC 0007](docs/rfcs/0007-symbol-graph-semantic-validation.md) was rejected
 on 2026-09-30. The syntax-only whole-source preflight remains the build
 validator. The compile-time `Lazy`/`Provider` alias probe that RFC 0007
-recommends instead is scheduled for 7.1: generated code would call a probe
-for each hard factory parameter, so the compiler warns when an alias names a
-deferred wrapper. It replaces the macro-level alias check, which never fires
-in a real build.
+recommends instead was scheduled for 7.1 and moved to 8.0 on 2026-11-11:
+generated code would call a probe for each hard factory parameter, so the
+compiler warns when an alias names a deferred wrapper. A prototype reported
+plain, nested, generic and `Provider` aliases in a real build. Its
+module-qualified probe call, however, makes every container with a typed hard
+factory parameter depend on the `InnoDI` qualifier in a member body, so a
+consumer that imports a module exporting a type named `InnoDI` stops
+compiling. That is a source break, and the probe waits for the next major
+with the other accepted breaks; see the
+[RFC 0007 follow-up](docs/rfcs/0007-symbol-graph-semantic-validation.md#follow-up-2026-11-11).
+It replaces the macro-level alias check, which never fires in a real build.
 
 `ContainerRole` stays a string-backed token in 7.0.0 because Swift 6.2
 remains the minimum toolchain and Swift 6.2.3 crashes on enum-typed arguments
@@ -369,7 +376,8 @@ its earlier compatibility tests remain non-voting evidence.
 
 The train does not add runtime registration, an `@Injected` service locator,
 or arbitrary global lifetime scopes. `@GenerateMock` and scoped task-local
-overrides retain their independent promotion gates.
+overrides kept their independent promotion gates through this train. Scoped
+task-local overrides were rejected with RFC 0003 on 2026-11-11.
 
 ## Experimental Features & Promotion Criteria
 
@@ -394,7 +402,11 @@ true before the next minor release can promote them.
 | Surface | RFC | Phase | Target version | GA criteria |
 |---|---|---|---|---|
 | `@GenerateMock` | [RFC 0001](docs/rfcs/0001-macro-mock-generation.md) | `stage-2` | TBD after GA criteria | All five criteria below must hold simultaneously. |
-| Scoped task-local overrides | [RFC 0003](docs/rfcs/0003-scoped-task-local-overrides.md) | `skeleton` (Draft RFC) | 5.x or later | RFC must move from Draft to Accepted with all open questions answered before a `skeleton` implementation lands. |
+
+Scoped task-local overrides were listed here as a `skeleton` candidate.
+[RFC 0003](docs/rfcs/0003-scoped-task-local-overrides.md#rejection-2026-11-11)
+was rejected on 2026-11-11 before any implementation landed. Per-operation
+overrides use the generated `withOverrides` and `InnoDITesting` presets.
 
 ### GA criteria for experimental macros
 

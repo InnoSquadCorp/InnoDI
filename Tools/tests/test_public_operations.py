@@ -49,14 +49,18 @@ class PublicOperationsTests(unittest.TestCase):
             manifest = root / "Package.swift"
             original_manifest = manifest.read_text()
             import re
-            version = re.search(r'exact: "([0-9.]+)"', original_manifest)[1]
+            lower, version = re.search(r'"([0-9.]+)"\.\.\."([0-9.]+)"', original_manifest).groups()
+            requirement = f'"{lower}"..."{version}"'
+            self.assertEqual(original_manifest.count(requirement), 1)
             different = str(int(version.split('.')[0]) + 1) + '.0.0'
-            manifest.write_text(original_manifest.replace(f'exact: "{version}"', f'from: "{version}"'))
-            with self.assertRaises(ValueError):
-                ops.check(root)
-            manifest.write_text(original_manifest.replace(f'exact: "{version}"', f'exact: "{different}"'))
-            with self.assertRaises(ValueError):
-                ops.check(root)
+            # Floating requirements, a silently narrowed pin, an upper bound the
+            # DocC lock does not hold, and an inverted range all fail closed.
+            for replacement in [f'from: "{lower}"', f'"{lower}"..<"{different}"', f'exact: "{version}"',
+                                f'"{lower}"..."{different}"', f'"{version}"..."{version}"',
+                                f'"{different}"..."{version}"']:
+                manifest.write_text(original_manifest.replace(requirement, replacement))
+                with self.assertRaises(ValueError, msg=replacement):
+                    ops.check(root)
             manifest.write_text(original_manifest)
             generator = root / "Tools/generate-docc.sh"
             generator.write_text(generator.read_text().replace(version.replace('.', r'\.'), different.replace('.', r'\.')))

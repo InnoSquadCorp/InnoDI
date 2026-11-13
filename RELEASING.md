@@ -20,6 +20,36 @@ checklist below and collect evidence for its own exact candidate SHA. Only the
 final candidate transition changes the release metadata; opening or validating
 a preparation PR does not publish a release.
 
+## Versioning Policy
+
+InnoDI follows [Semantic Versioning](https://semver.org). The public contract
+is the API recorded in `Tools/public-api-baseline.json`, the documented
+attribute grammar, and the generated symbol shape of every surface in the `GA`
+phase. Experimental surfaces follow the
+[promotion rules in the roadmap](ROADMAP.md#experimental-features--promotion-criteria)
+instead.
+
+| Release | May contain |
+|---|---|
+| Patch | Fixes, documentation, tooling and CI changes, and dependency requirement changes that keep every previously resolvable consumer graph resolvable. |
+| Minor | Additive API, new opt-in options, new warnings, and promotion of an experimental surface. Source that compiled without warnings keeps compiling. |
+| Major | Source-breaking changes. |
+
+The current major line receives fixes and additive work. Breaking work
+accumulates for the next major, which needs all of the following:
+
+1. Every source break is described in an accepted RFC, as
+   [RFC 0009](docs/rfcs/0009-7.0-source-breaks.md) did for 7.0.
+2. A break that can be announced ahead of time ships as a deprecation or a
+   warning in a minor release of the current major first.
+3. Each break has an `InnoDI-Migrate` rule or a manual step in the
+   [migration guide](Sources/InnoDI/InnoDI.docc/MigrationGuide.md).
+4. Accepted breaks are released together. A single break waits for the next
+   major instead of starting one.
+
+A warning that a minor release adds can fail a consumer that builds with
+warnings as errors. The release notes of that minor name each new warning.
+
 ## Release Checklist
 
 Before dispatching the `Release Gate` workflow:
@@ -95,8 +125,15 @@ Before dispatching the `Release Gate` workflow:
      Trend/history retain the benchmark version and compare like workloads only.
      Fewer than five version-2 history entries means insufficient trend evidence,
      not a measured trend pass. Keep version-1 history unchanged.
-     CI still runs trend after a macro failure, without suppressing
-     the original job failure.
+     CI still runs the paired comparison and trend after a macro failure,
+     without suppressing the original job failure.
+   - On `main`, `Tools/check-paired-macro-performance.py` also enforces the 20%
+     budget against the released commit pinned in
+     `Tools/macro-performance-paired-baseline.json`, measured beside the
+     candidate on the same runner. The history trend is a report on every
+     event because its entries come from different runners. An unmeasurable
+     paired baseline is insufficient evidence, not a measured pass: it fails
+     an enforcing run and is a warning on a pull request.
    - Runtime trace timing is **optional diagnostic evidence, not a release
      gate**. The user approved this policy change on 2026-09-28 after review
      found scheduler-dependent overlap and measurement-definition limitations.
@@ -215,7 +252,10 @@ Before dispatching the `Release Gate` workflow:
 16. After publication, verify the peeled remote tag SHA, GitHub Release notes,
     release immutability, the two checksum-covered assets, and `SHA256SUMS`.
     Add a fresh empty `## Unreleased` section and the next development-train
-    metadata to `CHANGELOG.md` in a separate post-release commit. For public-discovery releases,
+    metadata to `CHANGELOG.md` in a separate post-release commit. In that
+    commit, move `Tools/macro-performance-paired-baseline.json` to the released
+    tag and its peeled commit, so the next train is measured against this
+    release. For public-discovery releases,
     confirm that the semantic-version tag is visible and that the existing
     [SPI listing](https://swiftpackageindex.com/InnoSquadCorp/InnoDI) indexes
     that exact tag/revision and links working documentation. InnoDI is already
@@ -265,21 +305,32 @@ this document and the release-contract tests in the same change.
 
 ## Dependency Policy
 
-InnoDI pins `swiftlang/swift-syntax` with `exact:`. SwiftPM uses a SwiftSyntax
-prebuilt only when the resolved version matches the one the toolchain ships, so
-the exact pin keeps the primary consumer toolchain on the prebuilt path. The
-5.0.0 notes record the measured effect of moving the pin to `603.0.2`, and the
-7.0.0 notes record moving it to `604.0.0` with Xcode 27 as the primary consumer
-toolchain. The cost is that every package in a consumer graph must agree on
-that exact version.
+InnoDI requires `swiftlang/swift-syntax` in a closed range between two tested
+versions, currently `"603.0.2"..."604.0.0"`. A fresh resolution selects the
+highest version a graph allows, so a consumer with no other constraint gets
+the upper bound, whose prebuilt matches the primary consumer toolchain. An
+existing consumer lock keeps its pin while that version stays in range. A
+consumer whose graph another macro package limits to versions below the upper
+bound resolves when that limit overlaps the range, to the lower bound today,
+instead of failing. A limit that ends below the lower bound still fails to
+resolve. `Package.resolved`, `Tools/docc/Package.resolved`
+and every ordinary lane use the upper bound; `Tools/check-swift-syntax-lower-bound.sh`
+runs the in-process contracts on the lower bound.
 
-Re-evaluate the pin when a supported toolchain ships a prebuilt for a newer
+Releases 5.0.0 through 7.0.2 used an `exact:` pin. The 5.0.0 notes record the
+measured effect of moving it to `603.0.2`, the 7.0.0 notes record moving it to
+`604.0.0` with Xcode 27 as the primary consumer toolchain, and the 7.0.1 notes
+record the resulting conflict with Mockable 0.6.4. Never use `from:`, an open
+range, or a branch: an upstream release would then change consumer builds
+without a tested endpoint.
+
+Re-evaluate the range when a supported toolchain ships a prebuilt for a newer
 swift-syntax release, or when a consumer reports a resolution conflict with
-another macro package. Either move the exact pin to the version whose prebuilt
-matches the primary consumer toolchain, or return to a range requirement if
-SwiftPM starts matching prebuilts across a range. Record the result of
-`Tools/cold-build-benchmark.sh --target consumer` and the consumer resolution
-impact in the release notes of the version that changes the pin.
+another macro package. Move a bound only to a version that the full gate and
+the lower-bound lane have passed. Record the result of
+`Tools/cold-build-benchmark.sh --target consumer` for each bound and the
+consumer resolution impact in the release notes of the version that changes
+the range.
 
 ## Documentation Sync
 

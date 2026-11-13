@@ -1,4 +1,5 @@
 import Foundation
+import os
 import Testing
 import InnoDIWorkspaceAnalysis
 import InnoDITestSupport
@@ -150,17 +151,40 @@ struct ExternalConsumerContractTests {
         // incompatible graphs but coalesces older source-only toolchains.
         let scratchRoot = externalConsumerScratchRoot()
 
-        for fixture in fixtures {
+        struct Outcome: Sendable {
+            let build: StrictConcurrencyBuildResult
+            let execution: StrictConcurrencyBuildResult?
+        }
+        let outcomes = mapExternalConsumerFixtures(
+            fixtures,
+            lanes: externalConsumerLaneCount()
+        ) { fixture, lane in
             let materializedURL = try materializeExternalConsumerFixture(fixture)
             defer { try? FileManager.default.removeItem(at: materializedURL) }
+            let scratchPath = externalConsumerScratchPath(
+                for: fixture,
+                under: scratchRoot,
+                lane: lane
+            )
 
-            let result = try runStrictConcurrencyBuild(
+            let build = try runStrictConcurrencyBuild(
                 packageURL: materializedURL,
-                scratchPath: externalConsumerScratchPath(
-                    for: fixture,
-                    under: scratchRoot
+                scratchPath: scratchPath
+            )
+            guard !build.timedOut, build.exitCode == 0 else {
+                return Outcome(build: build, execution: nil)
+            }
+            return Outcome(
+                build: build,
+                execution: try runExternalConsumerExecutable(
+                    packageURL: materializedURL,
+                    scratchPath: scratchPath
                 )
             )
+        }
+
+        for (fixture, outcome) in zip(fixtures, outcomes) {
+            let result = try outcome.get().build
             let output = result.stdout + "\n" + result.stderr
 
             if result.timedOut || result.exitCode != 0 {
@@ -170,14 +194,7 @@ struct ExternalConsumerContractTests {
             #expect(result.exitCode == 0, "Fixture '\(fixture.name)' must compile")
             assertNoCompilerCrash(in: output, fixtureName: fixture.name)
 
-            guard !result.timedOut, result.exitCode == 0 else { continue }
-            let execution = try runExternalConsumerExecutable(
-                packageURL: materializedURL,
-                scratchPath: externalConsumerScratchPath(
-                    for: fixture,
-                    under: scratchRoot
-                )
-            )
+            guard let execution = try outcome.get().execution else { continue }
             let executionOutput = execution.stdout + "\n" + execution.stderr
             if execution.timedOut || execution.exitCode != 0 {
                 Issue.record("Fixture '\(fixture.name)' failed at runtime:\n\(executionOutput)")
@@ -229,17 +246,25 @@ struct ExternalConsumerContractTests {
         // prebuilt and full-source SwiftSyntax graphs.
         let scratchRoot = externalConsumerScratchRoot()
 
-        for fixture in fixtures {
+        let outcomes = mapExternalConsumerFixtures(
+            fixtures,
+            lanes: externalConsumerLaneCount()
+        ) { fixture, lane in
             let materializedURL = try materializeExternalConsumerFixture(fixture)
             defer { try? FileManager.default.removeItem(at: materializedURL) }
 
-            let result = try runStrictConcurrencyBuild(
+            return try runStrictConcurrencyBuild(
                 packageURL: materializedURL,
                 scratchPath: externalConsumerScratchPath(
                     for: fixture,
-                    under: scratchRoot
+                    under: scratchRoot,
+                    lane: lane
                 )
             )
+        }
+
+        for (fixture, outcome) in zip(fixtures, outcomes) {
+            let result = try outcome.get()
             let output = result.stdout + "\n" + result.stderr
             let expectedDiagnostics = try expectedDiagnostics(for: fixture)
 
@@ -388,6 +413,99 @@ struct ExternalConsumerContractTests {
         )
     }
 
+    @Test("A graph held below the SwiftSyntax upper bound resolves inside the supported range")
+    func graphHeldBelowUpperBoundResolvesInsideRange() throws {
+        let rootURL = packageRootURL()
+        let manifest = try String(
+            contentsOf: rootURL.appendingPathComponent("Package.swift"),
+            encoding: .utf8
+        )
+        let requirement = try #require(
+            manifest.firstMatch(of: #/swift-syntax\.git", "([0-9.]+)"\.\.\."([0-9.]+)"\)/#)
+        )
+        let lower = String(requirement.1)
+        let upper = String(requirement.2)
+
+        // Mockable 0.6.4 requires `"509.0.0"..<"604.0.0"`. Hold this graph
+        // below InnoDI's upper bound the same way without fetching Mockable.
+        let consumerURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "InnoDI-LowerSwiftSyntaxConsumer-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        defer { try? FileManager.default.removeItem(at: consumerURL) }
+        let sourcesURL = consumerURL.appendingPathComponent("Sources/Consumer", isDirectory: true)
+        try FileManager.default.createDirectory(at: sourcesURL, withIntermediateDirectories: true)
+        try """
+        // swift-tools-version: 6.2
+
+        import PackageDescription
+
+        let package = Package(
+            name: "LowerSwiftSyntaxConsumer",
+            platforms: [.macOS(.v14)],
+            dependencies: [
+                .package(path: "\(escapedSwiftString(rootURL.path(percentEncoded: false)))"),
+                .package(url: "https://github.com/swiftlang/swift-syntax.git", "509.0.0"..<"\(upper)"),
+            ],
+            targets: [
+                .target(
+                    name: "Consumer",
+                    dependencies: [
+                        .product(name: "InnoDI", package: "\(packageIdentity(for: rootURL))")
+                    ]
+                )
+            ]
+        )
+
+        """.write(
+            to: consumerURL.appendingPathComponent("Package.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try "import InnoDI\n".write(
+            to: sourcesURL.appendingPathComponent("Consumer.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let result = try runExternalConsumerResolution(
+            packageURL: consumerURL,
+            scratchPath: consumerURL.appendingPathComponent(".build", isDirectory: true)
+        )
+        #expect(!result.timedOut)
+        #expect(result.exitCode == 0, "The held graph must resolve:\n\(result.stdout)\n\(result.stderr)")
+
+        struct ResolvedFile: Decodable {
+            struct Pin: Decodable {
+                struct State: Decodable { let version: String? }
+                let identity: String
+                let state: State
+            }
+            let pins: [Pin]
+        }
+        let resolved = try JSONDecoder().decode(
+            ResolvedFile.self,
+            from: Data(contentsOf: consumerURL.appendingPathComponent("Package.resolved"))
+        )
+        let syntax = resolved.pins.filter { $0.identity == "swift-syntax" }
+        #expect(syntax.count == 1)
+        // SwiftPM selects the newest version both requirements admit, so a
+        // later 603 patch release changes the pin. The exact lower bound is
+        // exercised by `Tools/check-swift-syntax-lower-bound.sh`.
+        func components(_ version: String) -> [Int] {
+            version.split(separator: ".").map { Int($0) ?? -1 }
+        }
+        let pinned = try #require(syntax.first?.state.version)
+        #expect(
+            !components(pinned).lexicographicallyPrecedes(components(lower)),
+            "\(pinned) is below the supported lower bound \(lower)"
+        )
+        #expect(
+            components(pinned).lexicographicallyPrecedes(components(upper)),
+            "\(pinned) is not below the bound \(upper) this graph holds"
+        )
+    }
+
     @Test("Committed fixture templates are invisible to workspace source discovery")
     func fixtureTemplatesDoNotPolluteWorkspaceAnalysis() throws {
         let sources = try discoverWorkspaceSourceFiles(
@@ -398,6 +516,45 @@ struct ExternalConsumerContractTests {
             !sources.contains { $0.hasPrefix("Tests/ExternalConsumerFixtures/") },
             "External consumer templates must use .swift.fixture names"
         )
+    }
+
+    @Test("Fixture lanes are opt-in, keep the cached scratch path, and preserve fixture order")
+    func fixtureLanesAreOptIn() throws {
+        let fixture = try externalConsumerFixture(named: "basic-container", expectation: .pass)
+        let root = URL(fileURLWithPath: "/tmp/innodi-external-scratch-test")
+        let cached = externalConsumerScratchPath(for: fixture, under: root)
+        let second = externalConsumerScratchPath(for: fixture, under: root, lane: 1)
+
+        // Lane 0 is the path CI restores; later lanes are siblings of it.
+        #expect(externalConsumerScratchPath(for: fixture, under: root, lane: 0) == cached)
+        #expect(second.deletingLastPathComponent() == cached.deletingLastPathComponent())
+        #expect(second.lastPathComponent == "pass-lane1")
+        #expect(externalConsumerScratchPath(for: fixture, under: root, lane: 2) != second)
+
+        #expect(externalConsumerLaneCount(environment: [:]) == 1)
+        #expect(externalConsumerLaneCount(environment: ["INNODI_EXTERNAL_FIXTURE_LANES": "4"]) == 4)
+        for invalid in ["0", "9", "-1", "two", ""] {
+            #expect(externalConsumerLaneCount(environment: ["INNODI_EXTERNAL_FIXTURE_LANES": invalid]) == 1)
+        }
+
+        let fixtures = try externalConsumerFixtures(expectation: .pass)
+        for lanes in [1, 3, fixtures.count + 5] {
+            let outcomes = mapExternalConsumerFixtures(fixtures, lanes: lanes) { fixture, lane in
+                if fixture.name == "basic-container" {
+                    throw ExternalConsumerFixtureError.missingDiagnostics(fixture.name)
+                }
+                return "\(fixture.name)#\(lane)"
+            }
+            #expect(outcomes.count == fixtures.count)
+            let laneCount = min(lanes, fixtures.count)
+            for (index, (fixture, outcome)) in zip(fixtures, outcomes).enumerated() {
+                if fixture.name == "basic-container" {
+                    #expect(throws: ExternalConsumerFixtureError.self) { try outcome.get() }
+                } else {
+                    #expect(try outcome.get() == "\(fixture.name)#\(index % laneCount)")
+                }
+            }
+        }
     }
 
     @Test("External fixture scratch isolates build mode and expectation")
@@ -453,20 +610,20 @@ struct ExternalConsumerContractTests {
     }
 }
 
-private enum ExternalConsumerExpectation: String {
+private enum ExternalConsumerExpectation: String, Sendable {
     case pass
     case fail
     case signature
 }
 
-private struct ExternalConsumerFixture {
+private struct ExternalConsumerFixture: Sendable {
     let name: String
     let sourceURL: URL
     let expectation: ExternalConsumerExpectation
     let scratchProfile: ExternalConsumerScratchProfile
 }
 
-private enum ExternalConsumerScratchProfile: String {
+enum ExternalConsumerScratchProfile: String, Sendable {
     case sharedSource = "shared-source"
     case macroOnlyPrebuilt = "macro-only-prebuilt"
     case dagPluginSource = "dag-plugin-source"
@@ -604,6 +761,15 @@ private func externalConsumerScratchProfile(
     #endif
 }
 
+/// The scratch profile of a consumer that attaches no build plugin.
+func externalConsumerMacroOnlyScratchProfile() -> ExternalConsumerScratchProfile {
+    #if compiler(>=6.4)
+    return .macroOnlyPrebuilt
+    #else
+    return .sharedSource
+    #endif
+}
+
 private func materializeExternalConsumerFixture(
     _ fixture: ExternalConsumerFixture,
     localizingRemoteRevision: Bool = false
@@ -715,7 +881,7 @@ private func materializeExternalConsumerFixture(
 /// always checked inside that expectation boundary.
 /// `swift package clean` removes the default cache when a true cold run is
 /// required; CI can also supply an isolated absolute override.
-private func externalConsumerScratchRoot(
+func externalConsumerScratchRoot(
     environment: [String: String] = ProcessInfo.processInfo.environment
 ) -> URL {
     if let override = environment[
@@ -736,11 +902,66 @@ private func externalConsumerScratchPath(
         .appendingPathComponent(fixture.expectation.rawValue, isDirectory: true)
 }
 
-private func externalConsumerScratchPath(
+func externalConsumerScratchPath(
     for profile: ExternalConsumerScratchProfile,
     under root: URL
 ) -> URL {
     root.appendingPathComponent(profile.rawValue, isDirectory: true)
+}
+
+/// Lane 0 is the historical scratch path, which CI restores from its cache.
+/// Every further lane is an independent sibling, so concurrent SwiftPM
+/// processes never wait on one scratch lock.
+private func externalConsumerScratchPath(
+    for fixture: ExternalConsumerFixture,
+    under root: URL,
+    lane: Int
+) -> URL {
+    let cached = externalConsumerScratchPath(for: fixture, under: root)
+    guard lane > 0 else { return cached }
+    return cached.deletingLastPathComponent().appendingPathComponent(
+        "\(fixture.expectation.rawValue)-lane\(lane)",
+        isDirectory: true
+    )
+}
+
+/// The fixture loops build serially unless `INNODI_EXTERNAL_FIXTURE_LANES`
+/// asks for 2...8 lanes. Each extra lane builds its own copy of the dependency
+/// products, including SwiftSyntax from source for plugin fixtures, and
+/// rebuilds InnoDI after every source change. That pays off on a workstation
+/// with spare cores and a warm scratch, not on a three-core hosted runner.
+private func externalConsumerLaneCount(
+    environment: [String: String] = ProcessInfo.processInfo.environment
+) -> Int {
+    guard let requested = environment["INNODI_EXTERNAL_FIXTURE_LANES"].flatMap(Int.init),
+          (1...8).contains(requested) else {
+        return 1
+    }
+    return requested
+}
+
+/// Runs `body` for every fixture, serially inside a lane and concurrently
+/// across lanes, and returns the outcomes in fixture order. A thrown error
+/// stays with its fixture instead of ending the other lanes.
+private func mapExternalConsumerFixtures<Value: Sendable>(
+    _ fixtures: [ExternalConsumerFixture],
+    lanes: Int,
+    _ body: @Sendable (ExternalConsumerFixture, _ lane: Int) throws -> Value
+) -> [Result<Value, any Error>] {
+    guard !fixtures.isEmpty else { return [] }
+    let laneCount = max(1, min(lanes, fixtures.count))
+    let outcomes = OSAllocatedUnfairLock(initialState: [Int: Result<Value, any Error>]())
+    DispatchQueue.concurrentPerform(iterations: laneCount) { lane in
+        for index in stride(from: lane, to: fixtures.count, by: laneCount) {
+            let outcome = Result { try body(fixtures[index], lane) }
+            outcomes.withLock { $0[index] = outcome }
+        }
+    }
+    return outcomes.withLock { recorded in
+        fixtures.indices.map { index in
+            recorded[index] ?? .failure(ExternalConsumerFixtureError.missingDirectory(fixtures[index].name))
+        }
+    }
 }
 
 private struct ExpectedDiagnostics {

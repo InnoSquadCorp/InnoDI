@@ -344,7 +344,7 @@ jobs:
     needs: ci-plan
     if: needs.ci-plan.outputs.macro-tests == 'true'
     runs-on: macos-26
-    timeout-minutes: 60
+    timeout-minutes: 75
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -483,20 +483,41 @@ jobs:
           name: macro-performance-report
           path: build/macro-performance-report.json
           if-no-files-found: error
+      - name: Macro Performance Paired Gate
+        if: ${{ !cancelled() && steps.macro_performance.outcome != 'skipped' }}
+        # Builds the pinned baseline revision beside the candidate and
+        # alternates both benchmark processes on this runner, so the 20%
+        # budget is enforced on a ratio that hosted-runner speed cancels out
+        # of. Pull requests report; pushes to main, merge queue runs, and
+        # manual dispatch enforce. A baseline that cannot be fetched or built
+        # is insufficient evidence, not a measured pass: it fails an
+        # enforcing run and is a warning on a pull request.
+        env:
+          PAIRED_MODE: ${{ github.event_name == 'pull_request' && '--report-only' || '' }}
+        run: |
+          python3 -B Tools/check-paired-macro-performance.py \
+            --output build/paired-macro-performance-report.json \
+            ${PAIRED_MODE:+"$PAIRED_MODE"}
+      - name: Upload Paired Macro Performance Report
+        if: ${{ always() && hashFiles('build/paired-macro-performance-report.json') != '' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: paired-macro-performance-report
+          path: build/paired-macro-performance-report.json
+          if-no-files-found: error
       - name: Macro Performance Trend
         if: ${{ !cancelled() && steps.macro_performance.outcome != 'skipped' }}
-        # Compares the current lower envelope against the rolling median of
-        # recent lower envelopes on `perf-history`. Catches gradual creep that
-        # a single-baseline `--enforce` gate misses without promoting shared
-        # runner scheduling noise to a product regression. The script exits 0
-        # silently when perf-history is empty or unreachable, so this
-        # step is safe to land before the first append happens.
-        env:
-          TREND_MODE: ${{ github.event_name == 'pull_request' && '--report-only' || '' }}
+        # Reports the current lower envelope against the rolling median of
+        # recent lower envelopes on `perf-history`. Those entries come from
+        # different hosted runners, whose lower envelopes for unchanged code
+        # differ by more than the 20% budget, so this comparison is a report
+        # on every event; the paired gate above enforces the budget on one
+        # machine. The script exits 0 silently when perf-history is empty or
+        # unreachable.
         run: |
           Tools/check-performance-trend.sh \
             --current-report build/macro-performance-report.json \
-            ${TREND_MODE:+"$TREND_MODE"}
+            --report-only
       # Runtime trace timings are optional diagnostics in the manual
       # runtime-trace-diagnostics.yml workflow, not a release performance gate.
       - name: Upload Performance Trend Report
@@ -584,6 +605,12 @@ jobs:
         run: |
           Tools/summarize-test-durations.py build/consumer-contracts-output.log \
             --title "Slowest test suites (consumer contracts)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Run in-process contracts on the SwiftSyntax lower bound
+        # Package.resolved and every other lane use the upper bound of the
+        # manifest's closed SwiftSyntax range. A consumer graph that another
+        # macro package holds below it resolves the lower bound, so this
+        # endpoint is tested here from a scratch copy of the package.
+        run: Tools/check-swift-syntax-lower-bound.sh
       - name: Report cache and validation observations
         if: ${{ always() && steps.cache-inputs.outcome == 'success' }}
         run: python3 -B Tools/ci-cache.py report

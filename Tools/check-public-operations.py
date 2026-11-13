@@ -47,17 +47,20 @@ def check(root=ROOT):
             raise ValueError("tracked Swift directory has no live manifest")
     if any("release-validation" not in item["labels"] for item in ecosystems.values()) or ecosystems["github-actions"]["directory"] != "/":
         raise ValueError("All dependency updates require exhaustive validation; Actions must use root")
-    pin = re.search(r'swift-syntax\.git", exact: "([0-9.]+)"', (root / "Package.swift").read_text())
+    pin = re.search(r'swift-syntax\.git", "([0-9]+\.[0-9]+\.[0-9]+)"\.\.\."([0-9]+\.[0-9]+\.[0-9]+)"\)',
+                    (root / "Package.swift").read_text())
     if not pin:
-        raise ValueError("SwiftSyntax must retain an exact version requirement")
-    version = pin[1]
+        raise ValueError("SwiftSyntax must retain a closed version range between two tested versions")
+    lower, version = pin[1], pin[2]
+    if [int(part) for part in lower.split(".")] >= [int(part) for part in version.split(".")]:
+        raise ValueError("SwiftSyntax lower bound must precede its upper bound")
     lock = json.loads((root / "Tools/docc/Package.resolved").read_text())
     syntax = [p for p in lock["pins"] if p["identity"] == "swift-syntax"]
     if len(syntax) != 1 or syntax[0]["state"]["version"] != version:
-        raise ValueError("SwiftSyntax exact version and DocC lock disagree")
-    # The generator embeds this version in its injected dependency regex.
-    escaped_version = version.replace(".", r"\.")
-    if f'\\"{escaped_version}\\"' not in (root / "Tools/generate-docc.sh").read_text():
+        raise ValueError("SwiftSyntax upper bound and DocC lock disagree")
+    # The generator embeds this requirement in its injected dependency regex.
+    escaped_lower, escaped_version = (value.replace(".", r"\.") for value in (lower, version))
+    if f'\\"{escaped_lower}\\"\\.\\.\\.\\"{escaped_version}\\"' not in (root / "Tools/generate-docc.sh").read_text():
         raise ValueError("SwiftSyntax update requires a coordinated DocC injection update")
     spi = json.loads((root / ".spi.yml").read_text())
     if type(spi.get("version")) is not int or spi != {"version": 1, "external_links": {"documentation": "https://innosquadcorp.github.io/InnoDI/"}}:
