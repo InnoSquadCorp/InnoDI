@@ -9,6 +9,7 @@ import sys
 import tempfile
 import textwrap
 import unittest
+from unittest import mock
 
 TOOLS = Path(__file__).resolve().parents[1]
 SCRIPT = TOOLS / "check-paired-macro-performance.py"
@@ -20,7 +21,8 @@ BENCHMARK = "Tests/InnoDIMacrosTests/MacroPerformanceBenchmark.swift"
 
 # A stand-in for `swift` that builds nothing and reports the milliseconds
 # recorded in the package it is asked to test, so the gate's process handling,
-# pairing and verdict run for real.
+# pairing and verdict run for real. A build also writes the file named by
+# INNODI_PAIRED_TEST_WRITE, to change the candidate tree in the middle of a run.
 FAKE_SWIFT = textwrap.dedent("""\
     #!/usr/bin/env python3
     import json, os, sys
@@ -31,6 +33,8 @@ FAKE_SWIFT = textwrap.dedent("""\
         sys.exit(0)
     package = Path(arguments[arguments.index("--package-path") + 1])
     if arguments[0] == "build":
+        if os.environ.get("INNODI_PAIRED_TEST_WRITE"):
+            Path(os.environ["INNODI_PAIRED_TEST_WRITE"]).write_text("// written by a build")
         sys.exit(1 if (package / "FAIL_BUILD").exists() else 0)
     rows = int(os.environ["INNODI_MACRO_BENCH_ITERATIONS"])
     value = float((package / "MS").read_text())
@@ -113,10 +117,28 @@ class PairedInputTests(unittest.TestCase):
         with self.assertRaises(paired.PairedPerformanceError):
             paired.validated_samples([], 2)
 
+    def test_candidate_identity_is_unknown_outside_a_repository(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ceiling = Path(directory).resolve()
+            export = ceiling / "export"
+            export.mkdir()
+            # Keep git from finding a repository that happens to enclose the temporary directory.
+            with mock.patch.dict(os.environ, {"GIT_CEILING_DIRECTORIES": str(ceiling)}):
+                self.assertEqual(paired.candidate_identity(export), {"commit": None, "dirty": None})
+
+    def test_report_path_that_cannot_be_cleared_is_an_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            paired.remove_previous_report(Path(directory) / "absent.json")
+            with self.assertRaises(paired.PairedPerformanceError):
+                paired.remove_previous_report(Path(directory))
+
 
 class PairedGateProcessTests(unittest.TestCase):
-    def run_gate(self, candidate_ms, baseline_ms=100.0, extra=(), fail_baseline_build=False,
-                 fail_candidate_build=False, unreachable_baseline=False):
+    REPORT = "build/paired-macro-performance-report.json"
+
+    def make_repository(self, candidate_ms, baseline_ms=100.0, fail_baseline_build=False,
+                        fail_candidate_build=False, unreachable_baseline=False,
+                        commit_candidate=False):
         directory = tempfile.TemporaryDirectory(prefix="innodi-paired-perf-")
         self.addCleanup(directory.cleanup)
         base = Path(directory.name)
@@ -125,6 +147,8 @@ class PairedGateProcessTests(unittest.TestCase):
         (repository / BENCHMARK).parent.mkdir(parents=True)
         (repository / "Tools" / SCRIPT.name).write_bytes(SCRIPT.read_bytes())
         (repository / BENCHMARK).write_text("// baseline benchmark\n")
+        # As in this repository, the gate's own output is not part of the source tree.
+        (repository / ".gitignore").write_text("build/\n")
         (repository / "MS").write_text(str(baseline_ms))
         if fail_baseline_build:
             (repository / "FAIL_BUILD").write_text("")
@@ -145,19 +169,35 @@ class PairedGateProcessTests(unittest.TestCase):
         (repository / "FAIL_BUILD").unlink(missing_ok=True)
         if fail_candidate_build:
             (repository / "FAIL_BUILD").write_text("")
+        if commit_candidate:
+            subprocess.run(git + ["add", "-A"], check=True)
+            subprocess.run(git + ["commit", "-q", "-m", "candidate"], check=True)
         binaries = base / "bin"
         binaries.mkdir()
         swift = binaries / "swift"
         swift.write_text(FAKE_SWIFT)
         swift.chmod(swift.stat().st_mode | stat.S_IXUSR)
+        return repository
+
+    def invoke(self, repository, extra=(), output=REPORT, environment=None):
+        binaries = repository.parent / "bin"
         result = subprocess.run(
             [sys.executable, "-B", str(repository / "Tools" / SCRIPT.name), "--blocks", "4",
              "--rows", "2", *extra],
-            env={**os.environ, "PATH": f"{binaries}{os.pathsep}{os.environ['PATH']}"},
+            env={**os.environ, **(environment or {}),
+                 "PATH": f"{binaries}{os.pathsep}{os.environ['PATH']}"},
             capture_output=True, text=True)
-        report_path = repository / "build/paired-macro-performance-report.json"
+        report_path = repository / output
         report = json.loads(report_path.read_text()) if report_path.is_file() else None
-        return result, report, repository
+        return result, report
+
+    def run_gate(self, candidate_ms, extra=(), **options):
+        repository = self.make_repository(candidate_ms, **options)
+        return (*self.invoke(repository, extra), repository)
+
+    def head(self, repository):
+        return subprocess.run(["git", "-C", str(repository), "rev-parse", "HEAD"], check=True,
+                              capture_output=True, text=True).stdout.strip()
 
     def test_unchanged_candidate_is_a_measured_pass(self):
         result, report, repository = self.run_gate(candidate_ms=101.0)
@@ -230,6 +270,92 @@ class PairedGateProcessTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIsNone(report)
         self.assertIn("candidate does not build", result.stderr)
+
+    def test_failed_run_leaves_no_report_from_an_earlier_run(self):
+        repository = self.make_repository(candidate_ms=101.0)
+        result, report = self.invoke(repository)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(report["status"], "ok")
+        # The same output path, and the candidate no longer builds: the earlier
+        # `ok` must not stay behind as this run's result.
+        (repository / "FAIL_BUILD").write_text("")
+        result, report = self.invoke(repository)
+        self.assertEqual(result.returncode, 1)
+        self.assertIsNone(report)
+        self.assertIn("candidate does not build", result.stderr)
+
+    def test_every_failure_before_the_report_removes_an_earlier_one(self):
+        output = "build/custom/report.json"
+        baseline_file = "Tools/macro-performance-paired-baseline.json"
+        failures = [
+            ("measurement", lambda repository: (repository / "MS").write_text("0"), [],
+             "benchmark samples must be finite positive numbers"),
+            ("baseline file", lambda repository: (repository / baseline_file).write_text("not json"),
+             [], "cannot read paired baseline"),
+            ("baseline override", lambda repository: None, ["--baseline-commit", "no-such-revision"],
+             "cannot resolve --baseline-commit"),
+        ]
+        for name, break_run, extra, message in failures:
+            repository = self.make_repository(candidate_ms=101.0)
+            stale = repository / output
+            stale.parent.mkdir(parents=True)
+            stale.write_text(json.dumps({"status": "ok", "ratio": 1.0}))
+            break_run(repository)
+            result, report = self.invoke(repository, extra=["--output", output, *extra],
+                                         output=output)
+            self.assertEqual(result.returncode, 1, name)
+            self.assertIn(message, result.stderr, name)
+            self.assertIsNone(report, name)
+
+    def test_report_that_replaces_an_earlier_one_is_this_runs_verdict(self):
+        repository = self.make_repository(candidate_ms=101.0, unreachable_baseline=True)
+        stale = repository / self.REPORT
+        stale.parent.mkdir(parents=True)
+        stale.write_text(json.dumps({"status": "ok", "ratio": 1.0}))
+        result, report = self.invoke(repository)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(report["status"], "insufficient-evidence")
+        self.assertNotIn("ratio", report)
+
+    def test_report_records_whether_the_candidate_tree_matched_its_commit(self):
+        repository = self.make_repository(candidate_ms=101.0, commit_candidate=True)
+        commit = self.head(repository)
+        result, report = self.invoke(repository)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(report["candidate"], {"commit": commit, "dirty": False})
+        self.assertNotIn("records it as dirty", result.stdout)
+        # A setting that hides untracked files must not hide a new source file.
+        subprocess.run(["git", "-C", str(repository), "config", "status.showUntrackedFiles", "no"],
+                       check=True)
+        untracked = repository / "Sources/New.swift"
+        untracked.parent.mkdir()
+        untracked.write_text("// new source\n")
+        result, report = self.invoke(repository)
+        # Measured, not rejected: local iteration on uncommitted changes keeps working.
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(report["status"], "ok")
+        self.assertEqual(report["candidate"], {"commit": commit, "dirty": True})
+        self.assertIn("candidate tree has uncommitted or untracked changes", result.stdout)
+        untracked.unlink()
+        # A tracked file that differs from the commit: another source, the same commit.
+        (repository / "MS").write_text("103.0")
+        result, report = self.invoke(repository)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(report["ratio"], 1.03)
+        self.assertEqual(report["candidate"], {"commit": commit, "dirty": True})
+
+    def test_candidate_changed_while_the_baseline_built_is_recorded_as_dirty(self):
+        repository = self.make_repository(candidate_ms=101.0, commit_candidate=True)
+        result, report = self.invoke(
+            repository, environment={"INNODI_PAIRED_TEST_WRITE": str(repository / "New.swift")})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(report["candidate"], {"commit": self.head(repository), "dirty": True})
+
+    def test_insufficient_evidence_report_identifies_the_candidate(self):
+        result, report, repository = self.run_gate(candidate_ms=101.0, unreachable_baseline=True,
+                                                   commit_candidate=True)
+        self.assertEqual(report["status"], "insufficient-evidence")
+        self.assertEqual(report["candidate"], {"commit": self.head(repository), "dirty": False})
 
 
 if __name__ == "__main__":

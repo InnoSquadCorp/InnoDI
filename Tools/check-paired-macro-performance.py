@@ -15,6 +15,14 @@ Exit status: 0 for a measured pass, and in --report-only mode also for a
 regression or insufficient evidence, both reported as warnings. 1 for a
 regression or insufficient evidence when enforcing, and in either mode for an
 invalid measurement or a candidate that does not build.
+
+Every run removes an earlier report at --output before it does anything else,
+so a run that fails before it writes a report leaves none behind. A command
+line that is rejected with exit status 2 starts no run and removes nothing.
+
+The report names the candidate by its commit and by whether the working tree
+matched that commit when the candidate was built. A tree with uncommitted or
+untracked changes is measured and recorded as dirty, never rejected.
 """
 
 from __future__ import annotations
@@ -190,6 +198,24 @@ def ensure_commit(root: Path, commit: str) -> None:
         )
 
 
+def candidate_identity(root: Path) -> dict[str, Any]:
+    """Name the candidate source: its commit, and whether the tree matches it.
+
+    A tree with staged, modified or untracked files builds something other
+    than its commit, so the commit alone would give two sources one name.
+    Untracked files are requested explicitly because a user's
+    `status.showUntrackedFiles=no` would otherwise hide a new source file.
+    Files that `.gitignore` excludes are not examined. A value is None when
+    git cannot report it.
+    """
+    commit = git(root, "rev-parse", "HEAD")
+    status = git(root, "status", "--porcelain", "--untracked-files=all")
+    return {
+        "commit": (commit.stdout.strip() or None) if commit.returncode == 0 else None,
+        "dirty": bool(status.stdout.strip()) if status.returncode == 0 else None,
+    }
+
+
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -319,6 +345,16 @@ def resolve(path: str) -> Path:
     return candidate if candidate.is_absolute() else ROOT / candidate
 
 
+def remove_previous_report(path: Path) -> None:
+    """Keep a run that fails before `write_report` from leaving an old verdict."""
+    try:
+        path.unlink(missing_ok=True)
+    except OSError as error:
+        raise PairedPerformanceError(
+            f"cannot remove the previous report '{path}': {error}"
+        ) from error
+
+
 def write_report(path: Path, report: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -334,6 +370,7 @@ def write_report(path: Path, report: dict[str, Any]) -> None:
 def main(argv: list[str]) -> int:
     arguments = parse_arguments(argv)
     output = resolve(arguments.output)
+    remove_previous_report(output)
     work_dir = resolve(arguments.work_dir)
     candidate_root = Path(arguments.candidate_root).resolve()
     candidate_scratch = (
@@ -354,7 +391,6 @@ def main(argv: list[str]) -> int:
         baseline = {"ref": arguments.baseline_commit, "commit": resolved.stdout.strip()}
 
     swift_version = run(["swift", "--version"]).stdout.splitlines()
-    candidate_commit = git(candidate_root, "rev-parse", "HEAD").stdout.strip()
     report: dict[str, Any] = {
         "schemaVersion": 1,
         "metric": "median of per-block candidate_min_ms / baseline_min_ms",
@@ -362,7 +398,7 @@ def main(argv: list[str]) -> int:
         "blocks": arguments.blocks,
         "rowsPerProcess": arguments.rows,
         "baseline": {**baseline, "pinned": pinned},
-        "candidate": {"commit": candidate_commit or None},
+        "candidate": candidate_identity(candidate_root),
         "benchmark": {
             "path": BENCHMARK_PATH,
             "filter": BENCHMARK_FILTER,
@@ -407,6 +443,14 @@ def main(argv: list[str]) -> int:
     if not build_tests(candidate_root, candidate_scratch, candidate_log):
         raise PairedPerformanceError(
             f"candidate does not build (log: {candidate_log})\n{log_tail(candidate_log)}"
+        )
+    # The blocks run this build without rebuilding it, so name the source it
+    # compiled: the tree may have changed while the baseline was building.
+    report["candidate"] = candidate_identity(candidate_root)
+    if report["candidate"]["dirty"]:
+        print(
+            "[paired-perf] candidate tree has uncommitted or untracked changes; "
+            "the report records it as dirty"
         )
 
     packages = {
