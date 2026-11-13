@@ -3,7 +3,7 @@
 - **Status**: Accepted (GA in 7.1.0)
 - **Authors**: InnoDI maintainers
 - **Created**: 2026-04-24
-- **Last updated**: 2026-11-11
+- **Last updated**: 2026-11-14
 - **Target release**: GA in 7.1.0. Promoted on 2026-11-11 by maintainer
   decision with one criterion not met; see
   [Promotion record](#promotion-record)
@@ -256,8 +256,10 @@ RFC revisions.
       [`StrictConcurrencyBuildTests`](../../Tests/InnoDIBuildSupportTests/StrictConcurrencyBuildTests.swift)
       and the external consumer fixture above
 - [ ] Dedicated RFC 0001 promotion PR opened with a 7-day cooldown. RFC 0006's
-      promotion PR does not satisfy this independent gate. The promotion change
-      is prepared; the PR and its cooldown have not started.
+      promotion PR does not satisfy this independent gate.
+      [PR #67](https://github.com/InnoSquadCorp/InnoDI/pull/67) opened on
+      2026-11-12, so the cooldown ends on 2026-11-19. This item stays open, and
+      the PR unmerged, until that date.
 
 When a checkbox flips, link the PR or issue that flipped it inline with the
 item.
@@ -302,6 +304,10 @@ generated symbol shape recorded by the variant snapshots.
 | 3. Strict-concurrency clean | Met. The `generate-mock-*` consumer fixtures and the `StrictConcurrencyBuildTests` mock fixture build under complete strict concurrency with warnings as errors. |
 | 4. Adopter signal | **Not met.** No adopter report was captured. This is a recorded deviation, as the roadmap requires for a contested criterion. |
 | 5. Promotion PR | Pending. The PR and its 7-day cooldown have not started. |
+
+The table records the state on 2026-11-11. The promotion PR,
+[#67](https://github.com/InnoSquadCorp/InnoDI/pull/67), opened on 2026-11-12,
+so its cooldown ends on 2026-11-19.
 
 Promotion cannot be reversed: a GA surface can only be deprecated with a
 written upgrade path.
