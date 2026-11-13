@@ -376,8 +376,9 @@ its earlier compatibility tests remain non-voting evidence.
 
 The train does not add runtime registration, an `@Injected` service locator,
 or arbitrary global lifetime scopes. `@GenerateMock` and scoped task-local
-overrides kept their independent promotion gates through this train. Scoped
-task-local overrides were rejected with RFC 0003 on 2026-11-11.
+overrides kept their independent promotion gates through this train. Both
+were settled on 2026-11-11: `@GenerateMock` was promoted in 7.1.0 and scoped
+task-local overrides were rejected with RFC 0003.
 
 ## Experimental Features & Promotion Criteria
 
@@ -399,14 +400,18 @@ true before the next minor release can promote them.
 
 ### Active experimental surfaces
 
-| Surface | RFC | Phase | Target version | GA criteria |
-|---|---|---|---|---|
-| `@GenerateMock` | [RFC 0001](docs/rfcs/0001-macro-mock-generation.md) | `stage-2` | TBD after GA criteria | All five criteria below must hold simultaneously. |
+No surface is experimental at present.
 
 Scoped task-local overrides were listed here as a `skeleton` candidate.
 [RFC 0003](docs/rfcs/0003-scoped-task-local-overrides.md#rejection-2026-11-11)
 was rejected on 2026-11-11 before any implementation landed. Per-operation
 overrides use the generated `withOverrides` and `InnoDITesting` presets.
+
+### Promoted surfaces
+
+| Surface | RFC | GA version | Promotion |
+|---|---|---|---|
+| `@GenerateMock` | [RFC 0001](docs/rfcs/0001-macro-mock-generation.md) | 7.1.0 | Promoted on 2026-11-11 by maintainer decision. The adopter-signal criterion was not met and the promotion PR cooldown had not started; the RFC's promotion record states both. Requirements left out of GA are tracked in [RFC 0010](docs/rfcs/0010-generate-mock-post-ga-scope.md). |
 
 ### GA criteria for experimental macros
 

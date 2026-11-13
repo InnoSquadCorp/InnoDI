@@ -5,7 +5,7 @@
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
 > [!IMPORTANT]
-> 이 페이지는 **InnoDI 7.0.3 개발 체크아웃(미출시)**의 예제입니다.
+> 이 페이지는 **InnoDI 7.1.0 개발 체크아웃(미출시)**의 예제입니다.
 > 배포 버전을 쓰는 경우 [7.0.2 문서](https://github.com/InnoSquadCorp/InnoDI/blob/7.0.2/README.ko.md)를 따라 설치하세요.
 > 6.x에서 필요한 소스 변경은 [마이그레이션 가이드](Sources/InnoDI/InnoDI.docc/ko.lproj/MigrationGuide.md#6x--70)를 따르세요.
 
@@ -171,7 +171,7 @@ dependencies: [
 ]
 ```
 
-이하 product·plugin·API 예제는 모두 **InnoDI 7.0.3 개발 체크아웃(미출시)**를 기준으로 합니다.
+이하 product·plugin·API 예제는 모두 **InnoDI 7.1.0 개발 체크아웃(미출시)**를 기준으로 합니다.
 6.x에서 필요한 소스 변경은
 [마이그레이션 가이드](Sources/InnoDI/InnoDI.docc/ko.lproj/MigrationGuide.md#6x--70)를 따르세요.
 

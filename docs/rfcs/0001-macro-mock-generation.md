@@ -1,11 +1,12 @@
 # RFC 0001 — Macro-driven mock generation
 
-- **Status**: Accepted (experimental); available on `main` as opt-in
+- **Status**: Accepted (GA in 7.1.0)
 - **Authors**: InnoDI maintainers
 - **Created**: 2026-04-24
-- **Last updated**: 2026-09-07
-- **Target release**: Experimental until the published GA criteria
-  pass (not a 5.0 blocker)
+- **Last updated**: 2026-11-14
+- **Target release**: GA in 7.1.0. Promoted on 2026-11-11 by maintainer
+  decision with one criterion not met; see
+  [Promotion record](#promotion-record)
 
 ## Initial answers to open questions
 
@@ -132,24 +133,28 @@ mixed real/mock graphs.
 
 ## Open questions
 
-- **Generic protocols**: do we synthesize a generic mock class, or
-  require the user to specify the concrete instantiation on the macro?
-  Leaning toward "generic mock" — it preserves the callability of the
-  protocol and matches what users expect.
-- **Associated types**: Swift macros can read associatedtype
-  declarations but not resolve their constraints across modules. We
-  may need to require the user to pin them via
-  `@GenerateMock(associatedTypes: ["Token": AuthToken.self])`.
-- **Actor protocols**: how should we model protocols with actor
-  isolation inherited from `@globalActor`? Likely a separate mode
-  (`.actor` vs `.sendableStruct`).
-- **Mutation tracking (resolved for the experimental shape)**: generated
-  `.calls` and `.all` reset scopes close a numbered call generation and return
-  its aggregate snapshot. This bounds reusable-mock history without conflating
-  call cleanup with stub cleanup.
-- **Snapshot of call args**: some types are hard to `Equatable`. A
-  fallback "opaque" call record that stores `Any` may be useful, but
-  loses `#expect` comparison ergonomics.
+Every question is resolved or marked out of scope for GA. The answers are in
+[Initial answers to open questions](#initial-answers-to-open-questions).
+
+- **Generic protocols** — resolved. Generic method requirements are mocked
+  through erased handlers. Genericity expressed through associated types is
+  the next bullet.
+- **Associated types** — `Out-of-scope for GA`. The macro rejects them with
+  `mock.unsupported-member`. Explicit pinning such as
+  `@GenerateMock(associatedTypes: ["Token": AuthToken.self])` is tracked in
+  [RFC 0010](0010-generate-mock-post-ga-scope.md).
+- **Actor protocols** — resolved for protocol-level `@MainActor`, which is
+  supported. Custom global actors and individually isolated requirements are
+  `Out-of-scope for GA` and tracked in
+  [RFC 0010](0010-generate-mock-post-ga-scope.md).
+- **Mutation tracking** — resolved. Generated `.calls` and `.all` reset scopes
+  close a numbered call generation and return its aggregate snapshot. This
+  bounds reusable-mock history without conflating call cleanup with stub
+  cleanup.
+- **Snapshot of call args** — resolved for the shapes a generated `Call`
+  struct can store; a parameter it cannot store fails closed. A fallback
+  record that stores `Any` is `Out-of-scope for GA` and tracked in
+  [RFC 0010](0010-generate-mock-post-ga-scope.md).
 
 ## Alternatives considered
 
@@ -192,8 +197,8 @@ adopter reports and a dedicated promotion pull request.
 
 ## Implementation Status
 
-Phase: **stage-2** (see [ROADMAP.md](../../ROADMAP.md#pipeline-phases) for
-phase definitions). This section is updated in the same PR that lands a
+Phase: **GA** from 7.1.0 (see [ROADMAP.md](../../ROADMAP.md#pipeline-phases)
+for phase definitions). This section is updated in the same PR that lands a
 status-changing piece of work, so it can serve as the rolling truth between
 RFC revisions.
 
@@ -233,20 +238,28 @@ RFC revisions.
       snapshots without lost or duplicated generation counts; calls-only reset
       preserves stubs and full reset restores missing-stub state for both
       `Sendable` and `@MainActor` mocks.
-- [ ] Associated-type protocols (per RFC `Initial answers to open questions`,
-      with `@GenerateMock(associatedTypes: ...)` syntax)
-- [ ] Custom global-actor and individually isolated requirements — currently
-      *Out-of-scope for GA* and still require a dedicated follow-up contract
-- [ ] `bundleWithOverrides:` integration with the `Overrides` builder
+- [ ] Associated-type protocols — *Out-of-scope for GA*; tracked in
+      [RFC 0010](0010-generate-mock-post-ga-scope.md)
+- [ ] Custom global-actor and individually isolated requirements —
+      *Out-of-scope for GA*; tracked in
+      [RFC 0010](0010-generate-mock-post-ga-scope.md)
+- [ ] `bundleWithOverrides:` integration with the `Overrides` builder —
+      *Out-of-scope for GA*; tracked in
+      [RFC 0010](0010-generate-mock-post-ga-scope.md)
 - [ ] At least two `@GenerateMock` adopter reports captured (see GA criteria
-      #4). The RFC 0006 container pilots do not exercise this macro and are not
-      counted.
+      #4). **Deviation**: none were captured. The RFC 0006 container pilots do
+      not exercise this macro and are not counted. The maintainer promoted the
+      macro without this signal on 2026-11-11; see
+      [Promotion record](#promotion-record).
 - [x] Strict-concurrency-clean compile/run coverage across the currently
       supported shape matrix in
       [`StrictConcurrencyBuildTests`](../../Tests/InnoDIBuildSupportTests/StrictConcurrencyBuildTests.swift)
       and the external consumer fixture above
 - [ ] Dedicated RFC 0001 promotion PR opened with a 7-day cooldown. RFC 0006's
       promotion PR does not satisfy this independent gate.
+      [PR #67](https://github.com/InnoSquadCorp/InnoDI/pull/67) opened on
+      2026-11-12, so the cooldown ends on 2026-11-19. This item stays open, and
+      the PR unmerged, until that date.
 
 When a checkbox flips, link the PR or issue that flipped it inline with the
 item.
@@ -263,9 +276,10 @@ context-hopping.
    empty, or every remaining bullet is explicitly marked
    `Out-of-scope for GA` with a follow-up RFC reference.
 2. **Snapshot coverage** — every in-scope variant (sync, async, throws,
-   generic, overloaded, associated-type-bound) is covered by an
-   `assertMacroExpansion*` snapshot test. Snapshot diffs from the previous
-   minor are reviewed and intentional.
+   generic, overloaded) is covered by an `assertMacroExpansion*` snapshot
+   test. Associated-type-bound requirements are out of scope for GA
+   ([RFC 0010](0010-generate-mock-post-ga-scope.md)). Snapshot diffs from the
+   previous minor are reviewed and intentional.
 3. **Strict-concurrency clean** — generated mocks compile under
    `-Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors` in
    the PR gate without warnings.
@@ -276,3 +290,24 @@ context-hopping.
    "Experimental" to the stable description, removes the experimental marker
    from the ROADMAP table, and records the promotion under the relevant minor in `CHANGELOG.md`.
    The PR sits open for a 7-day cooldown so existing adopters can object.
+
+### Promotion record
+
+`@GenerateMock` was promoted to GA for 7.1.0 on 2026-11-11 by maintainer
+decision. The expansion did not change; semantic versioning now covers the
+generated symbol shape recorded by the variant snapshots.
+
+| Criterion | State at promotion |
+|---|---|
+| 1. Open questions | Met. Every bullet is resolved or marked `Out-of-scope for GA` with [RFC 0010](0010-generate-mock-post-ga-scope.md). |
+| 2. Snapshot coverage | Met for the in-scope variants in `GenerateMockVariantSnapshotTests`. |
+| 3. Strict-concurrency clean | Met. The `generate-mock-*` consumer fixtures and the `StrictConcurrencyBuildTests` mock fixture build under complete strict concurrency with warnings as errors. |
+| 4. Adopter signal | **Not met.** No adopter report was captured. This is a recorded deviation, as the roadmap requires for a contested criterion. |
+| 5. Promotion PR | Pending. The PR and its 7-day cooldown have not started. |
+
+The table records the state on 2026-11-11. The promotion PR,
+[#67](https://github.com/InnoSquadCorp/InnoDI/pull/67), opened on 2026-11-12,
+so its cooldown ends on 2026-11-19.
+
+Promotion cannot be reversed: a GA surface can only be deprecated with a
+written upgrade path.
