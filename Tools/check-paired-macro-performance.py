@@ -20,9 +20,11 @@ Every run removes an earlier report at --output before it does anything else,
 so a run that fails before it writes a report leaves none behind. A command
 line that is rejected with exit status 2 starts no run and removes nothing.
 
-The report names the candidate by its commit and by whether the working tree
-matched that commit when the candidate was built. A tree with uncommitted or
-untracked changes is measured and recorded as dirty, never rejected.
+The report names the candidate by its commit, by whether the working tree
+matched that commit when the candidate was built, and by the git tree id of
+the content in that working tree. A tree with uncommitted or untracked changes
+is measured and recorded as dirty, never rejected, and two such trees at one
+commit have different tree ids.
 """
 
 from __future__ import annotations
@@ -38,6 +40,7 @@ import shutil
 import statistics
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Optional
 
@@ -180,8 +183,8 @@ def run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess:
     return subprocess.run(command, text=True, capture_output=True, **kwargs)
 
 
-def git(root: Path, *arguments: str) -> subprocess.CompletedProcess:
-    return run(["git", "-C", str(root), *arguments])
+def git(root: Path, *arguments: str, **kwargs: Any) -> subprocess.CompletedProcess:
+    return run(["git", "-C", str(root), *arguments], **kwargs)
 
 
 def commit_is_available(root: Path, commit: str) -> bool:
@@ -198,12 +201,55 @@ def ensure_commit(root: Path, commit: str) -> None:
         )
 
 
+def working_tree_id(root: Path) -> Optional[str]:
+    """Return the git tree id of the content in the working tree, or None.
+
+    It is the tree that committing every tracked change and every untracked,
+    non-ignored file would record. A clean tree therefore gets the tree of
+    its commit (`git rev-parse HEAD^{tree}`), and two working trees get one
+    id only when their content is the same.
+
+    The tree is built in a temporary index, and the objects it adds go to a
+    temporary object directory that reads the repository's own store as an
+    alternate. Nothing is written to the user's index, working tree or object
+    store.
+    """
+    store = git(root, "rev-parse", "--git-path", "objects")
+    if store.returncode != 0 or not store.stdout.strip():
+        return None
+    try:
+        with tempfile.TemporaryDirectory(prefix="innodi-paired-tree-") as scratch:
+            added_objects = Path(scratch) / "objects"
+            added_objects.mkdir()
+            alternates = [str(root / store.stdout.strip())]
+            if os.environ.get("GIT_ALTERNATE_OBJECT_DIRECTORIES"):
+                alternates.append(os.environ["GIT_ALTERNATE_OBJECT_DIRECTORIES"])
+            environment = {
+                **os.environ,
+                "GIT_INDEX_FILE": str(Path(scratch) / "index"),
+                "GIT_OBJECT_DIRECTORY": str(added_objects),
+                "GIT_ALTERNATE_OBJECT_DIRECTORIES": os.pathsep.join(alternates),
+            }
+            for arguments in (("read-tree", "HEAD"), ("add", "--all")):
+                if git(root, *arguments, env=environment).returncode != 0:
+                    return None
+            tree = git(root, "write-tree", env=environment)
+    except OSError:
+        return None
+    value = tree.stdout.strip()
+    if tree.returncode != 0 or not re.fullmatch(r"[0-9a-f]{40,64}", value):
+        return None
+    return value
+
+
 def candidate_identity(root: Path) -> dict[str, Any]:
-    """Name the candidate source: its commit, and whether the tree matches it.
+    """Name the candidate source: its commit, its content, and whether they match.
 
     A tree with staged, modified or untracked files builds something other
     than its commit, so the commit alone would give two sources one name.
-    Untracked files are requested explicitly because a user's
+    `dirty` says that the tree differs from the commit and `tree` says what
+    it holds, so two different edits at one commit are told apart. Untracked
+    files are requested explicitly because a user's
     `status.showUntrackedFiles=no` would otherwise hide a new source file.
     Files that `.gitignore` excludes are not examined. A value is None when
     git cannot report it.
@@ -213,6 +259,7 @@ def candidate_identity(root: Path) -> dict[str, Any]:
     return {
         "commit": (commit.stdout.strip() or None) if commit.returncode == 0 else None,
         "dirty": bool(status.stdout.strip()) if status.returncode == 0 else None,
+        "tree": working_tree_id(root),
     }
 
 
@@ -451,6 +498,11 @@ def main(argv: list[str]) -> int:
         print(
             "[paired-perf] candidate tree has uncommitted or untracked changes; "
             "the report records it as dirty"
+        )
+    if report["candidate"]["tree"] is None:
+        print(
+            "[paired-perf] git could not identify the candidate tree's content; "
+            "the report records its tree as null"
         )
 
     packages = {

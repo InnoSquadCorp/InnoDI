@@ -124,7 +124,8 @@ class PairedInputTests(unittest.TestCase):
             export.mkdir()
             # Keep git from finding a repository that happens to enclose the temporary directory.
             with mock.patch.dict(os.environ, {"GIT_CEILING_DIRECTORIES": str(ceiling)}):
-                self.assertEqual(paired.candidate_identity(export), {"commit": None, "dirty": None})
+                self.assertEqual(paired.candidate_identity(export),
+                                 {"commit": None, "dirty": None, "tree": None})
 
     def test_report_path_that_cannot_be_cleared_is_an_error(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -195,9 +196,12 @@ class PairedGateProcessTests(unittest.TestCase):
         repository = self.make_repository(candidate_ms, **options)
         return (*self.invoke(repository, extra), repository)
 
-    def head(self, repository):
-        return subprocess.run(["git", "-C", str(repository), "rev-parse", "HEAD"], check=True,
-                              capture_output=True, text=True).stdout.strip()
+    def git_output(self, repository, *arguments):
+        return subprocess.run(["git", "-C", str(repository), *arguments], check=True,
+                              capture_output=True, text=True).stdout
+
+    def head(self, repository, revision="HEAD"):
+        return self.git_output(repository, "rev-parse", revision).strip()
 
     def test_unchanged_candidate_is_a_measured_pass(self):
         result, report, repository = self.run_gate(candidate_ms=101.0)
@@ -322,7 +326,9 @@ class PairedGateProcessTests(unittest.TestCase):
         commit = self.head(repository)
         result, report = self.invoke(repository)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(report["candidate"], {"commit": commit, "dirty": False})
+        # A clean tree is named by its commit and by that commit's tree.
+        clean = self.head(repository, "HEAD^{tree}")
+        self.assertEqual(report["candidate"], {"commit": commit, "dirty": False, "tree": clean})
         self.assertNotIn("records it as dirty", result.stdout)
         # A setting that hides untracked files must not hide a new source file.
         subprocess.run(["git", "-C", str(repository), "config", "status.showUntrackedFiles", "no"],
@@ -334,7 +340,8 @@ class PairedGateProcessTests(unittest.TestCase):
         # Measured, not rejected: local iteration on uncommitted changes keeps working.
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(report["status"], "ok")
-        self.assertEqual(report["candidate"], {"commit": commit, "dirty": True})
+        with_untracked = report["candidate"]
+        self.assertEqual((with_untracked["commit"], with_untracked["dirty"]), (commit, True))
         self.assertIn("candidate tree has uncommitted or untracked changes", result.stdout)
         untracked.unlink()
         # A tracked file that differs from the commit: another source, the same commit.
@@ -342,20 +349,90 @@ class PairedGateProcessTests(unittest.TestCase):
         result, report = self.invoke(repository)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(report["ratio"], 1.03)
-        self.assertEqual(report["candidate"], {"commit": commit, "dirty": True})
+        with_edit = report["candidate"]
+        self.assertEqual((with_edit["commit"], with_edit["dirty"]), (commit, True))
+        # Three sources at one commit, three identities; the same content again, the same one.
+        self.assertEqual(len({clean, with_untracked["tree"], with_edit["tree"]}), 3)
+        result, report = self.invoke(repository)
+        self.assertEqual(report["candidate"], with_edit)
+
+    def test_tree_identifies_the_content_of_the_working_tree(self):
+        repository = self.make_repository(candidate_ms=101.0, commit_candidate=True)
+        clean = self.head(repository, "HEAD^{tree}")
+        tree = lambda: paired.candidate_identity(repository)["tree"]
+        self.assertEqual(tree(), clean)
+        # Two uncommitted edits of one tracked file are two sources at one commit.
+        (repository / "MS").write_text("103.0")
+        first = tree()
+        self.assertEqual(tree(), first)
+        (repository / "MS").write_text("104.0")
+        second = tree()
+        self.assertEqual(len({clean, first, second}), 3)
+        (repository / "MS").write_text("101.0")
+        self.assertEqual(tree(), clean)
+        # An untracked source file is content, and so is what it holds.
+        untracked = repository / "Sources/New.swift"
+        untracked.parent.mkdir()
+        untracked.write_text("// one\n")
+        added = tree()
+        untracked.write_text("// two\n")
+        self.assertEqual(len({clean, added, tree()}), 3)
+        untracked.unlink()
+        # What git ignores, here the gate's own output directory, is not source.
+        (repository / "build").mkdir()
+        (repository / "build/report.json").write_text("{}")
+        self.assertEqual(tree(), clean)
+
+    def test_identifying_the_tree_writes_nothing_to_the_repository(self):
+        repository = self.make_repository(candidate_ms=101.0, commit_candidate=True)
+        (repository / "MS").write_text("103.0")
+        (repository / BENCHMARK).write_text("// staged edit\n")
+        self.git_output(repository, "add", BENCHMARK)
+        (repository / "New.swift").write_text("// untracked\n")
+        state = lambda: [self.git_output(repository, *arguments) for arguments in (
+            ("status", "--porcelain", "--untracked-files=all"), ("ls-files", "--stage"),
+            ("count-objects", "-v"))]
+        before = state()
+        tree = paired.working_tree_id(repository)
+        self.assertRegex(tree, r"^[0-9a-f]{40,64}$")
+        self.assertNotEqual(tree, self.head(repository, "HEAD^{tree}"))
+        self.assertEqual(state(), before)
+        # The tree and the blobs behind it stayed in the temporary object directory.
+        missing = subprocess.run(["git", "-C", str(repository), "cat-file", "-e", tree],
+                                 capture_output=True)
+        self.assertNotEqual(missing.returncode, 0)
+
+    @unittest.skipIf(os.geteuid() == 0, "root reads a file whatever its mode")
+    def test_content_git_cannot_read_is_recorded_as_null_and_still_measured(self):
+        repository = self.make_repository(candidate_ms=101.0, commit_candidate=True)
+        unreadable = repository / "Unreadable.swift"
+        unreadable.write_text("// git cannot hash this\n")
+        unreadable.chmod(0)
+        self.addCleanup(unreadable.chmod, 0o600)
+        result, report = self.invoke(repository)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(report["status"], "ok")
+        self.assertEqual(report["candidate"],
+                         {"commit": self.head(repository), "dirty": True, "tree": None})
+        self.assertIn("the report records its tree as null", result.stdout)
 
     def test_candidate_changed_while_the_baseline_built_is_recorded_as_dirty(self):
         repository = self.make_repository(candidate_ms=101.0, commit_candidate=True)
         result, report = self.invoke(
             repository, environment={"INNODI_PAIRED_TEST_WRITE": str(repository / "New.swift")})
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(report["candidate"], {"commit": self.head(repository), "dirty": True})
+        candidate = report["candidate"]
+        self.assertEqual((candidate["commit"], candidate["dirty"]), (self.head(repository), True))
+        # The file the build wrote is still there, so the tree is the one that was built.
+        self.assertEqual(candidate["tree"], paired.working_tree_id(repository))
+        self.assertNotEqual(candidate["tree"], self.head(repository, "HEAD^{tree}"))
 
     def test_insufficient_evidence_report_identifies_the_candidate(self):
         result, report, repository = self.run_gate(candidate_ms=101.0, unreachable_baseline=True,
                                                    commit_candidate=True)
         self.assertEqual(report["status"], "insufficient-evidence")
-        self.assertEqual(report["candidate"], {"commit": self.head(repository), "dirty": False})
+        self.assertEqual(report["candidate"], {"commit": self.head(repository), "dirty": False,
+                                               "tree": self.head(repository, "HEAD^{tree}")})
 
 
 if __name__ == "__main__":
