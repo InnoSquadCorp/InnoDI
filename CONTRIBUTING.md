@@ -158,6 +158,20 @@ python3 -B Tools/check-paired-macro-performance.py --report-only
 `--baseline-commit <rev>` compares against another revision for an experiment.
 The checked-in baseline moves only to a released commit, in a reviewed change.
 
+Each run removes the report left by an earlier run before it starts, so a run
+that fails before it writes a report leaves none. The report names the
+candidate by `candidate.commit`, `candidate.dirty` and `candidate.tree`.
+`dirty` is `true` when the tree had uncommitted or untracked changes once the
+candidate was built. Such a tree is measured, not rejected, and its report is
+not a measurement of the commit alone. `tree` is the git tree id of the
+content that was built: the tree a commit of every tracked change and every
+untracked file would record. For a clean tree it equals
+`git rev-parse <commit>^{tree}`, and two different uncommitted edits at one
+commit get two different ids. Computing it writes nothing to your index,
+working tree or object store, and it is `null` when git cannot compute it.
+Files that `.gitignore` excludes are build products, not sources, and count
+toward neither field.
+
 Source PRs use a separate 30-minute fast lane selected by CI Plan. It keeps all in-process unit,
 macro-expansion, graph, runtime, migration, documentation, public-API, and DAG
 contracts, but defers contracts that spawn clean external SwiftPM builds to
