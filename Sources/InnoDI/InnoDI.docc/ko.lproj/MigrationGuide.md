@@ -18,6 +18,7 @@ breaking change 표는
 | 4.2 → 4.3 | Feature-root 헬퍼 통합 | 새 SwiftUI feature-root 헬퍼는 스택드 `@DIFeatureRoot` 대신 `@SubContainer(featureRoot:)` 또는 `featureRoots:`로 옮기세요. `@DIFeatureRoot`는 호환성 용도로 deprecated 상태로 남습니다. |
 | 4.x → 4.x+1 (experimental) | `@GenerateMock` opt-in | RFC 0001의 1-3단계는 **experimental**로 제공됩니다. Attribute는 안정적이지만 생성되는 mock 형태는 바뀔 수 있습니다. 도입은 opt-in입니다. <doc:AutoMock>을 참고하세요. |
 | 5.x → 6.0 | 명시적인 input과 container role 표기 | `@Provide(.input)`을 `@Input`으로, hierarchy/isolation marker를 `@DIContainerRole`로 바꾸세요. [5.x → 6.0](#5x--60-어휘)을 참고하세요. |
+| 7.0 → 7.1 | `@GenerateMock` 정식화(GA) | 소스 변경은 필요 없습니다. 생성되는 mock 형태에도 semantic versioning이 적용됩니다. <doc:AutoMock>을 참고하세요. |
 | 6.x → 7.0 | Parent key path 정규화, 명시적 SwiftUI import, typed prewarm, 선택적 owned 비동기 수명 관리 | 서브컨테이너 parent key path를 `\Self.member`로 쓰고, `InnoDISwiftUI`를 import하는 파일에서 SwiftUI도 import하세요. `InnoDI-Migrate`가 둘 다 처리합니다. macOS target을 14로 올리고 host owner 관찰을 Observation으로 옮기세요. key path prewarm 호출은 직접 옮기세요. Owned preparation과 override helper는 선택적인 추가 API입니다. [6.x → 7.0](#6x--70)을 참고하세요. |
 | 4.x → 5.0 | 공개 계약 강화 | `concrete:`와 `@DIFeatureRoot`를 제거하고, 지원 선언 경계·MainActor 격리·검증·Graph JSON v2 변경에 맞춰 마이그레이션하세요. `@GenerateMock`는 experimental 상태를 유지합니다. |
 

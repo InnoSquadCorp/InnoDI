@@ -2,7 +2,7 @@
 //  GenerateMockMacro.swift
 //  InnoDIMacros
 //
-//  RFC 0001 (`@GenerateMock`) experimental implementation.
+//  RFC 0001 (`@GenerateMock`) implementation. Generally available from 7.1.0.
 //
 //  Stage 1 (skeleton) shipped attribute validation and a tracking note.
 //  Stage 2 walks a protocol's member block and emits a
@@ -491,8 +491,8 @@ func unsupportedMockIsolation(
 
 private func mockTypeAccessPrefix(for protocolDecl: ProtocolDeclSyntax) -> String {
     // A peer of a private/fileprivate protocol cannot legally expose a wider
-    // conformance. Keep all other generated mocks internal so this
-    // experimental macro does not expand a public package API implicitly.
+    // conformance. Keep all other generated mocks internal so the macro
+    // does not expand a public package API implicitly.
     for modifier in protocolDecl.modifiers {
         switch modifier.name.text {
         case "private", "fileprivate":

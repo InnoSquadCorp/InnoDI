@@ -836,12 +836,12 @@ public protocol _InnoDIMainActorComponentMountable {
 /// for workspaces that declare at least one root container with this marker.
 public protocol DIHierarchyRootMarker {}
 
-/// Experimental — synthesizes a call-recording mock peer for a protocol.
+/// Synthesizes a call-recording mock peer for a protocol.
 ///
 /// `@GenerateMock` is the RFC 0001 entry point. Attach it to a protocol
 /// declaration to have InnoDI emit a `Mock` peer with stubbed return
-/// values, recorded call lists, and protocol conformance. The 6.0 candidate
-/// supports top-level protocols, overload-qualified helper names, typed
+/// values, recorded call lists, and protocol conformance. It supports
+/// top-level protocols, overload-qualified helper names, typed
 /// throws, `@MainActor` protocols, and lock-backed `Sendable` protocols.
 /// `Sendable` mock consumers also add the `InnoDITesting` product, which owns
 /// the concurrency-safe storage and interaction validation helpers. Generic
@@ -850,17 +850,12 @@ public protocol DIHierarchyRootMarker {}
 /// The `Overrides` builder bundling option remains planned (see
 /// `bundleWithOverrides:`).
 ///
-/// Track RFC 0001 (`docs/rfcs/0001-macro-mock-generation.md`) for the
-/// rollout schedule. Adoption remains opt-in through InnoDI 6.0; the macro
-/// reaches GA only after RFC 0001's dedicated promotion criteria pass, and
-/// the generated shape may evolve until then.
-///
-/// > Important: this surface is experimental. The attribute name is
-/// > stable, but generated symbol shape (mock helper names, storage
-/// > suffixes, override slot names) is **not** SemVer-frozen until GA.
-/// > See [ROADMAP — Experimental Features &
-/// > Promotion Criteria](https://github.com/InnoSquadCorp/InnoDI/blob/main/ROADMAP.md#experimental-features--promotion-criteria)
-/// > for the registry of experimental surfaces, the pipeline phases, and
-/// > the gates a feature must clear before promotion.
+/// The macro is generally available from InnoDI 7.1.0. Semantic versioning
+/// covers the attribute and the generated symbol shape: mock helper names,
+/// storage suffixes, and override slot names. A requirement the macro cannot
+/// mock, such as an associated type or a custom global actor, is rejected
+/// with `mock.unsupported-member` instead of producing a partial conformance.
+/// RFC 0001 (`docs/rfcs/0001-macro-mock-generation.md`) records the promotion,
+/// and RFC 0010 tracks the requirements left out of it.
 @attached(peer, names: suffixed(Mock))
 public macro GenerateMock() = #externalMacro(module: "InnoDIMacros", type: "GenerateMockMacro")
