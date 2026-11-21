@@ -559,11 +559,17 @@ Most frequently-hit codes:
 - `mock.experimental-skeleton` — emitted as a note when the protocol
   declares no members. Confirms the macro plugin saw the attribute and
   produced the empty mock skeleton.
-- `mock.unsupported-member` — one or more protocol requirements prevent
-  synthesis (static/class requirements, subscripts, associated types,
-  `inout` parameters, `rethrows` or typed `throws`, or opaque `some`
-  return types). The diagnostic message lists up to five member names;
-  implement those mocks manually until the next RFC 0001 stage lands.
+- `mock.unsupported-member` — one or more protocol requirements or protocol
+  features prevent synthesis: `static`/`class`, `init`, and `subscript`
+  requirements, associated types, `typealias` members, members inside `#if`,
+  protocol inheritance other than `AnyObject` and `Sendable` (including
+  `where Self:` clauses), custom global actors and individually isolated
+  requirements, a requirement's own platform `@available` beyond InnoDI's
+  minimum platforms and the protocol's availability, `inout` and nonescaping
+  closure parameters, parameter packs, `rethrows`, generic typed `throws`,
+  generic requirements on `Sendable` protocols, and opaque `some` types. The
+  message lists up to five members, with the reason where one applies, and
+  the macro emits no mock; write those mocks by hand.
 
 See <doc:AutoMock> for the supported member shapes and the generated
 storage layout.

@@ -859,3 +859,14 @@ public protocol DIHierarchyRootMarker {}
 /// and RFC 0010 tracks the requirements left out of it.
 @attached(peer, names: suffixed(Mock))
 public macro GenerateMock() = #externalMacro(module: "InnoDIMacros", type: "GenerateMockMacro")
+
+/// The untyped error existential that `@GenerateMock` spells in generated
+/// mocks, for example in `Result<T, _InnoDIMockError>` stub slots.
+///
+/// It is the standard library's `Error` protocol. The reserved name keeps a
+/// generated mock correct next to a user type named `Error`, or a type named
+/// `Swift` that hides the standard library's module name.
+///
+/// > Important: This is an InnoDI implementation detail. Write `Error` in
+/// > application and test code.
+public typealias _InnoDIMockError = Error

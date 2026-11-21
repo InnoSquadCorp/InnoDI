@@ -554,11 +554,17 @@ struct App {
 - `mock.experimental-skeleton` — protocol에 member가 없을 때 note로
   발생합니다. 매크로 plugin이 attribute를 보고 빈 mock skeleton을
   생성했음을 확인하는 신호입니다.
-- `mock.unsupported-member` — static/class requirement, subscript,
-  associated type, `inout` parameter, `rethrows`/typed `throws`,
-  opaque `some` return type 등 때문에 mock synthesis가 불가능합니다.
-  메시지에 최대 다섯 개의 member 이름이 표시되며, 다음 RFC 0001 단계가
-  적용될 때까지 해당 mock은 수동으로 구현해야 합니다.
+- `mock.unsupported-member` — 하나 이상의 protocol requirement나 protocol
+  기능 때문에 mock synthesis가 불가능합니다. `static`/`class`, `init`,
+  `subscript` requirement, associated type, `typealias` member, `#if` 안의
+  member, `AnyObject`와 `Sendable`이 아닌 protocol 상속(`where Self:` 절 포함),
+  custom global actor와 개별 격리 requirement, InnoDI의 최소 platform과
+  protocol의 availability를 넘는 requirement 자체의 platform `@available`,
+  `inout`과 nonescaping closure parameter, parameter pack, `rethrows`, generic
+  typed `throws`, `Sendable` protocol의 generic requirement, opaque `some` 타입이
+  여기에 해당합니다. 메시지에는 최대 다섯 개의 member가 해당하는 경우 이유와
+  함께 표시되며, 매크로는 mock을 생성하지 않습니다. 그런 mock은 직접
+  작성하세요.
 
 지원하는 member 형태와 생성 storage layout은 <doc:AutoMock>을 참고하세요.
 

@@ -3,7 +3,7 @@
 - **Status**: Draft
 - **Authors**: InnoDI maintainers
 - **Created**: 2026-11-11
-- **Last updated**: 2026-11-11
+- **Last updated**: 2026-11-21
 - **Target release**: none assigned
 - **Related**: [RFC 0001](0001-macro-mock-generation.md)
 
@@ -23,8 +23,10 @@ The macro never emits a partial conformance for them.
 |---|---|---|
 | Associated types | Rejected | How a consumer pins each associated type, for example `@GenerateMock(associatedTypes: ...)`, and how a constraint declared in another module resolves. |
 | Custom global actors and individually isolated requirements | Rejected; protocol-level `@MainActor` is supported | Whether isolation other than `@MainActor` needs its own generation mode. |
-| Protocol inheritance other than `AnyObject` and `Sendable` | Rejected, because an attached peer macro cannot see inherited requirements in other files or modules | Whether build support can supply the inherited requirements. |
+| Protocol inheritance other than `AnyObject` and `Sendable`, including `where Self: Parent` | Rejected, because an attached peer macro cannot see inherited requirements in other files or modules | Whether build support can supply the inherited requirements. |
 | `static` and `class` requirements | Rejected | Where type-level stubs and call records live. |
+| A requirement's own platform `@available` beyond InnoDI's minimum platforms and the protocol's availability | Rejected, because Swift cannot make the mock's stored stubs and call records potentially unavailable | Whether that requirement's storage can be type-erased behind availability-guarded accessors. |
+| Parameter packs (`each T`) | Rejected | How a call record and an erased handler carry a pack of arguments. |
 | Opaque call records | A generated `Call` struct stores value types; a parameter it cannot store fails closed | Whether a fallback record that stores `Any` is worth losing `#expect` comparisons. |
 | `bundleWithOverrides:` | Reserved and not implemented | How a generated mock is bundled into a container's `Overrides` builder. |
 

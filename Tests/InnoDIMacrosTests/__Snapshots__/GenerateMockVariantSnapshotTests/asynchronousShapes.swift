@@ -24,7 +24,7 @@ final class LoaderMock: Loader {
         }
         set {
             __innodi_loadReturnValueStorage = newValue
-            __innodi_loadIsStubbed = true
+            __innodi_loadIsStubbed = newValue != nil
         }
     }
     func load(path: String) async -> Data {

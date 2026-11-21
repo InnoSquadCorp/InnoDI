@@ -56,14 +56,18 @@ let completed = mock.innoDIReset(.calls)
 * **`func name(args)`(동기, non-throwing)** — 인자를 담는 `struct NameCall`,
   `private(set) var nameCalls: [NameCall]` 목록, optional
   `var nameReturnValue: ReturnType?` slot, 그리고 `nameCalls`에 호출을
-  추가하고 stub을 꺼내는 conforming 메서드.
+  추가하고 stub을 꺼내는 conforming 메서드. requirement가 이미 `NameCall`이라는
+  타입을 쓰고 있으면, 그 타입이 mock 안에서도 같은 뜻을 유지하도록 호출 기록은
+  `NameCall2`(또는 다음 빈 suffix)가 됩니다.
 * **`func name(args) async`** — 동기 경우와 같지만 생성된 메서드에 `async`
   효과가 붙습니다.
 * **`func name(args) throws -> T`** — optional 반환 slot을
   `var nameResult: Result<T, Error> = .failure(...)`로 바꿔, 테스트가 한 번의
   대입으로 `.success(value)`와 `.failure(error)` 중에서 고르게 합니다. 기본
   실패는 stub되지 않은 selector 이름을 출력하는 중첩 `_InnoDIMockNotStubbed`
-  오류입니다.
+  오류입니다. 생성 코드는 타입이 없는 오류를 InnoDI가 예약한 `Error` 별칭인
+  `_InnoDIMockError`로 표기하므로, protocol 옆에 있는 `Error`나 `Swift`라는
+  타입이 이를 가로채지 못합니다. slot의 타입은 여전히 `Result<T, any Error>`입니다.
 * **`func name(args) throws`(Void 반환)** — 값이 설정되면 생성된 본문이 다시
   던지는 `var nameThrownError: Error?` hook 하나를 추가합니다. 성공 동작을
   설정했다고 표시하려면 `nil`을 명시적으로 대입하세요.
@@ -82,6 +86,8 @@ let completed = mock.innoDIReset(.calls)
   파라미터는 값 배열 하나로 전달됩니다. 각 호출이 요구한 타입의 값을 반환해야
   하며, 다른 타입을 반환하면 cast precondition이 실패합니다. 반환 타입이
   `Any`라고 해서 임의의 generic 반환 타입을 보장할 수 있는 것은 아닙니다.
+  `Sendable` protocol의 generic requirement와 parameter pack(`each T`)이 있는
+  requirement는 거부합니다.
 * **`mutating` requirement** — 생성된 `final class` mock으로 지원하며, 합성된
   메서드에 `mutating`을 붙일 필요가 없습니다.
 * **접근 수준** — `private`와 `fileprivate` protocol의 mock은 그 좁은 접근
@@ -94,20 +100,27 @@ let completed = mock.innoDIReset(.calls)
   테스트가 기록된 클로저를 실행할 때까지 평가하지 않습니다. 일반 `@autoclosure`를
   포함한 nonescaping 클로저는 보관할 수 없으므로 지원하지 않는 형태라는 진단을
   냅니다. optional 클로저, variadic 클로저 배열, C 함수 포인터
-  (`@convention(c)`)는 계속 보관할 수 있습니다.
+  (`@convention(c)`)는 계속 보관할 수 있습니다. 매크로는 파라미터에 적힌 타입만
+  보고 클로저를 알아봅니다. typealias 뒤에 있는 함수 타입
+  (`typealias Visitor = (Int) -> Void`)은 다른 이름 있는 타입과 똑같이 보이므로,
+  매크로는 `_ visit: Visitor`가 nonescaping 클로저라는 것을 알 수 없습니다. 이때
+  mock은 생성되고, Swift가 expansion 안에서 escape 오류를 보고합니다.
+  requirement에 함수 타입을 직접 쓰거나, 클로저를 보관하는 것이 계약에 포함될
+  때는 `@escaping Visitor`로 쓰세요.
 * **variadic 인자** — 메서드는 원래의 variadic 호출 문법을 유지하고 호출 기록에는
   배열을 저장합니다. 인자가 없으면 빈 배열을 저장합니다.
 * **소유권 파라미터** — witness에는 `consuming`, `borrowing`, `sending`을
   보존하고 기록 필드에서는 제거합니다. borrowing과 consuming 인자는 호출 기록과
-  generic handler 인자에 명시적으로 복사합니다. 기록할 값은 `Copyable`과
-  `Escapable`이어야 합니다. 전달 전용 반환값과 noncopyable generic 입력에는
+  generic handler 인자에 명시적으로 복사합니다. `Sendable` mock은 lock에
+  들어가기 전에 `sending` 인자도 같은 방식으로 복사합니다. 기록할 값은
+  `Copyable`과 `Escapable`이어야 합니다. 전달 전용 반환값과 noncopyable generic 입력에는
   직접 작성한 mock을 사용하세요.
 * **protocol의 `Self`** — witness와 저장 타입에서 구체적인 final mock class를
   가리킵니다. 중첩 호출 기록의 인자도 같은 class를 가리키며, `Self` 반환값이나
   property에 다른 mock 인스턴스를 설정할 수 있습니다.
-* **동시성** — `Sendable`을 상속하는 protocol은 `InnoDITesting` product의 lock
-  기반 호출·stub storage를 받습니다. snapshot과 reset-safe 지원 타입은
-  unchecked conformance를 쓰지 않습니다. 컴파일러는 여전히 `Sendable`이 아닌
+* **동시성** — 상속 절이나 `where Self: Sendable`로 `Sendable`을 상속하는
+  protocol은 `InnoDITesting` product의 lock 기반 호출·stub storage를 받습니다.
+  snapshot과 reset-safe 지원 타입은 unchecked conformance를 쓰지 않습니다. 컴파일러는 여전히 `Sendable`이 아닌
   인자, 결과, stored property를 거부합니다. 일반 protocol은 단일 executor
   mock으로 남습니다.
 * **Actor 격리** — protocol 수준의 `@MainActor`를 생성된 mock class에 복사해,
@@ -115,14 +128,33 @@ let completed = mock.innoDIReset(.calls)
   명시적인 `nonisolated` protocol은 기본 MainActor 격리를 사용하는 target에서도
   `nonisolated` mock을 생성합니다. 이런 target에서 격리를 따로 쓰지 않은
   protocol과 mock은 MainActor에 남습니다.
+* **Availability** — mock은 protocol과 그것을 감싸는 선언의 `@available`을
+  물려받습니다. requirement 자체의 `@available`이 deprecated나 renamed 표시,
+  `noasync`만 담고 있으면 받아들입니다. 그 `@available`이 도입하는 platform
+  버전은 InnoDI의 최소 platform(iOS 17, macOS 14, Mac Catalyst 17, tvOS 17,
+  watchOS 10, visionOS 1), protocol, 또는 감싸는 선언이 이미 보장할 때 받아들입니다.
+  어떤 consumer도 그보다 낮게 배포할 수 없기 때문입니다. 그보다 늦은 버전,
+  `obsoleted:`, `unavailable`은 거부합니다. mock은 requirement의 stub을 stored
+  property에 두는데 Swift는 stored property를 potentially unavailable로 만들 수
+  없고, 매크로는 배포 대상을 볼 수 없습니다. 그런 availability는 protocol에
+  붙이세요.
+* **optional 반환** — optional 여부는 적힌 타입으로 정합니다. `T?`, `T!`,
+  `Optional<T>`, `Swift.Optional<T>`는 optional입니다. 이들의 `nameReturnValue`
+  slot에 대입한 `nil`은 설정된 stub이며 메서드가 그 값을 반환합니다. `T!`는
+  `T?`로 저장하고 stub합니다. `() -> Int?`처럼 결과가 optional인 함수 타입은
+  optional이 아닙니다. optional이 아닌 반환에 `nil`을 대입하면 stub은 missing
+  상태로 남습니다. 매크로는 typealias를 해석할 수 없으므로 typealias로 쓴
+  반환(`typealias MaybeInt = Int?`)은 optional이 아닌 것으로 봅니다. 그 `nil`
+  결과를 stub하려면 `.some(nil)`을 대입하세요. property setter는 typealias 뒤에
+  있는 것을 포함해 모든 optional 타입에서 `nil`을 받습니다.
 * **상호작용 검증** — 함수가 있는 생성 mock은 모두 `recordedCallCounts`를
   노출합니다. 모든 property, 값을 반환하는 함수, throwing 함수, generic
   handler는 생성된 slot에 값을 대입할 때까지 `missingStubSelectors`에
   들어갑니다. 설정 여부 flag는 optional storage와 별개이므로, 정당한 `nil`
-  property나 optional 반환을 대입해도 그 stub은 설정된 것으로 표시됩니다. 동작
-  전에 `DIStubValidation.requireAllStubbed`를 실행하고, 같은 selector와
-  `recordedCallCounts`를 `DIInteractionValidation`에 넘겨 strict 또는
-  recording-only 검증을 하세요.
+  property나 optional 반환을 대입해도 그 stub은 설정된 것으로 표시됩니다(위의
+  optional 반환 참고). 동작 전에 `DIStubValidation.requireAllStubbed`를
+  실행하고, 같은 selector와 `recordedCallCounts`를 `DIInteractionValidation`에
+  넘겨 strict 또는 recording-only 검증을 하세요.
 * **Reset** — 비어 있지 않은 생성 mock은 모두 `innoDIReset(_:)`,
   `innoDICallHistoryGeneration`, `innoDICallHistorySnapshot`을 노출합니다.
   설정한 stub을 유지하면서 호출 기록만 지우려면 `.calls`를, 호출을 지우고 모든
@@ -150,7 +182,8 @@ MainActor 직렬화가 같은 순서를 보장합니다. 일반 mock은 문서�
 작업을 취소하지 않습니다. `.calls`는 모든 stub과 설정 flag를 보존합니다.
 `.all`은 backing 값과 설정 flag를 함께 초기화하므로, reset 뒤에
 `missingStubSelectors`가 그 멤버를 다시 보고합니다. 메서드 helper와 private
-storage는 protocol requirement와 이름이 겹치지 않도록 조정합니다. 고정된 집계
+storage는 protocol requirement와, 호출 기록은 requirement가 쓰는 타입과 이름이
+겹치지 않도록 조정합니다. 고정된 집계
 API(`recordedCallCounts`, `missingStubSelectors`, public reset/history 멤버)와
 충돌하면 fail closed합니다. `handler`나 `generation`이라는 파라미터 이름은
 계속 사용할 수 있으며, 생성된 지역 변수가 그 값을 가리지 않습니다. 조정된
@@ -165,7 +198,13 @@ mock을 합성하지 않습니다.
 
 * `static`과 `class` requirement(RFC 0001 4단계).
 * custom global-actor protocol과 개별 actor 격리 requirement. protocol 수준의
-  `@MainActor`는 지원합니다.
+  `@MainActor`는 지원합니다. 매크로는 attribute의 선언이 아니라 이름만 볼 수
+  있으므로, 이름이 `Actor`로 끝나는 attribute(`@DatabaseActor`,
+  `@Feature.SessionActor`)를 custom global actor로 인식합니다. 다른 이름의 global
+  actor는 인식하지 못합니다. 이때 mock은 그 attribute 없이 생성되고 Swift가
+  conformance에서 mock의 격리를 추론하므로, 테스트 코드는 그 actor에서 mock에
+  접근해야 합니다.
+* `init` requirement, `typealias` 멤버, `#if` 블록 안의 멤버.
 * `mutating`이 아닌 함수 requirement modifier. `nonisolated`, `borrowing`,
   `consuming`도 포함합니다.
 * `subscript` requirement(아직 안정적인 lowering이 없습니다).
@@ -179,11 +218,16 @@ mock을 합성하지 않습니다.
 * `rethrows` requirement. typed `throws(ErrorType)`는 non-generic
   requirement에서 지원하며, generic typed-throws requirement는 부분
   conformance를 생성하지 않고 소스 attribute에서 실패합니다.
-* opaque `some` 반환 타입.
+* `Sendable` protocol의 generic requirement와 parameter pack(`each T`).
+* opaque `some` 반환 타입, 그리고 `[some Sequence<Int>]`처럼 non-generic
+  requirement의 파라미터 타입 어디에든 있는 `some`.
+* InnoDI의 최소 platform과 protocol의 availability를 넘는 requirement 자체의
+  platform `@available`(위의 Availability 참고).
 * associated type. 그런 mock은 직접 작성하세요. pinning과 모듈 간 해석 경로는
   RFC 0010에서 다룹니다.
-* `AnyObject`와 `Sendable`이 아닌 protocol 상속. attached peer 매크로는
-  파일이나 모듈을 넘어 상속된 requirement를 볼 수 없으므로, InnoDI는
+* 상속 절에 쓰든 `where Self: Parent`로 쓰든 `AnyObject`와 `Sendable`이 아닌
+  protocol 상속, 그리고 그 밖의 protocol `where` requirement. attached peer
+  매크로는 파일이나 모듈을 넘어 상속된 requirement를 볼 수 없으므로, InnoDI는
   conformance가 불완전할 수 있는 mock을 생성하지 않고 fail closed합니다.
 
 protocol에 멤버가 하나도 없으면 매크로는 정보성 `mock.experimental-skeleton`

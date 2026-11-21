@@ -162,7 +162,7 @@ struct GenerateMockContractTests {
     func reservesMissingStubError() throws {
         let (peer, diagnostics) = try expand("func load() throws -> Int; func _InnoDIMockNotStubbed(selector: String) -> String")
         #expect(diagnostics.isEmpty)
-        #expect(peer.contains("struct _InnoDIMockNotStubbed2: Error"))
+        #expect(peer.contains("struct _InnoDIMockNotStubbed2: _InnoDIMockError"))
         #expect(peer.contains(".failure(_InnoDIMockNotStubbed2(selector:"))
         #expect(peer.contains("func _InnoDIMockNotStubbed(selector: String)"))
     }

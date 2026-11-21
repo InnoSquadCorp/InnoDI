@@ -23,8 +23,9 @@ Current development train: `7.1.0` (unreleased)
   Both endpoints pass the in-process contracts under complete strict
   concurrency with warnings as errors.
 - Promote `@GenerateMock` to general availability. Semantic versioning now
-  covers the generated mock shape as well as the attribute. The expansion is
-  unchanged.
+  covers the generated mock shape as well as the attribute. Generated helper
+  names, storage suffixes, and slot types are unchanged; the `@GenerateMock`
+  entry below lists the shapes this release repairs or rejects.
 - Scope build-plugin lookups by declaring target, so a name that a dependency
   target also declares no longer fails a valid build. A plain type in another
   target that shares a container's name keeps its extension initializers. A
@@ -40,6 +41,19 @@ Current development train: `7.1.0` (unreleased)
   wired from a parent input named `apply` receives that input. A component's
   `<Name>Dependencies` protocol spells input types nested in the container
   through the container name.
+- Make every `@GenerateMock` shape that expanded to a broken or misbehaving
+  mock either compile or fail with `mock.unsupported-member`. Now generated:
+  `where Self: Sendable` protocols (lock-backed, like `: Sendable`); two or
+  more `borrowing`/`consuming` arguments and `sending` arguments on `Sendable`
+  protocols; call records that a signature type such as `ToolCall` would
+  shadow (`ToolCall2`); results and properties of function types with
+  optional results, implicitly unwrapped optionals (`T!`), and types written
+  across several lines; `Optional<T>` results that return a stubbed `nil`;
+  throwing mocks next to a type named `Error`; and method names such as
+  `_2fa` and arguments named `await`, `inout`, or `copy`. Now rejected:
+  `where Self: Parent` inheritance, a requirement's own platform `@available`
+  beyond InnoDI's minimum platforms and the protocol's availability, parameter
+  packs, and `some` inside a parameter type such as `[some Sequence<Int>]`.
 
 ### Breaking and Behavior Changes
 
@@ -94,6 +108,29 @@ like `container.mainactor-conflict`. A component's `<Name>Dependencies`
 requirements spell a type nested directly in the container, and `Self`, as
 `<Name>.Mode`; spellings that name nothing nested are unchanged.
 
+`@GenerateMock` changes generated code in two ways that keep its symbol shape.
+Untyped errors are spelled `_InnoDIMockError`, a new reserved public alias of
+`Error` in `InnoDI`, instead of `Error`, which a nested or file-scope type named
+`Error` captured; `Swift.Error` was not an option because a type named `Swift`
+hides the module. Slots such as `fetchResult: Result<String, any Error>` keep
+their type. A non-optional `nameReturnValue` slot now counts `nil` as missing,
+so `missingStubSelectors` reports it and agrees with the call, which already
+trapped. An optional result is recognized by its spelling (`T?`, `T!`,
+`Optional<T>`); one behind a typealias stays non-optional, so stub its `nil`
+with `.some(nil)`. A call record renamed away from a signature type, such as
+`ToolCall2`, was a type that failed to compile before.
+
+`@GenerateMock` now rejects two shapes that some protocols compiled with, and
+the `mock.unsupported-member` message lists them. A requirement's own `@available`
+that introduces a platform version later than InnoDI's minimum (iOS 17, macOS
+14, Mac Catalyst 17, tvOS 17, watchOS 10, visionOS 1) and not implied by the
+protocol or an enclosing declaration fails, because the mock's stored stubs
+cannot be made potentially unavailable; it compiled only when every type it
+used already existed at the deployment target. `obsoleted:` and `unavailable`
+fail the same way. `where Self: Parent` fails like `: Parent`; it compiled only
+when `Parent` had no requirements. Member-level deprecation and renaming are
+still accepted.
+
 Two diagnostics reject shapes whose expansion could never compile:
 `container.missing-effect-overrides-name-conflict` reports an override slot
 named `missingEffectOverrides` (a provider, a child, or the `<name>Overrides`
@@ -106,9 +143,14 @@ that compiled is newly rejected.
 
 ### Upgrade Actions
 
-No source change is required. Code that already uses `@GenerateMock` keeps
-compiling without edits. A type rename or a dropped root role that only worked
-around one of the build failures above can be reverted. A container that
+No source change is required for containers. Code that already uses
+`@GenerateMock` keeps compiling without edits unless a requirement carries its
+own platform `@available` later than InnoDI's minimum platforms, or the protocol
+refines another protocol through `where Self:`. Move that availability to the
+protocol, or write the mock by hand. A test that assigned `nil` to a
+non-optional `nameReturnValue` slot and then required every stub now sees that
+selector reported as missing. A type rename or a dropped root role that only
+worked around one of the build failures above can be reverted. A container that
 `container.missing-effect-overrides-name-conflict` reports needs that member
 renamed. For `component.custom-global-actor-unsupported`, remove the actor, use
 `mainActor: true`, or give the container a local or root role.
@@ -136,6 +178,15 @@ swift package show-dependencies
   끝나는 범위는 여전히 해석에 실패합니다. 위 명령으로 선택된 버전을 확인하세요.
 - `@GenerateMock`이 정식(GA)이 됐습니다. 이미 쓰고 있는 코드는 수정 없이
   컴파일되며, 7.1.0부터 생성되는 mock 형태에도 semantic versioning이 적용됩니다.
+- `@GenerateMock`이 수용한 뒤 깨진 mock을 만들던 형태가 이제 컴파일되거나
+  `mock.unsupported-member`로 거부됩니다. requirement 자체의 `@available`이
+  InnoDI 최소 platform(iOS 17, macOS 14, Mac Catalyst 17, tvOS 17, watchOS 10,
+  visionOS 1)보다 늦은 platform 버전을 도입하고 protocol이 그것을 보장하지
+  않으면, 또는 protocol이 `where Self:`로 다른 protocol을 상속하면 이제
+  거부됩니다. availability를 protocol로 옮기거나 mock을 직접 작성하세요.
+  타입이 없는 오류는 `Error`와 같은 별칭 `_InnoDIMockError`로 생성되고, optional이
+  아닌 `nameReturnValue` slot에 `nil`을 대입하면 missing으로 보고됩니다.
+  typealias로 쓴 optional 반환의 `nil`은 `.some(nil)`로 stub하세요.
 - build plugin이 dependency target에 같은 이름의 선언이 있다는 이유로 정상
   코드를 거부하던 문제가 고쳐졌습니다(`container.custom-init-unsupported`,
   `hierarchy.unsatisfied-dependency`, `hierarchy.ambiguous-child-reference`,

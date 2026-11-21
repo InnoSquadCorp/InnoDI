@@ -83,9 +83,9 @@ final class SharedAPIMock: SharedAPI {
             __innodi_refreshCallsBox.snapshot()
         }
     }
-    private let __innodi_refreshThrownErrorBox = InnoDITesting.DIConcurrentValueBox<Error?>(nil)
+    private let __innodi_refreshThrownErrorBox = InnoDITesting.DIConcurrentValueBox<_InnoDIMockError?>(nil)
     private let __innodi_refreshStubbedBox = InnoDITesting.DIConcurrentValueBox(false)
-    var refreshThrownError: Error? {
+    var refreshThrownError: _InnoDIMockError? {
         get {
             __innodiMockState.withCriticalRegion { _ in
                 __innodi_refreshThrownErrorBox.snapshot()

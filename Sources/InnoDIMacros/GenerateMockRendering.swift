@@ -98,18 +98,21 @@ private func renderConcurrentTypedFunctionMock(
     guard var callParameters = renderableCallParameters(parameters) else {
         return nil
     }
-    // Ownership parameters are mutable bindings in Swift's capture checking.
-    // Copy before entering either @Sendable critical-region closure, then
-    // capture the immutable local instead of the borrowed/consuming parameter.
+    // Ownership and `sending` parameters are mutable bindings in Swift's
+    // capture checking. Copy before entering either @Sendable critical-region
+    // closure, then capture the immutable local instead of the parameter.
     var capturedNames = Set(callParameters.map(\.argumentIdentifier))
     var captures: [CodeBlockItemSyntax] = []
-    for index in callParameters.indices where callParameters[index].requiresCopy {
+    for index in callParameters.indices
+    where callParameters[index].requiresCopy || callParameters[index].isSending {
         let name = freshMockIdentifier(
             "__innodi\(callParameters[index].fieldLabel.capitalizedFirst)Copy",
             reserving: capturedNames
         )
         capturedNames.insert(name)
-        captures.append("let \(raw: name) = copy \(raw: callParameters[index].argumentIdentifier)")
+        // Each statement after the first starts its own line.
+        let capture: CodeBlockItemSyntax = "let \(raw: name) = copy \(raw: callParameters[index].argumentIdentifier)"
+        captures.append(captures.isEmpty ? capture : capture.with(\.leadingTrivia, .newline))
         callParameters[index].argumentIdentifier = name
         callParameters[index].requiresCopy = false
     }
@@ -117,7 +120,10 @@ private func renderConcurrentTypedFunctionMock(
         signature.returnClause?.type.trimmedDescription
     )
     let returnType = signature.returnClause?.type.trimmedDescription ?? "Void"
-    if !returnsVoid && isOpaqueType(returnType) { return nil }
+    let returnTypeSyntax = signature.returnClause?.type ?? TypeSyntax("Void")
+    if !returnsVoid && containsMockOpaqueType(returnTypeSyntax) { return nil }
+    let storableReturnType = mockStorableTypeSpelling(returnTypeSyntax)
+    let returnsOptional = mockOptionalSpelling(returnTypeSyntax) != .none
     let parameterList = functionParameterList(callParameters)
     var effects: [String] = []
     if isAsync { effects.append("async") }
@@ -142,7 +148,7 @@ private func renderConcurrentTypedFunctionMock(
 
     if let typedFailure {
         let box = "__innodi_\(names.resultProperty)Box"
-        let successType = returnsVoid ? "Void" : returnType
+        let successType = returnsVoid ? "Void" : storableReturnType
         let resultType = "Result<\(successType), \(typedFailure)>?"
         members.append("""
             private let \(raw: box) = InnoDITesting.DIConcurrentValueBox<\(raw: resultType)>(nil)
@@ -163,9 +169,9 @@ private func renderConcurrentTypedFunctionMock(
         if isThrowing {
             let box = "__innodi_\(names.resultProperty)Box"
             members.append("""
-                private let \(raw: box) = InnoDITesting.DIConcurrentValueBox<Result<\(raw: returnType), Error>>(.failure(\(raw: stateNames.notStubbedError)(selector: \(literal: names.resultProperty))))
+                private let \(raw: box) = InnoDITesting.DIConcurrentValueBox<Result<\(raw: storableReturnType), \(raw: mockErrorType)>>(.failure(\(raw: stateNames.notStubbedError)(selector: \(literal: names.resultProperty))))
                 private let \(raw: stubbedBox) = InnoDITesting.DIConcurrentValueBox(false)
-                var \(raw: names.resultProperty): Result<\(raw: returnType), Error> {
+                var \(raw: names.resultProperty): Result<\(raw: storableReturnType), \(raw: mockErrorType)> {
                     get { \(raw: state).withCriticalRegion { _ in \(raw: box).snapshot() } }
                     set {
                         \(raw: state).withCriticalRegion { _ in
@@ -179,7 +185,9 @@ private func renderConcurrentTypedFunctionMock(
             resetStubStatements.append("\(raw: stubbedBox).replace(with: false)")
         } else {
             let box = "__innodi_\(names.returnProperty)Box"
-            let storageType = optionalStorageType(returnType)
+            let storageType = optionalStorageType(returnTypeSyntax)
+            // Only an optional result makes `nil` a configured stub.
+            let stubbedUpdate = returnsOptional ? "true" : "newValue != nil"
             members.append("""
                 private let \(raw: box) = InnoDITesting.DIConcurrentValueBox<\(raw: storageType)>(nil)
                 private let \(raw: stubbedBox) = InnoDITesting.DIConcurrentValueBox(false)
@@ -188,7 +196,7 @@ private func renderConcurrentTypedFunctionMock(
                     set {
                         \(raw: state).withCriticalRegion { _ in
                             \(raw: box).replace(with: newValue)
-                            \(raw: stubbedBox).replace(with: true)
+                            \(raw: stubbedBox).replace(with: \(raw: stubbedUpdate))
                         }
                     }
                 }
@@ -199,9 +207,9 @@ private func renderConcurrentTypedFunctionMock(
     } else if isThrowing {
         let box = "__innodi_\(names.thrownErrorProperty)Box"
         members.append("""
-            private let \(raw: box) = InnoDITesting.DIConcurrentValueBox<Error?>(nil)
+            private let \(raw: box) = InnoDITesting.DIConcurrentValueBox<\(raw: mockErrorType)?>(nil)
             private let \(raw: stubbedBox) = InnoDITesting.DIConcurrentValueBox(false)
-            var \(raw: names.thrownErrorProperty): Error? {
+            var \(raw: names.thrownErrorProperty): \(raw: mockErrorType)? {
                 get { \(raw: state).withCriticalRegion { _ in \(raw: box).snapshot() } }
                 set {
                     \(raw: state).withCriticalRegion { _ in
@@ -243,7 +251,8 @@ private func renderConcurrentTypedFunctionMock(
             let box = "__innodi_\(names.returnProperty)Box"
             let storedReturn = renderStoredReturn(
                 storage: "\(scope.member(box)).snapshot()",
-                type: returnType
+                type: returnTypeSyntax,
+                nilCoalescing: returnsOptional
             )
             body = """
                     return \(raw: state).withCriticalRegion { \(raw: generation) in
@@ -271,7 +280,12 @@ private func renderConcurrentTypedFunctionMock(
                 }
         """
     }
-    let invocationBody = CodeBlockItemListSyntax(captures + Array(body))
+    var bodyItems = Array(body)
+    if !captures.isEmpty, let first = bodyItems.first {
+        // The macro expansion's formatter indents each new line.
+        bodyItems[0] = first.with(\.leadingTrivia, .newline)
+    }
+    let invocationBody = CodeBlockItemListSyntax(captures + bodyItems)
     members.append("""
         func \(raw: baseName)(\(parameterList))\(raw: effectsRendered)\(raw: returnFragment) {
     \(invocationBody)
@@ -315,9 +329,12 @@ private func renderTypedFunctionMock(
     let returnsVoid = isVoidReturnType(signature.returnClause?.type.trimmedDescription)
 
     let returnTypeRendered = signature.returnClause?.type.trimmedDescription ?? "Void"
-    if !returnsVoid && isOpaqueType(returnTypeRendered) {
+    let returnTypeSyntax = signature.returnClause?.type ?? TypeSyntax("Void")
+    if !returnsVoid && containsMockOpaqueType(returnTypeSyntax) {
         return nil
     }
+    let storableReturnType = mockStorableTypeSpelling(returnTypeSyntax)
+    let returnsOptional = mockOptionalSpelling(returnTypeSyntax) != .none
     let parameterList = functionParameterList(callParameters)
     var effectSpecifierTokens: [String] = []
     if isAsync { effectSpecifierTokens.append("async") }
@@ -341,7 +358,7 @@ private func renderTypedFunctionMock(
         """)
         if let typedFailure {
             let storage = "__innodi_\(names.resultProperty)Storage"
-            let type = "Result<\(returnTypeRendered), \(typedFailure)>?"
+            let type = "Result<\(storableReturnType), \(typedFailure)>?"
             members.append("""
                 private var \(raw: storage): \(raw: type)
             """)
@@ -364,12 +381,12 @@ private func renderTypedFunctionMock(
             // `_InnoDIMockNotStubbed` error.
             let storage = "__innodi_\(names.resultProperty)Storage"
             members.append("""
-                private var \(raw: storage): Result<\(raw: returnTypeRendered), Error> = .failure(\(raw: stateNames.notStubbedError)(selector: \(literal: names.resultProperty)))
+                private var \(raw: storage): Result<\(raw: storableReturnType), \(raw: mockErrorType)> = .failure(\(raw: stateNames.notStubbedError)(selector: \(literal: names.resultProperty)))
             """)
             members.append(
                 computedStubProperty(
                     name: names.resultProperty,
-                    type: "Result<\(returnTypeRendered), Error>",
+                    type: "Result<\(storableReturnType), \(mockErrorType)>",
                     storage: storage,
                     stubbedStorage: stubbedStorage
                 )
@@ -378,7 +395,7 @@ private func renderTypedFunctionMock(
             resetStubStatements.append("\(raw: stubbedStorage) = false")
         } else {
             let storage = "__innodi_\(names.returnProperty)Storage"
-            let storageType = optionalStorageType(returnTypeRendered)
+            let storageType = optionalStorageType(returnTypeSyntax)
             members.append("""
                 private var \(raw: storage): \(raw: storageType)
             """)
@@ -387,7 +404,9 @@ private func renderTypedFunctionMock(
                     name: names.returnProperty,
                     type: storageType,
                     storage: storage,
-                    stubbedStorage: stubbedStorage
+                    stubbedStorage: stubbedStorage,
+                    // Only an optional result makes `nil` a configured stub.
+                    nilMeansMissing: !returnsOptional
                 )
             )
             resetStubStatements.append("\(raw: storage) = nil")
@@ -416,12 +435,12 @@ private func renderTypedFunctionMock(
         let storage = "__innodi_\(names.thrownErrorProperty)Storage"
         members.append("""
             private var \(raw: stubbedStorage) = false
-            private var \(raw: storage): Error?
+            private var \(raw: storage): \(raw: mockErrorType)?
         """)
         members.append(
             computedStubProperty(
                 name: names.thrownErrorProperty,
-                type: "Error?",
+                type: "\(mockErrorType)?",
                 storage: storage,
                 stubbedStorage: stubbedStorage
             )
@@ -456,7 +475,8 @@ private func renderTypedFunctionMock(
         } else {
             let storedReturn = renderStoredReturn(
                 storage: scope.member(names.returnProperty),
-                type: returnTypeRendered
+                type: returnTypeSyntax,
+                nilCoalescing: returnsOptional
             )
             body = """
             \(record)
@@ -518,6 +538,7 @@ private func renderGenericFunctionMock(
     }
     let parameterList = functionParameterList(callParameters)
     let returnTypeRendered = signature.returnClause?.type.trimmedDescription ?? "Void"
+    let returnTypeSyntax = signature.returnClause?.type ?? TypeSyntax("Void")
     let returnsVoid = isVoidReturnType(signature.returnClause?.type.trimmedDescription)
     var effectSpecifierTokens: [String] = []
     if isAsync { effectSpecifierTokens.append("async") }
@@ -585,8 +606,8 @@ private func renderGenericFunctionMock(
                     preconditionFailure("\(raw: names.handlerProperty) was not set on \\(Self.self) before \(raw: baseName) was invoked")
                 }
                 let \(raw: rawValue) = \(raw: invocationPrefix)\(raw: handler)(\(handlerArguments))
-                guard let \(raw: value) = \(raw: rawValue) as? \(raw: returnTypeRendered) else {
-                    preconditionFailure("\(raw: names.handlerProperty) returned a value that cannot be cast to \(raw: returnTypeRendered)")
+                guard let \(raw: value) = \(raw: rawValue) as? \(raw: mockStorableTypeSpelling(returnTypeSyntax)) else {
+                    preconditionFailure("\(raw: names.handlerProperty) returned a value that cannot be cast to \(raw: mockSingleLineTypeSpelling(returnTypeSyntax))")
                 }
                 return \(raw: value)
         """
@@ -659,11 +680,21 @@ func renderVariableMock(
         "__innodi_\(name.safeLowerCamelIdentifier)_\(name.stableIdentifierSuffix)IsStubbed",
         reserving: names
     )
-    let storageType = optionalStorageType(type)
+    let storageType = optionalStorageType(typeAnnotation.type)
+    // The setter always wraps the new value, so `nil` stays a configured
+    // value for every property type. Only the spelling of the getter depends
+    // on whether the written type is `T?` or `T!`.
+    let nilCoalescing = [.sugar, .implicitlyUnwrapped].contains(
+        mockOptionalSpelling(typeAnnotation.type)
+    )
     if concurrent {
         let boxName = freshMockIdentifier("\(storageName)Box", reserving: names)
         let stubbedBoxName = freshMockIdentifier("\(stubbedName)Box", reserving: names)
-        let storedReturn = renderStoredReturn(storage: "\(boxName).snapshot()", type: type)
+        let storedReturn = renderStoredReturn(
+            storage: "\(boxName).snapshot()",
+            type: typeAnnotation.type,
+            nilCoalescing: nilCoalescing
+        )
         return RenderedVariableMock(
             members: MockMembers("""
             private let \(raw: boxName) = InnoDITesting.DIConcurrentValueBox<\(raw: storageType)>(nil)
@@ -693,7 +724,11 @@ func renderVariableMock(
             ]
         )
     }
-    let storedReturn = renderStoredReturn(storage: storageName, type: type)
+    let storedReturn = renderStoredReturn(
+        storage: storageName,
+        type: typeAnnotation.type,
+        nilCoalescing: nilCoalescing
+    )
     return RenderedVariableMock(
         members: MockMembers("""
             private var \(raw: storageName): \(raw: storageType)
@@ -726,6 +761,9 @@ private struct RenderableCallParameter {
     let type: String
     let declaration: FunctionParameterSyntax
     var requiresCopy: Bool
+    /// A `sending` parameter, captured like an ownership parameter before a
+    /// `Sendable` mock enters its critical region.
+    let isSending: Bool
 
     var argumentExpression: ExprSyntax {
         if requiresCopy {
@@ -741,7 +779,7 @@ private func renderableCallParameters(
 ) -> [RenderableCallParameter]? {
     let originalFieldNames = Set(parameters.compactMap { parameter -> String? in
         let name = (parameter.secondName ?? parameter.firstName).text.unescapedIdentifier
-        return name == "_" ? nil : name.safeLowerCamelIdentifier
+        return name == "_" ? nil : name.safeLowerCamelIdentifier.digitSafeIdentifier
     })
     var usedFieldNames: Set<String> = ["generation"]
     var usedArgumentNames = Set(parameters.map {
@@ -752,7 +790,7 @@ private func renderableCallParameters(
         let internalName = (parameter.secondName?.text ?? parameter.firstName.text)
         let baseFieldName = internalName == "_"
             ? "value\(index + 1)"
-            : internalName.unescapedIdentifier.safeLowerCamelIdentifier
+            : internalName.unescapedIdentifier.safeLowerCamelIdentifier.digitSafeIdentifier
         let reservedFieldNames = usedFieldNames.union(
             internalName == "_" ? originalFieldNames : originalFieldNames.subtracting([baseFieldName])
         )
@@ -775,7 +813,7 @@ private func renderableCallParameters(
                 )
                 .trimmed
         } else {
-            argumentName = internalName.unescapedIdentifier.escapedSwiftIdentifier
+            argumentName = internalName.unescapedIdentifier.escapedSwiftExpressionIdentifier
             declaration = parameterWithoutComma.trimmed
         }
         rendered.append(
@@ -787,7 +825,8 @@ private func renderableCallParameters(
                 declaration: declaration,
                 requiresCopy: mockParameterSpecifiers(parameter.type).contains {
                     ["consuming", "borrowing", "__owned", "__shared"].contains($0)
-                }
+                },
+                isSending: mockParameterSpecifiers(parameter.type).contains("sending")
             )
         )
     }
@@ -825,7 +864,7 @@ private func recordArguments(
     return LabeledExprListSyntax(
         arguments.enumerated().map { index, argument in
             LabeledExprSyntax(
-                label: .identifier(argument.label),
+                label: .identifier(argument.label.escapedArgumentLabel),
                 colon: .colonToken(trailingTrivia: .space),
                 expression: argument.value,
                 trailingComma: index == arguments.count - 1
@@ -882,14 +921,19 @@ private func computedStubProperty(
 }
 
 /// Returns the stored stub. Typed interpolation indents every line of it to
-/// the line it lands on.
-private func renderStoredReturn(storage: String, type: String) -> CodeBlockItemListSyntax {
-    if type.hasSuffix("?") || type.hasSuffix("!") {
+/// the line it lands on. `nilCoalescing` flattens the storage's extra
+/// optional level for an optional `type`.
+private func renderStoredReturn(
+    storage: String,
+    type: TypeSyntax,
+    nilCoalescing: Bool
+) -> CodeBlockItemListSyntax {
+    if nilCoalescing {
         return "return \(raw: storage) ?? nil"
     }
     return """
         guard let value = \(raw: storage) else {
-            preconditionFailure("Stub storage for \(raw: type) was unexpectedly empty")
+            preconditionFailure("Stub storage for \(raw: mockSingleLineTypeSpelling(type)) was unexpectedly empty")
         }
         return value
         """
@@ -905,7 +949,7 @@ private func renderableCallRecordType(
     if eraseTypes {
         return "Any"
     }
-    if isOpaqueType(parameter.type.trimmedDescription) {
+    if containsMockOpaqueType(parameter.type) {
         return nil
     }
 
@@ -944,10 +988,6 @@ private func typedThrowsFailureType(_ spelling: String?) -> String? {
     return failure.isEmpty ? nil : failure
 }
 
-private func isOpaqueType(_ typeText: String) -> Bool {
-    typeText == "some" || typeText.hasPrefix("some ") || typeText.contains(" some ")
-}
-
 func isVoidReturnType(_ typeText: String?) -> Bool {
     guard let typeText else {
         return true
@@ -955,7 +995,18 @@ func isVoidReturnType(_ typeText: String?) -> Bool {
     return typeText == "Void" || typeText == "()" || typeText == "(Void)"
 }
 
-private func optionalStorageType(_ typeText: String) -> String {
+/// The existential every generated mock spells for an untyped error. A user
+/// type named `Error`, or a type named `Swift` that hides the standard
+/// library's module name, cannot capture this InnoDI-reserved alias.
+let mockErrorType = "_InnoDIMockError"
+
+/// The stored stub type for a requirement of `type`: one optional level more
+/// than `type`, with `T!` stored as `T?`.
+private func optionalStorageType(_ type: TypeSyntax) -> String {
+    if mockOptionalSpelling(type) == .implicitlyUnwrapped {
+        return "(\(mockStorableTypeSpelling(type)))?"
+    }
+    let typeText = type.trimmedDescription
     if typeText.hasPrefix("any ")
         || typeText.hasSuffix("?")
         || typeText.contains("->")

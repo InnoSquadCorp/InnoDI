@@ -78,7 +78,7 @@ Portable 테스트 일부의 통과가 지원 Apple toolchain과 release 검증�
 - ``Input(_:escaping:)``
 - ``DIContainerRole(role:mainActor:validateDAG:initializationOrder:generateOwned:)``
 
-### Experimental
+### 테스트
 
 - <doc:AutoMock>
 

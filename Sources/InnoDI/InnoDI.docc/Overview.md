@@ -85,7 +85,7 @@ supported Apple toolchain and release gates.
 - ``Input(_:escaping:)``
 - ``DIContainerRole(role:mainActor:validateDAG:initializationOrder:generateOwned:)``
 
-### Experimental
+### Testing
 
 - <doc:AutoMock>
 
