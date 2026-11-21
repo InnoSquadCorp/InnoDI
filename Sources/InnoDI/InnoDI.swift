@@ -646,8 +646,10 @@ public enum SubContainerScope {
 public struct FeatureRoot {
     public let rootView: Any.Type
     public let alias: String?
-    /// Explicitly requests the identity/close host overload. Import both
+    /// Explicitly requests the identity-taking host overload. Import both
     /// SwiftUI and InnoDISwiftUI in the container's source file when true.
+    /// A `.transient` child's overload also takes an optional `close:` hook;
+    /// a `.shared` child's does not, because the parent owns that child.
     public let hosted: Bool
 
     public init(_ rootView: Any.Type, as alias: String? = nil) {
@@ -707,14 +709,19 @@ public struct FeatureRoot {
 /// may be module-qualified.
 /// - `featureRoot`: Optional SwiftUI root view type. When provided, the
 ///   parent container receives `<propertyName>RootView()`, which calls
-///   `RootView(container: <propertyName>)`. Targets that import
-///   `InnoDISwiftUI` also receive an identity-taking overload backed by
-///   `DIContainerHost`; use that overload for route, document, and window
-///   ownership so transient children are created only after mount and reused
-///   across redraws. The zero-argument helper remains source-compatible.
+///   `RootView(container: <propertyName>)`. This form never generates the
+///   identity-taking host overload, whatever the target imports.
 /// - `featureRoots`: Optional list of SwiftUI root view declarations. Use
 ///   `FeatureRoot(View.self)` for the default helper or
-///   `FeatureRoot(View.self, as: "alias")` for `aliasRootView()`.
+///   `FeatureRoot(View.self, as: "alias")` for `aliasRootView()`. Add
+///   `hosted: true` in a file that imports SwiftUI and `InnoDISwiftUI` to
+///   also receive an identity-taking overload backed by `DIContainerHost`.
+///   For a `.transient` child, use it for route, document, and window
+///   ownership: the child is created only after mount, reused across redraws,
+///   and passed to the optional `close:` hook when replaced or closed. A
+///   `.shared` child stays owned by the parent, so its overload takes only
+///   `identity:`; the 7.0 `identity:close:` spelling still compiles there but
+///   is deprecated. The zero-argument helper remains source-compatible.
 ///
 /// `with` and `bindings` are mutually exclusive wiring forms: choose `with`
 /// for same-name subset/reorder shorthand, or use `bindings` for rename-aware

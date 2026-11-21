@@ -310,6 +310,19 @@ where Identity: Hashable & Sendable {
 /// evaluations do not invoke it. SwiftUI mount starts the owner, repeated
 /// redraws reuse the same generation, and a changed `identity` replaces it.
 /// Applications retain control over loading, failure, retry, and ready UI.
+/// `content` and `failure` only receive the current identity's container or
+/// error; while a changed identity waits for its generation, `loading` shows.
+///
+/// The close hook runs when an identity replaces a ready container and when
+/// the lifecycle handle's `close()` is called. Removing the host from the view
+/// hierarchy releases its owner without running the hook, including for a
+/// container whose factory was still running; call `close()` from the actual
+/// owner-close path first.
+///
+/// A factory that throws `CancellationError` itself ends its generation
+/// without a failure: the host shows `loading`, which receives no lifecycle
+/// handle, until `identity` changes or the host is mounted again. Throw a
+/// different error to reach `failure` and its retry handle.
 ///
 /// ```swift
 /// DIContainerHost(
@@ -357,14 +370,18 @@ where Identity: Hashable & Sendable, Content: View, Loading: View, Failure: View
 
     public var body: some View {
         Group {
+            // A new `identity` is evaluated once before `.task(id:)` starts
+            // its generation. Until then the phase still describes the
+            // previous identity, whose container or error must not be shown
+            // as this identity's.
             switch owner.phase {
-            case .idle, .loading:
-                loading()
-            case let .ready(_, container):
+            case let .ready(readyIdentity, container) where readyIdentity == identity:
                 content(container, handle)
                     .environment(\.innoDIContainerHostHandle, handle)
-            case let .failed(_, error):
+            case let .failed(failedIdentity, error) where failedIdentity == identity:
                 failure(error, handle)
+            case .idle, .loading, .ready, .failed:
+                loading()
             }
         }
         .task(id: identity) {

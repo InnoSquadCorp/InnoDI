@@ -310,6 +310,118 @@ struct InnoDISwiftUIMacroTests {
         )
     }
 
+    @Test("DIEnvironmentBridge reads unlabeled mapping tuples by position, like the type checker")
+    func environmentBridgeReadsUnlabeledTuplesPositionally() {
+        func expand(_ mappings: String) -> (expansion: String, diagnostics: [Diagnostic]) {
+            expandMacroSource(
+                """
+                @DIEnvironmentBridge([
+                \(mappings)
+                ])
+                struct AppContainer {
+                    var greetingService: GreetingService
+                    var activityService: ActivityService
+                }
+                """,
+                macros: Self.macros
+            )
+        }
+        let labeled = expand(#"""
+            (member: "greetingService", environment: \EnvironmentValues.greetingService),
+            (member: "activityService", environment: \EnvironmentValues.activityService),
+            """#)
+        let unlabeled = expand(#"""
+            ("greetingService", \EnvironmentValues.greetingService),
+            ("activityService", environment: \EnvironmentValues.activityService),
+            """#)
+
+        #expect(labeled.diagnostics.isEmpty)
+        #expect(unlabeled.diagnostics.isEmpty)
+        #expect(unlabeled.expansion.contains("extension AppContainer: InnoDISwiftUI.DIEnvironmentBridging"))
+        #expect(unlabeled.expansion == labeled.expansion)
+    }
+
+    @Test("DIEnvironmentBridge diagnoses an incomplete mapping tuple instead of dropping the bridge")
+    func environmentBridgeDiagnosesIncompleteMappingTuples() {
+        assertMacroExpansionInline(
+            #"""
+            @DIEnvironmentBridge([
+                (member: "greetingService", env: \EnvironmentValues.greetingService),
+                (member: "activityService"),
+            ])
+            struct AppContainer {
+                var greetingService: GreetingService
+                var activityService: ActivityService
+            }
+            """#,
+            expandedSource: #"""
+                struct AppContainer {
+                    var greetingService: GreetingService
+                    var activityService: ActivityService
+                }
+                """#,
+            diagnostics: [
+                DiagnosticSpec(
+                    id: MessageID(domain: "InnoDI.validation", id: "swiftui.environment-bridge-invalid-arguments"),
+                    message: "@DIEnvironmentBridge requires a single array literal of (member: ..., environment: ...) mappings.",
+                    line: 2,
+                    column: 5
+                ),
+                DiagnosticSpec(
+                    id: MessageID(domain: "InnoDI.validation", id: "swiftui.environment-bridge-invalid-arguments"),
+                    message: "@DIEnvironmentBridge requires a single array literal of (member: ..., environment: ...) mappings.",
+                    line: 3,
+                    column: 5
+                ),
+            ],
+            macros: Self.macros
+        )
+    }
+
+    @Test("DIEnvironmentBridge returns normally when the target redeclares a member name")
+    func environmentBridgeToleratesRedeclaredMembers() {
+        // The redeclaration is Swift's error to report; the plugin used to
+        // trap building its member table and replace that error with a crash.
+        let result = expandMacroSource(
+            #"""
+            @DIEnvironmentBridge([
+                (member: "value", environment: \EnvironmentValues.value),
+            ])
+            struct AppContainer {
+                var value: GreetingService
+                var value: ActivityService
+            }
+            """#,
+            macros: Self.macros
+        )
+        #expect(result.diagnostics.isEmpty)
+        #expect(result.expansion.contains("container.value"))
+    }
+
+    @Test("DIEnvironmentBridge warns when a later mapping sets an environment key again")
+    func environmentBridgeWarnsOnDuplicateEnvironmentKey() {
+        let result = expandMacroSource(
+            #"""
+            @DIEnvironmentBridge([
+                (member: "greetingService", environment: \EnvironmentValues.greetingService),
+                (member: "activityService", environment: \SwiftUI.EnvironmentValues.greetingService),
+            ])
+            struct AppContainer {
+                var greetingService: GreetingService
+                var activityService: GreetingService
+            }
+            """#,
+            macros: Self.macros
+        )
+        #expect(result.diagnostics.count == 1)
+        let diagnostic = result.diagnostics.first
+        #expect(diagnostic?.diagMessage.severity == .warning)
+        #expect(diagnostic?.diagnosticID == MessageID(domain: "InnoDI.validation", id: "swiftui.environment-bridge-duplicate-environment"))
+        #expect(diagnostic?.message == #"@DIEnvironmentBridge maps 'activityService' to \SwiftUI.EnvironmentValues.greetingService, which 'greetingService' already sets. Views under the bridge read 'greetingService', so this mapping has no effect; remove one of the two mappings."#)
+        // A warning keeps 7.0 generation, including the conformance.
+        #expect(result.expansion.contains("extension AppContainer: InnoDISwiftUI.DIEnvironmentBridging"))
+    }
+
     @Test("DIEnvironmentBridge generates a single-member modifier")
     func environmentBridgeSingleMemberShape() {
         assertMacroExpansionInline(

@@ -179,18 +179,23 @@ private func validateEnvironmentBridgeDeclaration(
 
 // MARK: - Mapping parsing
 
+/// Element labels of the macro parameter `[(member: String, environment: AnyKeyPath)]`.
+private let environmentBridgeTupleLabels = ["member", "environment"]
+
 private func parseEnvironmentBridgeMappings(
     _ arrayExpr: ArrayExprSyntax,
     declaration: some DeclGroupSyntax,
     context: some MacroExpansionContext,
     emitDiagnostics: Bool
 ) -> EnvironmentBridgeValidationResult {
+    // A repeated name is already a Swift redeclaration error; keep the first
+    // so the plugin returns and Swift's own diagnostic stays the visible one.
     let membersByName = Dictionary(
-        uniqueKeysWithValues: containerMemberInfos(in: declaration).map {
-            ($0.name, $0)
-        }
+        containerMemberInfos(in: declaration).map { ($0.name, $0) },
+        uniquingKeysWith: { first, _ in first }
     )
     var seenMembers: Set<String> = []
+    var firstMemberByEnvironment: [String: String] = [:]
     var mappings: [EnvironmentBridgeMappingInfo] = []
     var hadErrors = false
 
@@ -208,13 +213,16 @@ private func parseEnvironmentBridgeMappings(
 
         var memberName: String?
         var environmentKeyPath: KeyPathExprSyntax?
+        var elementWasDiagnosed = false
 
-        for tupleElement in tupleExpr.elements {
-            guard let label = tupleElement.label?.text else {
-                continue
-            }
+        for (position, tupleElement) in tupleExpr.elements.enumerated() {
+            // Swift converts an unlabeled element to the parameter's tuple
+            // label at the same position, so `("service", \EnvironmentValues.x)`
+            // type-checks as `(member:environment:)` and is read the same way.
+            let role = tupleElement.label?.text
+                ?? environmentBridgeTupleLabels.dropFirst(position).first
 
-            switch label {
+            switch role {
             case "member":
                 guard let parsedMemberName = stringLiteralValue(tupleElement.expression) else {
                     if emitDiagnostics {
@@ -223,6 +231,7 @@ private func parseEnvironmentBridgeMappings(
                             at: Syntax(tupleElement.expression)
                         )
                     }
+                    elementWasDiagnosed = true
                     hadErrors = true
                     continue
                 }
@@ -235,6 +244,7 @@ private func parseEnvironmentBridgeMappings(
                             at: Syntax(tupleElement.expression)
                         )
                     }
+                    elementWasDiagnosed = true
                     hadErrors = true
                     continue
                 }
@@ -248,6 +258,7 @@ private func parseEnvironmentBridgeMappings(
                             at: Syntax(tupleElement.expression)
                         )
                     }
+                    elementWasDiagnosed = true
                     hadErrors = true
                     continue
                 }
@@ -258,6 +269,14 @@ private func parseEnvironmentBridgeMappings(
         }
 
         guard let memberName, let environmentKeyPath else {
+            // Never drop a mapping silently: without a diagnostic here the
+            // conformance disappears and the only error is at a use site.
+            if emitDiagnostics && !elementWasDiagnosed {
+                context.emit(
+                    SimpleDiagnostic.swiftUIEnvironmentBridgeInvalidArguments(),
+                    at: Syntax(element.expression)
+                )
+            }
             hadErrors = true
             continue
         }
@@ -293,6 +312,25 @@ private func parseEnvironmentBridgeMappings(
             }
             hadErrors = true
             continue
+        }
+
+        // The modifier applies mappings in order, so the first `environment`
+        // call is the innermost one and the later mapping of the same key is
+        // dead. It still compiles, so it stays a warning.
+        let environmentKey = environmentKeyPath.trimmedDescription
+        if let firstMemberName = firstMemberByEnvironment[environmentKey] {
+            if emitDiagnostics {
+                context.emit(
+                    SimpleDiagnostic.swiftUIEnvironmentBridgeDuplicateEnvironment(
+                        memberName: memberName,
+                        firstMemberName: firstMemberName,
+                        environment: environmentKey
+                    ),
+                    at: Syntax(element.expression)
+                )
+            }
+        } else {
+            firstMemberByEnvironment[environmentKey] = memberName
         }
 
         mappings.append(

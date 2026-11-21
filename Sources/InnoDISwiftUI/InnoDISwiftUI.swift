@@ -73,10 +73,28 @@ public macro DIEnvironmentBridge(
 /// owners even when their input payloads are equal.
 ///
 /// ```swift
-/// #PreviewWithContainer(AppContainer(baseURL: "https://example.com")) { container in
-///     container.dashboardRootView()
+/// func makePreviewApp() -> AppContainer {
+///     AppContainer(baseURL: "https://example.com")
+/// }
+///
+/// struct AppPreviewRoot: View {
+///     let container: AppContainer
+///     var body: some View { container.dashboardRootView() }
+/// }
+///
+/// #PreviewWithContainer(makePreviewApp()) { container in
+///     AppPreviewRoot(container: container)
 /// }
 /// ```
+///
+/// Swift type-checks the arguments of a file-scope macro before members that
+/// other macros generate are visible to them, as it does for `#Preview`. An
+/// argument that calls a `@DIContainer` initializer, or a closure body that
+/// calls a generated feature-root helper, does not compile (`'AppContainer'
+/// cannot be constructed because it has no accessible initializers`). Build
+/// the container in an ordinary function or static member and render
+/// generated helpers from a view's `body`, as above. Use the macro at file
+/// scope in a library or app source file, not in `main.swift`.
 ///
 /// The generated expansion always wraps a `#Preview` macro, so all of
 /// Xcode's preview features (timing, traits, multiple previews per file)

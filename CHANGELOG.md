@@ -84,6 +84,19 @@ Current development train: `7.1.0` (unreleased)
   tools scan anyway, such as a framework's `Versions/Current` or this
   repository's product-test links, no longer stops `InnoDI-Doctor` and
   `InnoDI-Migrate` with exit 2.
+- Make the SwiftUI surface agree with its documentation. A hosted feature root
+  on a `.shared` child presents the parent's child through
+  `<name>RootView(identity:)` without a close hook, and its 7.0
+  `identity:close:` spelling is deprecated, because that hook received the
+  parent's own child, which the parent keeps serving, at every identity change.
+  `@DIEnvironmentBridge` now reads unlabeled `("member", \EnvironmentValues.key)`
+  tuples, diagnoses a tuple without a member or key path instead of silently
+  dropping the conformance, no longer crashes the macro plugin when the target
+  redeclares a member, and warns when two mappings set the same key.
+  `DIContainerHost` no longer shows the previous identity's container or error
+  for the first evaluation after an identity change. The `#PreviewWithContainer`
+  documentation now shows a form that compiles and explains why arguments that
+  call generated initializers or helpers cannot.
 
 ### Breaking and Behavior Changes
 
@@ -216,6 +229,28 @@ lookups, sibling `@_exported import` visibility, the deferred-alias set, and
 root-path discovery. The first build after upgrading revalidates once and
 repopulates the cache; no action is required.
 
+The SwiftUI changes keep 7.0 code compiling and behaving the same, with these
+exceptions. A hosted feature root on a `.shared` child now also generates
+`<name>RootView(identity:)`; a call that passes `close:` to such a child
+resolves to the unchanged 7.0 overload and now gets a deprecation warning,
+which fails builds that treat warnings as errors. The hook still runs as before,
+on the parent's own instance. `swiftui.environment-bridge-duplicate-environment`
+is a new warning for a second mapping of an `EnvironmentValues` key path: the
+generated modifier applies mappings in order, so views read the first member and
+the later mapping never had an effect. A mapping tuple that lacks a member or
+key path, which compiled but generated no bridge and failed only at the
+`.innodi(_:)` call, now reports `swiftui.environment-bridge-invalid-arguments`
+at the tuple. `DIContainerHost` renders `loading` while a changed identity
+waits for its generation, where it rendered `content` or `failure` with the
+previous identity's container or error once. A factory that throws
+`CancellationError` itself still returns the host to `loading` until the
+identity changes or the host remounts; the documentation now says so, and that
+releasing the host never runs the close hook. The `#PreviewWithContainer`
+diagnostics suggest `makePreviewApp()` and a wrapper view instead of a call to
+a generated initializer. `Tools/check-docs-code-blocks.sh` accepts
+`<!-- innodi:compile-library -->` for a block that must compile as a library
+source file.
+
 ### Upgrade Actions
 
 No source change is required for containers. Code that already uses
@@ -240,6 +275,19 @@ After `InnoDI-Migrate --write --swiftui-import-access <access>`, pass the same
 option to the follow-up `InnoDI-Migrate --check` and to `InnoDI-Doctor`. A
 script that gave `InnoDI-Doctor` an option it ignored, such as a positional
 `apply` or a second `--root`, must drop it or spell it as a supported option.
+
+For a hosted feature root on a `.shared` child, drop `close:` from
+`<name>RootView(identity:close:)`, or declare the child
+`@SubContainer(scope: .transient, ...)` when each identity needs its own child
+that the host closes. A hook that only logged or reset state can move to the
+route's own close path. Remove one of two `@DIEnvironmentBridge` mappings that
+`swiftui.environment-bridge-duplicate-environment` reports; keep the first if
+the current behavior is the one you want. Complete a mapping tuple that
+`swiftui.environment-bridge-invalid-arguments` reports. A preview that called a
+generated initializer inside `#PreviewWithContainer` never compiled; build the
+container in a function and call generated helpers from a wrapper view, as
+[SwiftUI Preview Helper](Sources/InnoDI/InnoDI.docc/SwiftUIPreviewHelper.md#previews)
+shows.
 
 To use InnoDI beside a macro package that limits SwiftSyntax to versions below
 `604.0.0`, its requirement has to admit `603.0.2` or a later 603 release; one
@@ -321,6 +369,21 @@ swift package show-dependencies
   실행했으므로, 그런 인자를 넘기던 script는 인자를 지우거나 지원하는 옵션으로
   고치세요. `InnoDI-Migrate`는 없는 `--root`를 `Migration root is not a readable
   directory`로 보고합니다.
+- `.shared` child에 붙인 hosted feature root는 이제 close 훅 없는
+  `<name>RootView(identity:)`로 부모의 child를 보여줍니다. 그런 child에 `close:`를
+  넘기는 7.0 호출은 그대로 컴파일되고 동작하지만 deprecation 경고가 나오므로,
+  경고를 오류로 다루는 빌드에서는 `close:`를 지우거나 identity마다 host가 닫는
+  child가 필요하면 child를 `.transient`로 선언하세요.
+- `@DIEnvironmentBridge`가 레이블 없는 `("member", \EnvironmentValues.key)` tuple을
+  읽고, member나 key path가 빠진 tuple은 `swiftui.environment-bridge-invalid-arguments`로
+  보고하며, 같은 key를 두 번 매핑하면 새 경고
+  `swiftui.environment-bridge-duplicate-environment`를 냅니다. 뷰는 첫 매핑을
+  읽으므로 둘 중 하나를 지우세요. 대상 타입에 같은 이름의 멤버가 둘 있어도 매크로
+  plugin이 더 이상 중단되지 않습니다.
+- `DIContainerHost`는 identity가 바뀐 직후 이전 identity의 컨테이너나 오류 대신
+  `loading`을 보여줍니다. `#PreviewWithContainer` 인자에서는 생성된 initializer나
+  helper를 호출할 수 없으므로, 컨테이너는 함수에서 만들고 helper는 wrapper
+  view에서 호출하세요.
 
 ## 7.0.2
 

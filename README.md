@@ -745,12 +745,20 @@ contract:
   named feature-root helpers for child containers. To add the identity/close
   host overload, use `FeatureRoot(RootView.self, hosted: true)` and import
   `SwiftUI` plus `InnoDISwiftUI` in that source file. Module availability alone
-  never changes generated helpers; the zero-argument helper remains.
+  never changes generated helpers; the zero-argument helper remains. Host a
+  `.transient` child to get one child per identity that the host closes. A
+  `.shared` child stays the parent's: its overload takes only `identity:`, and
+  the 7.0 `identity:close:` spelling is deprecated there because the hook would
+  receive the instance the parent keeps serving.
 - `DIContainerHost` lazily owns fixed or assisted children by route, document,
   or window identity. Applications compose loading/failure/retry UI and call
   its lifecycle handle from the actual close path instead of `onDisappear`.
 - `#PreviewWithContainer` uses the same lazy owner and keeps equal preview
-  payloads isolated by preview instance.
+  payloads isolated by preview instance. Its arguments cannot call
+  macro-generated initializers or helpers; build the container in a function
+  and render helpers from a wrapper view, as
+  [SwiftUI Preview Helper](Sources/InnoDI/InnoDI.docc/SwiftUIPreviewHelper.md#previews)
+  shows.
 - InnoDI 5.0 removes the deprecated `@DIFeatureRoot` compatibility macro.
   Replace it with the `@SubContainer` arguments so helper generation stays in
   the container macro pipeline and does not stack peer macros on one property.

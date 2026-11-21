@@ -478,6 +478,10 @@ Most frequently-hit codes:
   key path doesn't resolve to a container member.
 - `swiftui.environment-bridge-duplicate-member` — the same key path is
   listed twice.
+- `swiftui.environment-bridge-duplicate-environment` (warning) — two
+  mappings set the same `EnvironmentValues` key path. The generated modifier
+  applies mappings in order, so views under the bridge read the first member
+  and the later mapping has no effect. Remove one of the two mappings.
 - `swiftui.environment-bridge-async-member` — an `asyncFactory`-backed
   container member was mapped into `EnvironmentValues`; expose a synchronous
   value or inject a service that performs async work internally.
@@ -487,7 +491,10 @@ Most frequently-hit codes:
   are rejected so generated code can preserve the key path without lexical
   capture.
 - `swiftui.environment-bridge-invalid-arguments` — the bridge macro received
-  arguments outside its supported key-path list shape.
+  arguments outside its supported key-path list shape, or a mapping tuple
+  lacks a `member` or `environment` element. Unlabeled tuples such as
+  `("service", \EnvironmentValues.service)` are read by position, like the
+  macro parameter's tuple type.
 - `swiftui.environment-bridge-reserved-module-name` — the bridge target, an
   enclosing nominal or generic parameter, or a direct nested type/typealias in
   the target named `Swift`, `SwiftUI`, or `InnoDISwiftUI` shadows a qualifier

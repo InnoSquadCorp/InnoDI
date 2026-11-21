@@ -475,6 +475,10 @@ struct App {
   key path가 컨테이너 멤버로 해소되지 않습니다.
 - `swiftui.environment-bridge-duplicate-member` — 같은 key path가
   두 번 나열됐습니다.
+- `swiftui.environment-bridge-duplicate-environment` (warning) — 두 매핑이
+  같은 `EnvironmentValues` key path를 설정합니다. 생성 modifier는 매핑을 순서대로
+  적용하므로 bridge 아래 뷰는 첫 멤버를 읽고 뒤 매핑은 효과가 없습니다. 두 매핑 중
+  하나를 제거하세요.
 - `swiftui.environment-bridge-async-member` — `asyncFactory` 기반의
   컨테이너 멤버가 `EnvironmentValues`로 매핑됐습니다. synchronous
   값을 노출하거나, 내부에서 async 작업을 수행하는 service를
@@ -484,7 +488,9 @@ struct App {
   direct-property key-path literal이 아닙니다. 생성 코드에서 lexical capture
   없이 key path를 보존하기 위해 alias, 다른 root, chain, subscript를 거부합니다.
 - `swiftui.environment-bridge-invalid-arguments` — bridge 매크로가
-  지원되는 key-path 리스트 형태 외의 인자를 받았습니다.
+  지원되는 key-path 리스트 형태 외의 인자를 받았거나, 매핑 tuple에 `member` 또는
+  `environment` 요소가 없습니다. `("service", \EnvironmentValues.service)` 같은
+  레이블 없는 tuple은 매크로 파라미터의 tuple 타입처럼 위치로 읽습니다.
 - `swiftui.environment-bridge-reserved-module-name` — bridge 대상이나 이를
   감싸는 nominal·generic parameter, 또는 target의 direct nested
   type/typealias에 있는 `Swift`/`SwiftUI`/`InnoDISwiftUI` 이름이 생성 modifier의

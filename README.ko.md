@@ -711,12 +711,19 @@ cross-module ownership에는 다음을 사용합니다.
   default 또는 named feature-root helper를 생성합니다. identity/close host
   overload를 추가하려면 `FeatureRoot(RootView.self, hosted: true)`를 쓰고 해당
   파일에서 `SwiftUI`와 `InnoDISwiftUI`를 import하세요. 모듈이 설치됐다는 이유만으로
-  helper가 달라지지 않으며, 기존 0-argument helper도 유지됩니다.
+  helper가 달라지지 않으며, 기존 0-argument helper도 유지됩니다. identity마다
+  host가 닫는 child 하나를 얻으려면 `.transient` child를 host하세요. `.shared`
+  child는 부모의 것으로 남습니다. 그 overload는 `identity:`만 받으며, 부모가 계속
+  제공하는 인스턴스가 훅에 넘어가므로 7.0의 `identity:close:` 표기는 거기서
+  deprecated입니다.
 - `DIContainerHost`는 fixed/assisted child를 route, document, window identity별로
   지연 생성해 소유합니다. 앱이 loading/failure/retry UI를 구성하고,
   `onDisappear` 대신 실제 close 경로에서 lifecycle handle을 호출합니다.
 - `#PreviewWithContainer`도 같은 lazy owner를 사용하며 동일 payload의 preview를
-  preview instance별로 분리합니다.
+  preview instance별로 분리합니다. 인자에서는 매크로가 생성한 initializer나
+  helper를 호출할 수 없습니다.
+  [SwiftUI Preview Helper](Sources/InnoDI/InnoDI.docc/ko.lproj/SwiftUIPreviewHelper.md#preview)처럼
+  컨테이너는 함수에서 만들고 helper는 wrapper view에서 그리세요.
 - InnoDI 5.0에서는 deprecated compatibility macro인 `@DIFeatureRoot`를
   제거합니다. 한 property에 peer macro를 겹치지 않도록 `@SubContainer`의
   `featureRoot:` 또는 `featureRoots:` argument로 교체하세요.

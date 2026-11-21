@@ -160,6 +160,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case swiftUIFeatureRootHostingRequiresBool = "swiftui.feature-root-hosting-requires-bool"
     case swiftUIEnvironmentBridgeUnknownMember = "swiftui.environment-bridge-unknown-member"
     case swiftUIEnvironmentBridgeDuplicateMember = "swiftui.environment-bridge-duplicate-member"
+    case swiftUIEnvironmentBridgeDuplicateEnvironment = "swiftui.environment-bridge-duplicate-environment"
     case swiftUIEnvironmentBridgeAsyncMember = "swiftui.environment-bridge-async-member"
     case swiftUIEnvironmentBridgeInvalidKeyPath = "swiftui.environment-bridge-invalid-keypath"
     case swiftUIEnvironmentBridgeInvalidArguments = "swiftui.environment-bridge-invalid-arguments"
@@ -271,6 +272,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .swiftUIFeatureRootHostingRequiresBool,
                 .swiftUIFeatureRootHelperNameConflict, .swiftUIEnvironmentBridgeUnknownMember,
                 .swiftUIEnvironmentBridgeDuplicateMember, .swiftUIEnvironmentBridgeAsyncMember,
+                .swiftUIEnvironmentBridgeDuplicateEnvironment,
                 .swiftUIEnvironmentBridgeInvalidKeyPath,
                 .swiftUIEnvironmentBridgeInvalidArguments,
                 .swiftUIEnvironmentBridgeReservedModuleName,

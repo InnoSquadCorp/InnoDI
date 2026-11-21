@@ -592,6 +592,18 @@ extension SimpleDiagnostic {
         )
     }
 
+    static func swiftUIEnvironmentBridgeDuplicateEnvironment(
+        memberName: String,
+        firstMemberName: String,
+        environment: String
+    ) -> Self {
+        Self(
+            "@DIEnvironmentBridge maps '\(memberName)' to \(environment), which '\(firstMemberName)' already sets. Views under the bridge read '\(firstMemberName)', so this mapping has no effect; remove one of the two mappings.",
+            code: .swiftUIEnvironmentBridgeDuplicateEnvironment,
+            severity: .warning
+        )
+    }
+
     static func swiftUIEnvironmentBridgeAsyncMember(memberName: String) -> Self {
         Self(
             "@DIEnvironmentBridge cannot map async container member '\(memberName)' into SwiftUI EnvironmentValues. Expose a synchronous value or inject a service that performs async work internally.",
@@ -1092,21 +1104,21 @@ extension SimpleDiagnostic {
 
     static func previewWithContainerMissingContainerExpression() -> Self {
         Self(
-            "#PreviewWithContainer requires a container expression as its first argument, e.g. `#PreviewWithContainer(AppContainer(baseURL: \"...\")) { container in ... }`.",
+            "#PreviewWithContainer requires a container expression as its first argument, e.g. `#PreviewWithContainer(makePreviewApp()) { container in ... }`, where an ordinary function builds the container.",
             code: .previewWithContainerMissingContainerExpression
         )
     }
 
     static func previewWithContainerMissingTrailingClosure() -> Self {
         Self(
-            "#PreviewWithContainer requires a closure with a single container parameter, e.g. `{ container in container.featureRootView() }`.",
+            "#PreviewWithContainer requires a closure with a single container parameter, e.g. `{ container in PreviewRoot(container: container) }`.",
             code: .previewWithContainerMissingTrailingClosure
         )
     }
 
     static func previewWithContainerMissingContainerParameter() -> Self {
         Self(
-            "#PreviewWithContainer requires the preview closure to declare one container parameter, e.g. `{ container in container.featureRootView() }`. Use #Preview directly when the body does not need the container.",
+            "#PreviewWithContainer requires the preview closure to declare one container parameter, e.g. `{ container in PreviewRoot(container: container) }`. Use #Preview directly when the body does not need the container.",
             code: .previewWithContainerMissingContainerParameter
         )
     }
