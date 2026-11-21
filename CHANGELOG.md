@@ -177,6 +177,13 @@ error values. Mermaid output escapes `"` and `|` in labels as `#quot;` and
 `#124;`, which Mermaid accepts; only path-derived labels of containers that
 share a display name could contain them.
 
+The build plugin's shared-run validation cache key moves to version 14
+(`shared-run-v14`), so a workspace validated by 7.0.x is validated once more
+under the 7.1 lookup rules above: target-scoped custom-init and hierarchy
+lookups, sibling `@_exported import` visibility, the deferred-alias set, and
+root-path discovery. The first build after upgrading revalidates once and
+repopulates the cache; no action is required.
+
 ### Upgrade Actions
 
 No source change is required for containers. Code that already uses
@@ -259,6 +266,10 @@ swift package show-dependencies
   별칭이 추가로 보고되고, `Vendor.Provider` 같은 무관한 타입의 별칭과 함수 본문의
   지역 별칭은 보고되지 않습니다. 새로 보고된 별칭을 쓰는 factory 매개변수는
   `Lazy<T>`·`Provider<T>`를 직접 쓰세요.
+- build plugin의 shared-run 검증 캐시 키가 version 14(`shared-run-v14`)로
+  바뀌었습니다. 7.0.x에서 검증한 workspace는 업그레이드 후 첫 빌드에서 7.1
+  규칙으로 한 번 다시 검증되고 캐시가 다시 채워집니다. 별도 조치는 필요하지
+  않습니다.
 
 ## 7.0.2
 

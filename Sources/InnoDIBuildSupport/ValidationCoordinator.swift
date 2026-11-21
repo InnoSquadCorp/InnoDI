@@ -298,6 +298,10 @@ package enum BootIDProvider {
     }
 }
 
+// Version 14 covers the 7.1 lookup corrections: custom-init and hierarchy
+// lookups scoped by declaring target, sibling `@_exported import` visibility,
+// the deferred-alias scan set, and root-path discovery that analyzes each
+// linked file once and skips Xcode `DerivedData` and `SourcePackages`.
 // Version 11 adds the Swift type qualifier required by generated Overrides
 // builders with slots. Unchanged consumers must not reuse pre-helper results.
 // Version 10 covers the 7.0 validator contract: canonical parent key paths,
@@ -306,7 +310,7 @@ package enum BootIDProvider {
 // semantics across `combine` call boundaries. Keep validator and digest
 // behavior in the cache salt so an unchanged workspace cannot reuse a result
 // produced by an older contract.
-package let sharedRunCacheVersion = 13
+package let sharedRunCacheVersion = 14
 
 package func sharedRunCacheKey(for signature: String) -> String {
     "shared-run-v\(sharedRunCacheVersion)-\(signature)"
