@@ -26,8 +26,8 @@ invocation. Three narrow situations make opting out defensible.
   the validation metrics artifact downstream tooling consumes; bypassing
   it removes the audit trail.
 - **CI on shared infrastructure** that does not also run
-  `swift run InnoDI-DependencyGraph --validate-dag` somewhere. Without a
-  replacement, the global DAG gate is gone.
+  `swift run InnoDI-DependencyGraph --root . --validate-dag` somewhere.
+  Without a replacement, the global DAG gate is gone.
 - **Anything user-facing.** The plugin's job is to keep a broken graph
   from reaching consumers; turning it off in the path that ships is the
   same as removing the contract.

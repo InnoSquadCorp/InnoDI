@@ -348,8 +348,10 @@ private namespace 안에 default-access container를 중첩하세요.
 확장할 때 accessor ancestry를 macro context에서 누락합니다. 이 edge case는
 build-validation plugin과 dependency-graph CLI가 전체 source tree를 scan해
 거부합니다. compiler-plugin macro 입력에서 빠지는 sibling extension도 이 단계가
-검사합니다. 컨테이너를 선언하는 모든 target에 plugin을 연결하세요. full-source
-preflight가 없으면 extension custom initializer가 정책을 우회할 수 있습니다.
+검사합니다. 6.0 선언 계약을 도입할 때 컨테이너를 선언하는 모든 target에 plugin을
+연결하세요. full-source preflight가 없으면 extension custom initializer가 정책을
+우회할 수 있고, 잘못된 local role 컨테이너가 안정적인 InnoDI 진단에 더해, 또는
+그 대신 compiler나 macro 오류를 낼 수 있습니다.
 
 ```swift
 @DIContainer(
@@ -446,6 +448,8 @@ misuse 진단과 함께 Swift 자체의 구조 진단도 발생할 수 있습니
     _ type: Any.Type? = nil,
     with dependencies: [AnyKeyPath] = [],
     initialization: DIInitialization = .eager,
+    effect: DIProviderEffect = .none,
+    collection: DICollectionMetadata? = nil,
     factory: Any? = nil,
     asyncFactory: Any? = nil
 )
@@ -587,6 +591,7 @@ InnoDI는 여러 단계에서 컨테이너를 검증합니다.
    - local cycle
    - invalid `init` declaration
 2. Build validation
+   - full-source declaration-matrix preflight
    - cross-file `init` conflict
    - semantic reference check
    - hierarchy validation
@@ -638,6 +643,7 @@ let result = try await AppContainer.withOverrides(baseURL: "https://test.example
 비순환 그래프에서 지연 참조가 필요하면 `Lazy<T>`를 사용합니다.
 6.0은 `Lazy<T>` / `Provider<T>`가 포함된 순환도 거부합니다.
 지연 생성은 소유권 순환을 끊지 않으며 `validateDAG: false`도 이를 허용하지 않습니다.
+공유 상태를 별도 의존성으로 옮기거나 그래프 구조를 바꾸세요.
 
 `.transient` 의존성을 호출할 때마다 다시 진입해야 하면 `Provider<T>`를
 사용합니다.
@@ -684,7 +690,10 @@ var feature: FeatureContainer
   `InnoDI._InnoDISubContainerAccessor`의 수동 부착은 지원하지 않습니다.
 - parent `@Provide` 후보가 0개 또는 1개일 때만 이름 기준 implicit wiring을 편의로 허용합니다.
 - parent 후보가 여러 개면 `with:` 또는 `bindings:`로 명시 wiring해야 합니다.
-- `with:`는 같은 이름 subset/order를 forward합니다.
+- `with:`는 같은 이름 subset/order를 forward합니다. 매크로가 읽을 수 있는
+  리터럴 key-path 배열이어야 하며, 런타임 변수나 계산된 배열 원소는 지원하지
+  않습니다.
+- `with: []`는 명시적인 빈 subset이며 `Child()`를 호출합니다.
 - `bindings:`는 child input label과 parent member 이름이 다를 때 remap합니다.
 - `with:`와 `bindings:`의 `parent:` 쪽 key path는 직접 멤버 하나를
   `\Self.member`로 지정합니다. `\AppContainer.member` 같은 이름 있는 루트는
@@ -829,6 +838,7 @@ target mapping은 healthy가 아니라 분석 불완전으로 남깁니다. migr
 `migrate.swiftui-import-access-ambiguous`로 남습니다.
 `--apply`는 migrator의 atomic exchange 검사를 사용합니다. 성공해도 이전 파일을 `RECOVERY` 경로에
 보존하므로 editor를 닫고 두 파일을 검토한 뒤 불필요한 복사본만 삭제하세요.
+Doctor schema v3에는 `recoveryPaths`가 포함됩니다.
 POSIX mode는 유지하지만 ACL/xattr 보존이나 파일시스템 전체 트랜잭션은 보장하지 않습니다.
 SwiftPM `--verify`는 `swift build`를 실행하고,
 Tuist 검증은 generate 후 `--scheme`과 `--destination`이 모두 명시된 경우에만 실제

@@ -30,7 +30,7 @@ lock을 얻지 못했을 때의 복구 방법을 설명합니다.
 |---|---|---|
 | APFS | ✅ 지원 | 기본 macOS / iOS simulator 빌드. |
 | HFS+ | ✅ 지원 | |
-| ext4 / btrfs / xfs | ✅ 지원 | Linux SPM 빌드. |
+| ext4 / btrfs / xfs | ✅ 로컬로 분류 | 감지기의 Linux 분기가 허용합니다. InnoDI 자체는 Apple platform만 지원하며 Linux에서 빌드하거나 테스트하지 않습니다. |
 | tmpfs | ✅ 지원 | CI에서 SPM scratch path로 자주 쓰입니다. |
 | **NFS** | ❌ 기본적으로 미지원 | 감지기가 mount 버전과 lock 의미를 안정적으로 구별할 수 없어, InnoDI는 NFS mount를 안전하지 않다고 분류합니다. scratch path를 로컬 볼륨으로 옮기거나 `INNODI_ALLOW_UNSAFE_LOCK=1`로 opt-in하세요. |
 | **SMB / CIFS** | ❌ 미지원 | 원자성이 보장되지 않습니다. |

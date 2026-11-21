@@ -139,6 +139,8 @@ operation closure remains `@MainActor`. A type that carries a source-written
 global actor (`@MainActor`, or a custom `…Actor` attribute) already isolates its
 initializer, so its async overloads inherit that isolation and must not be
 `nonisolated(nonsending)`; a nested `@AssistedFactory` receives the custom actor.
+The operation closure type of a custom-actor container stays
+`nonisolated(nonsending)`; a `@MainActor` type's is `@MainActor`.
 A component role rejects a custom global actor with
 `component.custom-global-actor-unsupported`.
 
@@ -305,9 +307,9 @@ sibling edge even when the container uses `validateDAG: false`.
   anchors a diagnostic, because it builds a modified tree.
 - `swift run InnoDI-DeferredAliasScan --root .` lists every `typealias` in
   the workspace, at file scope or inside a type or extension body, that
-  renames `Lazy<T>` or `Provider<T>` (bare, or qualified by `InnoDI` or a
-  module that re-exports it), directly, through redundant parentheses, or
-  through another listed alias. Aliases in function, closure, or accessor
+  renames `Lazy<T>` or `Provider<T>` (bare, or qualified by `InnoDI` or by
+  `InnoDISwiftUI` or `InnoDITesting`, which re-export it), directly, through
+  redundant parentheses, or through another listed alias. Aliases in function, closure, or accessor
   bodies cannot be named at a factory parameter and are not listed; neither
   is another type that is merely named `Provider`, such as `Vendor.Provider`.
   InnoDI never resolves aliases: a factory parameter typed with one is a hard

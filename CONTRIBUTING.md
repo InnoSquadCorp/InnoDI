@@ -86,8 +86,10 @@ preserve the guide-version and section markers used by the parity gate. Their
 `*.lproj` folders still contain historical 6.0.0 DocC notices. Do not present
 those notices as current translated API documentation.
 
-The generated DocC archive currently builds from the English base catalog, so
-localized DocC files are maintained as source mirrors in the repository.
+`Tools/generate-docc.sh` renders the English catalog at `/InnoDI` and the
+Korean `ko.lproj` mirror as a separate catalog at `/InnoDI/ko`, and
+`Tools/check-docc-locales.py` rejects a missing or incorrectly hosted Korean
+rendering. The other locales' `*.lproj` folders are not rendered.
 
 `Tools/check-localized-readme-sync.sh` runs in strict mode whenever CI Plan
 selects the documentation contracts and in every release: a swift fence count

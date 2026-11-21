@@ -97,6 +97,12 @@ Current development train: `7.1.0` (unreleased)
   for the first evaluation after an identity change. The `#PreviewWithContainer`
   documentation now shows a form that compiles and explains why arguments that
   call generated initializers or helpers cannot.
+- Correct reference documentation that disagreed with the code. `InnoDICore`
+  is described as the internal target it is, the `Lazy` and `Provider` alias
+  warnings and the Xcode plugin outputs describe current behavior, the
+  `DiagnosticsGuide` lists the build plugin's assisted-factory, hierarchy,
+  graph and deferred-alias codes, and the Korean README and DocC mirrors regain
+  statements they had dropped.
 
 ### Breaking and Behavior Changes
 
@@ -151,6 +157,16 @@ like `container.mainactor-conflict`. A component's `<Name>Dependencies`
 requirements spell a type nested directly in the container, and `Self`, as
 `<Name>.Mode`; spellings that name nothing nested are unchanged.
 
+Two diagnostics reject shapes whose expansion could never compile:
+`container.missing-effect-overrides-name-conflict` reports an override slot
+named `missingEffectOverrides` (a provider, a child, or the `<name>Overrides`
+slot of a child named `missingEffect`) beside an effect-marked provider, which
+redeclared the `DIOverrideEffectValidating` requirement.
+`component.custom-global-actor-unsupported` reports a component-role container
+under a custom global actor, whose initializer cannot witness the nonisolated
+mounting protocol. Both shapes already failed in generated code, so no code
+that compiled is newly rejected.
+
 `@GenerateMock` changes generated code in two ways that keep its symbol shape.
 Untyped errors are spelled `_InnoDIMockError`, a new reserved public alias of
 `Error` in `InnoDI`, instead of `Error`, which a nested or file-scope type named
@@ -172,17 +188,8 @@ cannot be made potentially unavailable; it compiled only when every type it
 used already existed at the deployment target. `obsoleted:` and `unavailable`
 fail the same way. `where Self: Parent` fails like `: Parent`; it compiled only
 when `Parent` had no requirements. Member-level deprecation and renaming are
-still accepted.
-
-Two diagnostics reject shapes whose expansion could never compile:
-`container.missing-effect-overrides-name-conflict` reports an override slot
-named `missingEffectOverrides` (a provider, a child, or the `<name>Overrides`
-slot of a child named `missingEffect`) beside an effect-marked provider, which
-redeclared the `DIOverrideEffectValidating` requirement.
-`component.custom-global-actor-unsupported` reports a component-role container
-under a custom global actor, whose initializer cannot witness the nonisolated
-mounting protocol. Both shapes already failed in generated code, so no code
-that compiled is newly rejected.
+still accepted. Parameter packs and `some` inside a parameter type, such as
+`[some Sequence<Int>]`, now fail too; their mocks never compiled.
 
 The graph tools' output changes only for inputs they mishandled. Root-path
 discovery resolves every path through symbolic links, keeps each resolved file
@@ -318,6 +325,8 @@ swift package show-dependencies
   visionOS 1)보다 늦은 platform 버전을 도입하고 protocol이 그것을 보장하지
   않으면, 또는 protocol이 `where Self:`로 다른 protocol을 상속하면 이제
   거부됩니다. availability를 protocol로 옮기거나 mock을 직접 작성하세요.
+  parameter pack과 `[some Sequence<Int>]`처럼 파라미터 타입 안에 쓴 `some`도
+  거부되지만, 이런 mock은 원래 컴파일되지 않았습니다.
   타입이 없는 오류는 `Error`와 같은 별칭 `_InnoDIMockError`로 생성되고, optional이
   아닌 `nameReturnValue` slot에 `nil`을 대입하면 missing으로 보고됩니다.
   typealias로 쓴 optional 반환의 `nil`은 `.some(nil)`로 stub하세요.

@@ -204,15 +204,20 @@ public func _innoDITrap<T>(_ message: String) -> T {
 /// `nonisolated(nonsending)`. They retain the caller's actor executor, so an
 /// arbitrary non-`Sendable` container and closure do not cross an isolation
 /// boundary. Use `@DIContainerRole(role: ContainerRole.local, mainActor: true)`
-/// when every generated API must be isolated to the main actor.
+/// when every generated API must be isolated to the main actor. A container
+/// type that carries a source-written global actor attribute, `@MainActor` or
+/// a custom attribute spelled `…Actor`, already isolates its initializer, so
+/// its async overloads inherit that actor instead of `nonisolated(nonsending)`.
 ///
 /// > Important: `validateDAG: false` is a narrow opt-out from the global
 /// > DAG availability gates. Ownership cycles still fail. Treat it as a temporary fixture rather than
 /// > a release-quality flag — production builds should keep the default. See
 /// > <doc:DAGValidation> for the configuration-aware enforcement pattern.
-/// > Every PR runs `Tools/report-validate-dag-escape-hatches.sh`, which
-/// > lists every `@DIContainer(...validateDAG: false...)` site and any
-/// > active `INNODI_DISABLE_BUILD_VALIDATION` environment override in the
+/// > In InnoDI's own `CI` workflow, whichever of the `fast-tests` and
+/// > `macro-tests` jobs CI Plan selects runs
+/// > `Tools/report-validate-dag-escape-hatches.sh`, which lists every
+/// > `@DIContainer(...validateDAG: false...)` site and any active
+/// > `INNODI_DISABLE_BUILD_VALIDATION` environment override in the
 /// > workflow's step summary so reviewers can audit escape-hatch creep
 /// > without a separate gate.
 ///
@@ -344,10 +349,12 @@ public macro _InnoDIAssistedFactoryMetadata(
 ///     `\Self.member` key paths for `type`-based construction, or an empty
 ///     array. Every referenced provider must be synchronous.
 ///   - initialization: `.eager` preserves the default initialization-time
-///     construction. `.onDemand` is available for synchronous `.shared`
-///     providers and constructs once on first access. Value-type container
-///     copies share the same cache cell; separately initialized containers do
-///     not. Passing an override bypasses the original factory.
+///     construction. `.onDemand` is available for `.shared` providers and
+///     constructs once on first access. Value-type container copies share the
+///     same cache cell; separately initialized containers do not. Passing an
+///     override bypasses the original factory. With `asyncFactory:`, the
+///     accessor is `get async throws`, a read can observe cancellation or a
+///     closed provider, and the container gains `closeAsyncProviders()`.
 ///   - effect: Explicit operational-effect metadata. `.sideEffect` makes the
 ///     generated `Overrides` builder report this provider as required to an
 ///     opt-in strict `InnoDITesting` profile until its override slot is set.
@@ -476,14 +483,21 @@ public macro _InnoDIProvideAccessor(
 /// `InnoDI.Lazy<T>` so the generated code preserves that qualification.
 ///
 /// > Warning: Detection inside the macro plugin is by canonical
-/// > identifier only. A typealias to `Lazy<T>` in the same file emits a
-/// > warning; cross-file aliases the macro itself cannot see. Run
-/// > `swift run InnoDI-DeferredAliasScan --root .` (the PR pipeline runs
-/// > this on every build and uploads the JSON report) to enumerate
-/// > cross-file aliases workspace-wide. A renamed alias the scanner
-/// > flags silently behaves as a hard edge and disables deferred wiring —
-/// > prefer the canonical `Lazy<T>` or `InnoDI.Lazy<T>` spelling at
-/// > every factory parameter site.
+/// > identifier only, and InnoDI never resolves an alias in any file. A
+/// > real compiler hands the macro only the attached container declaration,
+/// > so the macro's `provide.lazy-aliased` warning does not see a file-scope
+/// > alias. The build-validation plugin reports every alias in the sources
+/// > it validates that renames `Lazy<T>`, directly, through parentheses, or
+/// > through another such alias, at file scope or in a type or extension
+/// > body, as a `deferred-alias.workspace-finding` warning in its validation
+/// > summary, and rejects a factory parameter spelled through a generic alias
+/// > such as `Deferred<Service>` with
+/// > `provide.deferred-wrapper-alias-unsupported`. In an InnoDI checkout,
+/// > `swift run InnoDI-DeferredAliasScan --root <path>` lists the same
+/// > aliases for any directory. A factory parameter typed with such an alias
+/// > is a hard edge to the member of that name instead of a deferred handle,
+/// > and the generated call usually fails to type-check — spell `Lazy<T>` or
+/// > `InnoDI.Lazy<T>` at every factory parameter site.
 public struct Lazy<T> {
     @usableFromInline
     let resolver: () -> T
@@ -572,14 +586,23 @@ public struct Lazy<T> {
 /// preserves that qualification.
 ///
 /// > Warning: Detection inside the macro plugin is by canonical
-/// > identifier only. A typealias to `Provider<T>` in the same file emits
-/// > a warning; cross-file aliases the macro itself cannot see. Run
-/// > `swift run InnoDI-DeferredAliasScan --root .` (the PR pipeline runs
-/// > this on every build and uploads the JSON report) to enumerate
-/// > cross-file aliases workspace-wide. A renamed alias the scanner
-/// > flags silently behaves as a hard edge with re-entry semantics lost
-/// > — prefer the canonical `Provider<T>` or `InnoDI.Provider<T>`
-/// > spelling at every factory parameter site.
+/// > identifier only, and InnoDI never resolves an alias in any file. A
+/// > real compiler hands the macro only the attached container declaration,
+/// > so the macro's `provide.provider-aliased` warning does not see a
+/// > file-scope alias. The build-validation plugin reports every alias in the
+/// > sources it validates that renames `Provider<T>`, directly, through
+/// > parentheses, or through another such alias, at file scope or in a type
+/// > or extension body, as a `deferred-alias.workspace-finding` warning in
+/// > its validation summary, and rejects a factory parameter spelled through a
+/// > generic alias such as `Fresh<Request>` with
+/// > `provide.deferred-wrapper-alias-unsupported`. An alias of an unrelated
+/// > type named `Provider`, such as `Vendor.Provider`, is not reported. In an
+/// > InnoDI checkout,
+/// > `swift run InnoDI-DeferredAliasScan --root <path>` lists the same
+/// > aliases for any directory. A factory parameter typed with such an alias
+/// > is a hard edge to the member of that name, so re-entry semantics are
+/// > lost and the generated call usually fails to type-check — spell
+/// > `Provider<T>` or `InnoDI.Provider<T>` at every factory parameter site.
 public struct Provider<T> {
     @usableFromInline
     let resolver: () -> T

@@ -1,7 +1,9 @@
 # Documentation Guide
 
-Choose a task, then follow its current API guide. This documentation targets
-InnoDI 7.0.1. For another installed version, use that release's source tag.
+Choose a task, then follow its current API guide. This documentation describes
+the source at this revision, which can include changes that `CHANGELOG.md`
+still lists as unreleased; `CHANGELOG.md` also names the latest stable release.
+For an installed version, use that release's source tag.
 
 ## Installation and First Use
 
@@ -104,12 +106,13 @@ The repository `CHANGELOG.md` is the release/upgrade source of truth.
 `docs/plans`, `docs/reviews`, `docs/rfcs` and older changelog entries preserve
 historical evidence; their proposals and old code are not current API recipes.
 The examples use the local checkout, whereas README package snippets select a
-published release. Do not treat passing a historical 7.0.0 fixture as evidence
-that an actual 7.0.1 consumer was tested.
+published release. Do not treat a passing fixture pinned to an older release
+as evidence that a consumer of a later release was tested.
 
 English is the complete canonical reference. Korean mirrors the English
 README and DocC article sources. Japanese, Simplified Chinese, German, Spanish
 and Russian READMEs provide current concise guides with explicit links into
 the complete reference; their DocC directories remain historical 6.0.0 notices.
-The generated DocC archive builds the English catalog. Translated source files
-in the repository do not imply a language selector in the published archive.
+The generated DocC archive renders the English catalog at `/InnoDI` and the
+Korean mirror as a separate catalog at `/InnoDI/ko`. The other translations
+have no rendered catalog.

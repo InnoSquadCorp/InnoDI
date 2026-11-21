@@ -16,6 +16,12 @@ An explicitly `private` container is also rejected because sibling containers
 cannot access its generated mount surface. Use `fileprivate` for file-local
 mounting, or put a default-access container inside a private namespace.
 
+The Swift compiler currently omits accessor ancestry when it expands an
+attached macro on a type declared inside a computed-property body. The
+build-validation plugin and the dependency-graph CLI scan the full source tree
+and reject that edge case. Attach the plugin to every target that declares
+containers.
+
 ## Declaration
 
 ```swift

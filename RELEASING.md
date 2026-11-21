@@ -347,8 +347,9 @@ If a release changes user-facing validation, graph semantics, hierarchy
 behavior, or SwiftUI integration, update those docs in the same change.
 
 The repository keeps localized DocC Markdown mirrors for review and GitHub
-reading. The generated DocC archive currently builds from the English base
-catalog.
+reading. The generated DocC archive renders the English catalog at `/InnoDI`
+and the Korean mirror as a separate catalog at `/InnoDI/ko`; the other locales'
+historical DocC folders are not rendered.
 
 ## Automated Release Artifacts
 

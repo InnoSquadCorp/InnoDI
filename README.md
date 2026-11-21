@@ -462,6 +462,8 @@ uses exit codes `0` (clean), `1` (changes required), and `2` (blocked).
     _ type: Any.Type? = nil,
     with dependencies: [AnyKeyPath] = [],
     initialization: DIInitialization = .eager,
+    effect: DIProviderEffect = .none,
+    collection: DICollectionMetadata? = nil,
     factory: Any? = nil,
     asyncFactory: Any? = nil
 )
@@ -869,6 +871,8 @@ remains `migrate.swiftui-import-access-ambiguous`.
 `--apply` uses the migrator's preserving atomic-exchange checks. Successful writes retain displaced
 files at reported `RECOVERY` paths; review those files after closing editors
 before removing them. Doctor schema v3 includes `recoveryPaths`.
+POSIX access mode is preserved, but ACLs, extended attributes, and a
+filesystem-wide transaction are not.
 SwiftPM `--verify` runs `swift build`; Tuist
 verification first runs generation and only runs compilation when `--scheme`
 and `--destination` are explicit. Schema-v3 reports keep generation and

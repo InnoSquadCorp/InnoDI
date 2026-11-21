@@ -61,8 +61,13 @@ The Xcode plugin API does not expose Tuist's complete cross-project target
 dependency topology. The Tuist fallback therefore validates the full source DAG
 and declaration contracts, but module-edge hierarchy rules that depend on the
 exact target graph still require a topology-aware SwiftPM or CI check. Xcode
-commands declare no outputs because multi-destination variants can share one
-plugin work directory, so Xcode may schedule the validation on every build.
+commands declare one comment-only output per configuration, effective platform
+and SDK platform inside the plugin work directory:
+`_InnoDIDAGValidation.generated.swift` for a Swift target and
+`_InnoDIDAGValidation.generated.h` for a Clang target. Multi-destination
+variants therefore do not collide. Xcode may still schedule the validation on
+an unchanged build, where the coordinator reuses its cached result; see
+<doc:Validation>.
 
 For a class bridge, or a container/bridge nested in a class, the preflight also
 follows the first inherited type as the potential superclass. Every traversed

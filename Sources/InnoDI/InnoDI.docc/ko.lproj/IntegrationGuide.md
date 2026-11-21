@@ -56,9 +56,12 @@ Tuist workspace에서는 workspace root를 찾고 하나의 production-source sn
 Xcode plugin API는 Tuist의 전체 교차 project target dependency topology를 제공하지
 않습니다. 따라서 Tuist fallback은 full source DAG와 declaration contract를 검증하지만,
 정확한 target graph에 의존하는 module-edge hierarchy 규칙은 topology-aware SwiftPM
-또는 CI 검증이 추가로 필요합니다. multi-destination variant가 하나의 plugin work
-directory를 공유할 수 있어 Xcode command는 output을 선언하지 않으며, Xcode가 매
-build마다 validation을 schedule할 수 있습니다.
+또는 CI 검증이 추가로 필요합니다. Xcode command는 plugin work directory 안에서
+configuration, effective platform, SDK platform마다 주석만 있는 output 하나를
+선언합니다. Swift target은 `_InnoDIDAGValidation.generated.swift`, Clang target은
+`_InnoDIDAGValidation.generated.h`입니다. 따라서 multi-destination variant끼리
+충돌하지 않습니다. 변경 없는 빌드에서도 Xcode가 validation을 schedule할 수 있으며,
+이때 coordinator는 캐시된 결과를 재사용합니다. <doc:Validation>을 참고하세요.
 
 Class bridge 또는 class 안에 중첩된 container/bridge는 첫 inherited type을
 잠재적인 superclass로 따라갑니다. 따라가는 모든 class와 typealias는 workspace

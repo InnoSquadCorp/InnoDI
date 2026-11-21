@@ -8,8 +8,8 @@
 generic parameter나 `where` clause가 없어야 합니다. `class`, `actor`, `enum`,
 `protocol`, 직접 annotated된 `extension`, extension 안에 nested된 struct는
 거부됩니다. 함수, closure, accessor, `switch` case를 포함한 executable/local
-code scope 안의 선언도 거부됩니다. 이 경계는 component 역할의 `@DIContainerRole`을 적용한
-선언에도 동일합니다. runtime 또는 타입별 state는 protocol dependency나
+code scope 안의 선언도 거부됩니다. 이 경계는 `@DIContainerRole`에도 동일하게
+적용됩니다. runtime 또는 타입별 state는 protocol dependency나
 `@Input` 뒤로 옮기세요.
 
 명시적으로 `private`인 컨테이너도 sibling container가 생성된 mount surface에

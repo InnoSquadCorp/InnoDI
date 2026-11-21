@@ -18,9 +18,9 @@ breaking change 표는
 | 4.2 → 4.3 | Feature-root 헬퍼 통합 | 새 SwiftUI feature-root 헬퍼는 스택드 `@DIFeatureRoot` 대신 `@SubContainer(featureRoot:)` 또는 `featureRoots:`로 옮기세요. `@DIFeatureRoot`는 호환성 용도로 deprecated 상태로 남습니다. |
 | 4.x → 4.x+1 (experimental) | `@GenerateMock` opt-in | RFC 0001의 1-3단계는 **experimental**로 제공됩니다. Attribute는 안정적이지만 생성되는 mock 형태는 바뀔 수 있습니다. 도입은 opt-in입니다. <doc:AutoMock>을 참고하세요. |
 | 5.x → 6.0 | 명시적인 input과 container role 표기 | `@Provide(.input)`을 `@Input`으로, hierarchy/isolation marker를 `@DIContainerRole`로 바꾸세요. [5.x → 6.0](#5x--60-어휘)을 참고하세요. |
-| 7.0 → 7.1 | `@GenerateMock` 정식화(GA) | 소스 변경은 필요 없습니다. 생성되는 mock 형태에도 semantic versioning이 적용됩니다. <doc:AutoMock>을 참고하세요. |
+| 7.0 → 7.1 | `@GenerateMock` 정식화(GA) | 대부분의 코드는 소스 변경이 필요 없습니다. 생성되는 mock 형태에도 semantic versioning이 적용됩니다. `@GenerateMock`은 이제 requirement 자체의 platform `@available`이 InnoDI 최소 platform보다 늦은 경우와 `Sendable`·`AnyObject`가 아닌 `where Self:` 상속을 거부합니다. `.shared` child의 hosted feature root는 `close:`가 deprecated되고, `InnoDI-Doctor`는 무시하던 옵션을 거부합니다. 모든 업그레이드 조치는 `CHANGELOG.md`에 있습니다. <doc:AutoMock>을 참고하세요. |
 | 6.x → 7.0 | Parent key path 정규화, 명시적 SwiftUI import, typed prewarm, 선택적 owned 비동기 수명 관리 | 서브컨테이너 parent key path를 `\Self.member`로 쓰고, `InnoDISwiftUI`를 import하는 파일에서 SwiftUI도 import하세요. `InnoDI-Migrate`가 둘 다 처리합니다. macOS target을 14로 올리고 host owner 관찰을 Observation으로 옮기세요. key path prewarm 호출은 직접 옮기세요. Owned preparation과 override helper는 선택적인 추가 API입니다. [6.x → 7.0](#6x--70)을 참고하세요. |
-| 4.x → 5.0 | 공개 계약 강화 | `concrete:`와 `@DIFeatureRoot`를 제거하고, 지원 선언 경계·MainActor 격리·검증·Graph JSON v2 변경에 맞춰 마이그레이션하세요. `@GenerateMock`는 experimental 상태를 유지합니다. |
+| 4.x → 5.0 | 공개 계약 강화 | `concrete:`와 `@DIFeatureRoot`를 제거하고, 지원 선언 경계·MainActor 격리·검증·Graph JSON v2 변경에 맞춰 마이그레이션하세요. `@GenerateMock`는 독립된 GA 기준을 통과할 때까지 experimental 상태를 유지합니다. |
 
 표의 각 행은 과거 버전 사이의 변경이며 서로 바꿔 쓸 수 있는 현재 API 예제가
 아닙니다. 여러 버전을 건너뛴다면 해당하는 변경을 모두 적용하고 6.x → 7.0
@@ -136,8 +136,9 @@ import 기본값과 경고 설정으로 빌드하세요. 같은 선택으로 다
 않습니다.
 새로운 명시적 `internal`/`package` import를 선택하기 전에 같은 타깃의 다른
 파일에 있는 암시적 SwiftUI import도 접근 수준을 명시하세요. flag는 그 peer
-import를 고치지 않습니다. 같은 실행에서 새로 생기는 import끼리의 충돌도
-쓰기 전에 검사하며, 충돌 시 일부 파일만 기록하지 않습니다. 진단을 피하려고
+import를 고치지 않습니다. 암시적 import와 non-public 명시적 import가 섞이는
+계획은 차단되며, 충돌하는 두 import가 같은 실행에서 함께 새로 생기는 경우도
+마찬가지입니다. 일부 파일만 기록하지 않습니다. 진단을 피하려고
 모든 import를 public으로 올리지 말고 타깃 경계와 import 기본값을 검토하세요.
 
 선택해서 변환한 root는 같은 선택으로 검사하고 `InnoDI-Doctor`에도 넘기세요.
@@ -659,9 +660,10 @@ status, diagnostic message만 포함하며 원본 또는 변환된 source 본문
 않습니다. 각 change에는 그 파일을 바꾼 `rules`도 적힙니다. 예를 들어 7.0에서는
 `migrate.parent-key-path`나 `migrate.swiftui-import`이며, `MIGRATE`와 `MIGRATED`
 줄에도 같은 rule code가 출력됩니다. Exit code는 clean `0`, 변경 필요 `1`, 차단 `2`입니다. `--write`는 먼저
-전체 source tree를 parse·preflight하고 UTF-8 BOM과 POSIX mode를 보존합니다.
-소유권이 모호한 attribute, 지원하지 않는 legacy argument, parse error,
-source symlink 등 preflight 실패는 파일을 쓰지 않습니다. source symlink는
+전체 source tree를 parse·preflight하고, 기존 UTF-8 BOM과 POSIX mode를 umask와
+무관하게 보존합니다. 소유권이 모호한 attribute, 지원하지 않는 legacy argument,
+parse error, source symlink, 동시에 일어난 source 변경은 exit code `2`로
+fail-closed 처리되며, preflight 실패는 파일을 쓰지 않습니다. source symlink는
 `.swift` link, 그리고 root 밖이나 `.build`·`.git`·`.swiftpm`, nested Git
 repository 안을 가리키는 디렉터리 link입니다. framework의 `Versions/Current`처럼
 scan이 이미 다루는 root 안 디렉터리를 가리키는 link는 따라가지 않으며, 그 뒤의
@@ -673,10 +675,12 @@ source는 실제 경로로 계획하고 기록합니다.
 editor를 닫고 두 파일을 검토한 뒤 불필요한 복사본만 삭제하세요. 이 복구 파일은
 Swift 입력이나 다음 migration 대상이 아닙니다. 게시 중 충돌은 exit `2`와 복구
 경로를 보고하며, source에는 tool 출력이 남을 수 있습니다. 다른 저장을 덮어쓸
-수 있는 자동 복원은 하지 않습니다. 앞서 쓴 파일도 tool 출력과 일치할 때만 같은
+수 있는 자동 복원은 하지 않으므로, 두 경로를 검토한 뒤 editor의 버전을 직접
+복구하세요. 앞서 쓴 파일도 tool 출력과 일치할 때만 같은
 교환 절차로 rollback합니다. Atomic exchange 미지원 파일시스템은 덮어쓰기
 rename으로 대체하지 않고 실패합니다. ACL/xattr 보존이나 전체 파일시스템
-트랜잭션은 보장하지 않습니다. Doctor schema v3에는 `recoveryPaths`가 포함됩니다.
+트랜잭션은 보장하지 않습니다. Doctor schema v3도 성공한 apply의 복구 경로를
+보고합니다.
 
 소유권이 모호하면 먼저 attribute의 실제 owning module을 확인하세요.
 InnoDI 소유 선언이라면 `@InnoDI.DIContainer`와 `@InnoDI.Provide`, 또는

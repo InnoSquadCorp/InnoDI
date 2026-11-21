@@ -34,6 +34,22 @@ The category prefix reflects the stage that emits the diagnostic:
 - `assisted-factory.access-level-mismatch`: the factory is more visible than
   its child container or at least one child input bridge.
 
+The build plugin checks each `@SubContainerFactory` against its child
+container:
+
+- `assisted-factory.invalid-bindings`: `bindings:` is not a literal array of
+  `(child:, parent:)` key-path tuples.
+- `assisted-factory.child-has-no-assisted-input`: the child declares no
+  `@Input(.assisted)` member; use `@SubContainer` for a fixed child.
+- `assisted-factory.duplicate-static-binding`: an ordinary child input is bound
+  more than once.
+- `assisted-factory.assisted-input-bound-as-static`: `bindings:` captures an
+  assisted child input; pass that value to `callAsFunction` instead.
+- `assisted-factory.unknown-static-input`: a binding's child key path does not
+  name an ordinary child `@Input`.
+- `assisted-factory.missing-static-binding`: at least one ordinary child input
+  has no binding.
+
 ## Multibinding diagnostics
 
 - `multibinding.invalid-contributors`: the argument is not one literal array
@@ -254,7 +270,18 @@ Most frequently-hit codes:
 - `provide.provider-eager-call` — `Provider<T>` invoked at construction
   time, which defeats its purpose.
 - `provide.lazy-aliased` / `provide.provider-aliased` — a `typealias` for
-  `Lazy<T>` / `Provider<T>` was used; rewrite as the direct spelling.
+  `Lazy<T>` / `Provider<T>` was used; rewrite as the direct spelling. The
+  macro sees only the source it is expanded with, and a real compiler passes
+  the attached declaration alone, so these warnings do not fire for a
+  file-scope alias outside unit tests.
+- `deferred-alias.workspace-finding` (build plugin, warning) — a file-scope,
+  type-member, or extension-member `typealias` renames `Lazy<T>` or
+  `Provider<T>`, directly, through parentheses, or through another such alias.
+  InnoDI never resolves aliases, so a factory parameter typed with it is a
+  hard edge. Spell the wrapper directly at the factory parameter.
+- `provide.deferred-wrapper-alias-unsupported` (build plugin) — a factory
+  parameter is spelled through a generic alias of `Lazy` or `Provider`, such as
+  `Deferred<Service>`. Spell `InnoDI.Lazy<T>` or `InnoDI.Provider<T>`.
 - `provide.deferred-wrapper-qualification-required` (build plugin) — a
   factory parameter spells `Lazy<T>` or `Provider<T>` while its own module
   declares a type with that name, so the name no longer means InnoDI's
@@ -460,6 +487,16 @@ Most frequently-hit codes:
   detected a cycle.
 - `graph.ambiguous-container-reference` — a name matched multiple
   containers.
+- `graph.unresolved-container-reference` — a container reference resolves to
+  no analyzed container.
+- `graph.excluded-container-reference` — a container reference uses a shape
+  the semantic resolver does not support; the line names the reason.
+- `graph.duplicate-semantic-identity` — two unconditional declarations share
+  one container identity.
+- `graph.conditional-identity-unresolved` — declarations of one container
+  identity collide only through `#if` branches the analysis cannot evaluate.
+- `graph.root-pruning-no-roots` — `--root-pruning roots` was requested, but no
+  container declares `@DIContainerRole(role: ContainerRole.root)`.
 
 ## SwiftUI diagnostics
 
@@ -557,6 +594,40 @@ Most frequently-hit codes:
   root role.
 - `hierarchy-root.requires-container` — legacy `@DIHierarchyRoot` must migrate
   to a supported root `@DIContainerRole` type.
+
+The build plugin validates cross-module `@SubContainer` edges with these
+codes:
+
+- `hierarchy.unresolved-child-reference` — the child type resolves to no known
+  container.
+- `hierarchy.ambiguous-child-reference` — the child type resolves to more than
+  one container.
+- `hierarchy.child-not-in-workspace` (warning) — no container record exists for
+  the child, so the cross-module checks for that edge are skipped.
+- `hierarchy.child-not-component` — the edge crosses modules, but the child
+  does not declare `ContainerRole.component`.
+- `hierarchy.module-edge-missing` — the parent's module mounts a child from a
+  module it does not declare as a dependency.
+- `hierarchy.invalid-same-name-wiring` — `with:` is not a fully parseable
+  literal array.
+- `hierarchy.invalid-bindings` — `bindings:` is not a fully parseable literal
+  child-to-parent key-path tuple array.
+- `hierarchy.bindings-conflicts-with-with` — one edge uses both `with:` and
+  `bindings:`.
+- `hierarchy.duplicate-with-dependency` — `with:` lists a dependency more than
+  once.
+- `hierarchy.duplicate-binding-mapping` — `bindings:` maps a child input more
+  than once.
+- `hierarchy.unknown-child-input` — the parent forwards a name that the child
+  does not declare as an `@Input`.
+- `hierarchy.unsatisfied-dependency` — the parent cannot supply a component
+  input, or supplies a member of a different type.
+- `hierarchy.duplicate-parent` — a component is mounted from more than one
+  parent.
+- `hierarchy.component-cycle` — `@SubContainer` ownership forms a cycle in the
+  rooted hierarchy.
+- `hierarchy.orphan-component` — a component is not reachable from any
+  `ContainerRole.root` container that could mount it.
 
 ## Mock generation diagnostics
 
