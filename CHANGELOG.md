@@ -72,6 +72,18 @@ Current development train: `7.1.0` (unreleased)
   aliases inside a type or extension body, and they no longer list an alias of
   an unrelated type named `Provider` (such as `Vendor.Provider`) or an alias
   local to a function body.
+- Stop `InnoDI-Doctor` from reporting healthy or correctly migrated projects
+  as broken. Doctor accepts `--swiftui-import-access` and checks and applies
+  with that choice, so a root migrated with `--swiftui-import-access internal`
+  can be confirmed healthy. A container in a nested package is checked against
+  that package's `Package.swift`, and a nested Git repository is left out, as
+  `InnoDI-Migrate` leaves it out. A target with `path: "."` owns the sources at
+  the package root. A `Package.swift`, `Tuist.swift`, or `Project.swift` with
+  CRLF line endings no longer yields `doctor.toolchain.unknown` or a version
+  read from another line. A directory link to an in-root directory that both
+  tools scan anyway, such as a framework's `Versions/Current` or this
+  repository's product-test links, no longer stops `InnoDI-Doctor` and
+  `InnoDI-Migrate` with exit 2.
 
 ### Breaking and Behavior Changes
 
@@ -177,6 +189,26 @@ error values. Mermaid output escapes `"` and `|` in labels as `#quot;` and
 `#124;`, which Mermaid accepts; only path-derived labels of containers that
 share a display name could contain them.
 
+`InnoDI-Doctor` and `InnoDI-Migrate` change only for inputs they misjudged.
+A check without a `--swiftui-import-access` choice still reports
+`migrate.swiftui-import-access-ambiguous` for an explicit `internal` or
+`package` SwiftUI import below its `InnoDISwiftUI` import's visibility, even
+after a write with that choice: source alone cannot tell it from an unmigrated
+file whose public API relied on the removed re-export. The message now says to
+recheck with the same choice. Both tools skip a directory link whose
+destination is a directory inside the root that they scan; each source behind
+it is planned and written through its real path. A `.swift` link, and a
+directory link that resolves outside the root, into `.build`, `.git`, or
+`.swiftpm`, or into a nested Git repository, still blocks with exit 2.
+`InnoDI-Migrate` reports a missing or non-directory `--root` as
+`Migration root is not a readable directory` in every mode instead of
+`Could not anchor the migration root`. `InnoDI-Doctor` now rejects
+single-dash options such as `-x`, positional arguments, options without a
+value, and repeated options other than `--trust-module` with exit 64, as `InnoDI-Migrate` does; it used to
+ignore them and run a diagnosis. Its text output marks `Proposed:` as blocked
+while a `migrate.*` diagnostic prevents `--apply`. The schema-v3 JSON report
+keeps its shape and listing.
+
 The build plugin's shared-run validation cache key moves to version 14
 (`shared-run-v14`), so a workspace validated by 7.0.x is validated once more
 under the 7.1 lookup rules above: target-scoped custom-init and hierarchy
@@ -203,6 +235,11 @@ Review new `InnoDI-DeferredAliasScan` findings and spell `Lazy<T>` or
 `Provider<T>` directly at the factory parameters that use them. An
 `import` added only to work around `graph.unresolved-container-reference` for
 a sibling file's `@_exported import` can be removed.
+
+After `InnoDI-Migrate --write --swiftui-import-access <access>`, pass the same
+option to the follow-up `InnoDI-Migrate --check` and to `InnoDI-Doctor`. A
+script that gave `InnoDI-Doctor` an option it ignored, such as a positional
+`apply` or a second `--root`, must drop it or spell it as a supported option.
 
 To use InnoDI beside a macro package that limits SwiftSyntax to versions below
 `604.0.0`, its requirement has to admit `603.0.2` or a later 603 release; one
@@ -270,6 +307,20 @@ swift package show-dependencies
   바뀌었습니다. 7.0.x에서 검증한 workspace는 업그레이드 후 첫 빌드에서 7.1
   규칙으로 한 번 다시 검증되고 캐시가 다시 채워집니다. 별도 조치는 필요하지
   않습니다.
+- `InnoDI-Doctor`가 정상이거나 올바르게 변환된 프로젝트를 깨진 것으로 보고하던
+  문제가 고쳐졌습니다. Doctor가 `--swiftui-import-access`를 받아 그 선택으로
+  검사·적용하므로, `--swiftui-import-access internal`로 변환한 root는
+  `InnoDI-Migrate --check`와 `InnoDI-Doctor`에 같은 선택을 넘기면 healthy로
+  확인됩니다. 선택 없이 검사하면 계속 `migrate.swiftui-import-access-ambiguous`가
+  나옵니다. nested package의 컨테이너는 그 package의 `Package.swift`로 검사하고
+  nested Git repository는 건너뛰며, `path: "."` target과 CRLF manifest도 정상으로
+  읽습니다. framework의 `Versions/Current`처럼 두 도구가 이미 scan하는 root 안
+  디렉터리를 가리키는 link는 더 이상 exit 2로 중단시키지 않습니다.
+- `InnoDI-Doctor`는 이제 `-x`처럼 대시 하나로 시작하는 옵션, 위치 인자, 값이 없는 옵션,
+  `--trust-module` 외의 반복 옵션을 exit 64로 거부합니다. 이전에는 무시하고 진단을
+  실행했으므로, 그런 인자를 넘기던 script는 인자를 지우거나 지원하는 옵션으로
+  고치세요. `InnoDI-Migrate`는 없는 `--root`를 `Migration root is not a readable
+  directory`로 보고합니다.
 
 ## 7.0.2
 

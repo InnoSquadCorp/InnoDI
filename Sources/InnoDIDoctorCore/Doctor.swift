@@ -83,15 +83,34 @@ public struct InnoDIDoctor: Sendable {
     /// InnoDI-named attribute or macro, as `InnoDI-Migrate --trust-module`
     /// does.
     public let trustedModules: Set<String>
+    /// The SwiftUI import access the migration check and `--apply` use, as
+    /// `InnoDI-Migrate --swiftui-import-access` does. A root migrated with a
+    /// choice is checked with the same choice; without one, an explicit
+    /// non-public SwiftUI import beside an `InnoDISwiftUI` import stays
+    /// ambiguous because source alone cannot tell it from an unmigrated file.
+    public let swiftUIImportAccess: MigrationSwiftUIImportAccess?
 
-    public init(trustedModules: Set<String> = []) {
+    public init(
+        trustedModules: Set<String> = [],
+        swiftUIImportAccess: MigrationSwiftUIImportAccess? = nil
+    ) {
         verificationEnvironment = nil
         self.trustedModules = trustedModules
+        self.swiftUIImportAccess = swiftUIImportAccess
     }
 
-    init(verificationEnvironment: [String: String], trustedModules: Set<String> = []) {
+    init(
+        verificationEnvironment: [String: String],
+        trustedModules: Set<String> = [],
+        swiftUIImportAccess: MigrationSwiftUIImportAccess? = nil
+    ) {
         self.verificationEnvironment = verificationEnvironment
         self.trustedModules = trustedModules
+        self.swiftUIImportAccess = swiftUIImportAccess
+    }
+
+    private var migrator: InnoDIMigrator {
+        InnoDIMigrator(trustedModules: trustedModules, swiftUIImportAccess: swiftUIImportAccess)
     }
 
     /// Performs source/config inspection without package resolution, builds,
@@ -165,7 +184,7 @@ public struct InnoDIDoctor: Sendable {
             }
         }
 
-        let plan = try InnoDIMigrator(trustedModules: trustedModules).plan(root: canonicalRoot)
+        let plan = try migrator.plan(root: canonicalRoot)
         let graphBefore = try? graphFingerprint(root: canonicalRoot)
         if let cycleFailure = graphBefore?.cycleFailure {
             diagnostics.append(.init(
@@ -205,11 +224,11 @@ public struct InnoDIDoctor: Sendable {
         var applied: [String] = []
         var recoveryPaths: [String] = []
         if apply, plan.canWrite {
-            let appliedPlan = try InnoDIMigrator(trustedModules: trustedModules).run(root: canonicalRoot, mode: .write)
+            let appliedPlan = try migrator.run(root: canonicalRoot, mode: .write)
             applied = proposed
             recoveryPaths = appliedPlan.recoveryPaths
         }
-        let secondPass = try InnoDIMigrator(trustedModules: trustedModules).plan(root: canonicalRoot)
+        let secondPass = try migrator.plan(root: canonicalRoot)
         let graphAfter = try? graphFingerprint(root: canonicalRoot)
         let graphVerification = compareGraphs(before: graphBefore, after: graphAfter)
         if graphVerification.status == .unavailable {
@@ -340,8 +359,10 @@ private func graphFingerprint(root: URL) throws -> DoctorGraphFingerprint {
     guard graph.preflightFailure == nil else {
         throw CocoaError(.coderInvalidValue)
     }
+    // `normalizeProviders` already keeps one provider per ID; keep the first
+    // rather than trapping if that ever changes.
     return DoctorGraphFingerprint(
-        providers: Dictionary(uniqueKeysWithValues: graph.providers.map { provider in
+        providers: Dictionary(graph.providers.map { provider in
             let semantic = [
                 provider.containerID,
                 provider.name,
@@ -355,7 +376,7 @@ private func graphFingerprint(root: URL) throws -> DoctorGraphFingerprint {
                 provider.dependencies.joined(separator: ","),
             ].joined(separator: "|")
             return (provider.id, semantic)
-        }),
+        }, uniquingKeysWith: { first, _ in first }),
         cycleFailure: providerCycleFailure(providers: graph.providers)?.stderr
     )
 }
@@ -391,8 +412,11 @@ private func compareGraphs(
 
 private enum SelfReportSchema { static let version = DoctorReport.currentSchemaVersion }
 
+// `Character.isNewline` matches `\r\n` as well as `\n`. Splitting on the
+// character "\n" alone leaves a CRLF manifest as one line, because Swift reads
+// `\r\n` as a single grapheme that is not equal to "\n".
 private func toolsVersion(in manifest: String) -> (Int, Int)? {
-    guard let first = manifest.split(separator: "\n", maxSplits: 1).first,
+    guard let first = manifest.split(maxSplits: 1, whereSeparator: \.isNewline).first,
           let marker = first.range(of: "swift-tools-version:") else { return nil }
     let pieces = first[marker.upperBound...].trimmingCharacters(in: .whitespaces)
         .split(separator: ".")
@@ -411,7 +435,7 @@ private func declaredSwiftVersion(
     }
     guard case .tuist = verificationKind else { return nil }
 
-    for line in configuration.split(separator: "\n") {
+    for line in configuration.split(whereSeparator: \.isNewline) {
         let text = String(line)
         guard text.contains("swiftVersion") || text.contains("SWIFT_VERSION") else {
             continue
@@ -429,25 +453,55 @@ private func declaredSwiftVersion(
     return nil
 }
 
-private func swiftSourceURLs(root: URL) throws -> [URL] {
+private struct DoctorSourceScan {
+    var sources: [URL] = []
+    /// Directories below the root that declare their own `Package.swift`,
+    /// relative to the root.
+    var nestedPackageDirectories: [String] = []
+}
+
+/// Lists the Swift sources the plugin check maps to targets. Like
+/// `InnoDI-Migrate`, it does not enter a nested Git repository (a directory
+/// holding a `.git` directory or submodule file); a nested package without
+/// one is recorded so its sources are judged against its own manifest.
+private func doctorSourceScan(root: URL) throws -> DoctorSourceScan {
     guard let enumerator = FileManager.default.enumerator(
         at: root,
-        includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
+        includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey],
         options: [.skipsHiddenFiles, .skipsPackageDescendants]
-    ) else { return [] }
-    var urls: [URL] = []
+    ) else { return DoctorSourceScan() }
+    let fileManager = FileManager.default
+    var scan = DoctorSourceScan()
     for case let url as URL in enumerator {
         if [".build", "Derived", "InnoDI.xcodeproj"].contains(url.lastPathComponent) {
             enumerator.skipDescendants()
             continue
         }
+        let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+        if values?.isDirectory == true, values?.isSymbolicLink != true {
+            if fileManager.fileExists(atPath: url.appendingPathComponent(".git").path) {
+                enumerator.skipDescendants()
+            } else if fileManager.fileExists(atPath: url.appendingPathComponent("Package.swift").path),
+                      let relative = rootRelativePath(of: url, under: root) {
+                scan.nestedPackageDirectories.append(relative)
+            }
+            continue
+        }
         guard url.pathExtension == "swift",
-              (try? url.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) != true,
+              values?.isSymbolicLink != true,
               !["Package.swift", "Package@swift-6.swift"].contains(url.lastPathComponent)
         else { continue }
-        urls.append(url)
+        scan.sources.append(url)
     }
-    return urls.sorted { $0.path < $1.path }
+    scan.sources.sort { $0.path < $1.path }
+    return scan
+}
+
+private func rootRelativePath(of url: URL, under root: URL) -> String? {
+    let canonicalRootPath = root.resolvingSymlinksInPath().path
+    let canonicalPath = url.resolvingSymlinksInPath().path
+    guard canonicalPath.hasPrefix(canonicalRootPath + "/") else { return nil }
+    return standardizedRelativePath(String(canonicalPath.dropFirst(canonicalRootPath.count + 1)))
 }
 
 private struct DoctorPackageTarget {
@@ -529,34 +583,75 @@ private final class DoctorContainerCollector: SyntaxVisitor {
     }
 }
 
+/// A package-relative path without `.` components or surrounding slashes.
+/// The package directory itself, `path: "."`, is the empty string.
 private func standardizedRelativePath(_ path: String) -> String {
-    NSString(string: path).standardizingPath.trimmingCharacters(
+    let standardized = NSString(string: path).standardizingPath.trimmingCharacters(
         in: CharacterSet(charactersIn: "/")
     )
+    return standardized == "." ? "" : standardized
 }
 
 private func pluginDiagnostics(
     root: URL,
     workspace: DoctorWorkspace
 ) throws -> [DoctorDiagnostic] {
-    let containerPaths = try swiftSourceURLs(root: root).compactMap { url -> String? in
+    let scan = try doctorSourceScan(root: root)
+    let containerPaths = scan.sources.compactMap { url -> String? in
         guard let source = try? String(contentsOf: url, encoding: .utf8) else {
             return nil
         }
         let collector = DoctorContainerCollector()
         collector.walk(Parser.parse(source: source))
         guard collector.containsContainer else { return nil }
-        let canonicalRootPath = root.resolvingSymlinksInPath().path
-        let canonicalFilePath = url.resolvingSymlinksInPath().path
-        guard canonicalFilePath.hasPrefix(canonicalRootPath + "/") else {
-            return nil
-        }
-        return standardizedRelativePath(
-            String(canonicalFilePath.dropFirst(canonicalRootPath.count + 1))
-        )
+        return rootRelativePath(of: url, under: root)
     }
     guard !containerPaths.isEmpty else { return [] }
 
+    // SwiftPM builds a nested package from its own manifest, so a container
+    // belongs to the deepest package directory that contains it.
+    var containerPathsByPackage: [String: [String]] = [:]
+    for path in containerPaths {
+        let package = scan.nestedPackageDirectories
+            .filter { path.hasPrefix($0 + "/") }
+            .max { $0.count < $1.count } ?? ""
+        containerPathsByPackage[package, default: []].append(path)
+    }
+
+    var diagnostics: [DoctorDiagnostic] = []
+    for (package, paths) in containerPathsByPackage.sorted(by: { $0.key < $1.key }) {
+        guard !package.isEmpty else {
+            diagnostics += rootPackagePluginDiagnostics(containerPaths: paths, workspace: workspace)
+            continue
+        }
+        let manifestPath = "\(package)/Package.swift"
+        guard let manifest = try? String(
+            contentsOf: root.appendingPathComponent(manifestPath),
+            encoding: .utf8
+        ) else {
+            diagnostics.append(.init(
+                id: "doctor.plugin.analysis-incomplete",
+                severity: .error,
+                path: manifestPath,
+                message: "Container-owning targets could not be mapped to literal plugin declarations.",
+                recommendation: "Use a literal target/plugin declaration or verify every container-owning target manually."
+            ))
+            continue
+        }
+        diagnostics += packagePluginDiagnostics(
+            containerPaths: paths,
+            packageDirectory: package,
+            manifest: manifest,
+            manifestPath: manifestPath
+        )
+    }
+    return diagnostics
+}
+
+private func rootPackagePluginDiagnostics(
+    containerPaths: [String],
+    workspace: DoctorWorkspace
+) -> [DoctorDiagnostic] {
     guard case .swiftPackage = workspace.verificationKind,
           let manifestURL = workspace.manifestURL,
           manifestURL.lastPathComponent == "Package.swift",
@@ -569,13 +664,33 @@ private func pluginDiagnostics(
             recommendation: "Use a literal target/plugin declaration or verify every container-owning target manually."
         )]
     }
+    return packagePluginDiagnostics(
+        containerPaths: containerPaths,
+        packageDirectory: "",
+        manifest: manifest,
+        manifestPath: workspace.manifestPath ?? "Package.swift"
+    )
+}
 
+/// Maps root-relative container paths inside `packageDirectory` (empty for
+/// the root package) to the literal targets of that package's manifest.
+private func packagePluginDiagnostics(
+    containerPaths: [String],
+    packageDirectory: String,
+    manifest: String,
+    manifestPath: String
+) -> [DoctorDiagnostic] {
     let collector = DoctorPackageManifestCollector()
     collector.walk(Parser.parse(source: manifest))
     var diagnostics: [DoctorDiagnostic] = []
     for path in containerPaths {
+        let packagePath = packageDirectory.isEmpty
+            ? path
+            : String(path.dropFirst(packageDirectory.count + 1))
         let matches = collector.targets.filter {
-            path == $0.sourceRoot || path.hasPrefix($0.sourceRoot + "/")
+            $0.sourceRoot.isEmpty
+                || packagePath == $0.sourceRoot
+                || packagePath.hasPrefix($0.sourceRoot + "/")
         }.sorted { $0.sourceRoot.count > $1.sourceRoot.count }
         guard let target = matches.first,
               matches.dropFirst().first?.sourceRoot.count != target.sourceRoot.count else {
@@ -595,7 +710,7 @@ private func pluginDiagnostics(
             diagnostics.append(.init(
                 id: "doctor.plugin.missing",
                 severity: .warning,
-                path: workspace.manifestPath ?? "Package.swift",
+                path: manifestPath,
                 message: "Target '\(target.name)' owns container source '\(path)' but does not attach InnoDIDAGValidationPlugin.",
                 recommendation: "Attach InnoDIDAGValidationPlugin to target '\(target.name)'."
             ))
@@ -603,7 +718,7 @@ private func pluginDiagnostics(
             diagnostics.append(.init(
                 id: "doctor.plugin.analysis-incomplete",
                 severity: .error,
-                path: workspace.manifestPath ?? "Package.swift",
+                path: manifestPath,
                 message: "Target '\(target.name)' uses a non-literal plugin declaration that Doctor cannot prove.",
                 recommendation: "Use a literal plugins array or verify the target manually."
             ))

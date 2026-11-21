@@ -44,7 +44,10 @@ let mixedSwiftUIImportAccessMessage = "Cannot add a non-public explicit SwiftUI 
 /// not in, does not provide every SwiftUI name, so it never counts. An
 /// `InnoDISwiftUI` import inside an `#if` clause gets its SwiftUI import in the
 /// same clause unless an enclosing scope already provides one. The rule is
-/// idempotent.
+/// idempotent for the same `access`. Without one, an explicit import below
+/// the `InnoDISwiftUI` import's visibility stays ambiguous, because source
+/// cannot tell a file migrated with that choice from an unmigrated file that
+/// relied on the re-export.
 func addingSwiftUIImportForInnoDISwiftUI(
     to source: SourceFileSyntax,
     access: MigrationSwiftUIImportAccess? = nil,
@@ -99,7 +102,7 @@ func planSwiftUIImportForInnoDISwiftUI(
             let unspecifiedWithExplicitImport = required.accessRank == nil
                 && (collector.hasExplicitSwiftUIImport || hasOtherExplicitSwiftUIImports)
             if wouldPromoteVisibleAccess || unspecifiedWithExplicitImport {
-                onAmbiguousAccess?("Cannot infer SwiftUI import access from source alone after removing the InnoDISwiftUI re-export. Keeping a lower access can break package/public API; promoting to package/public can introduce unused-import warnings, and an implicit import can conflict with explicit imports in another file. Review this migration root and rerun with --swiftui-import-access internal, --swiftui-import-access package, or --swiftui-import-access public. Exported imports always remain public. No files were written.")
+                onAmbiguousAccess?("Cannot infer SwiftUI import access from source alone after removing the InnoDISwiftUI re-export. Keeping a lower access can break package/public API; promoting to package/public can introduce unused-import warnings, and an implicit import can conflict with explicit imports in another file. Review this migration root and rerun with --swiftui-import-access internal, --swiftui-import-access package, or --swiftui-import-access public. A root already migrated with a choice is rechecked with the same choice; InnoDI-Doctor accepts it too. Exported imports always remain public. No files were written.")
                 return SwiftUIImportMigrationResult(source: source)
             }
         }

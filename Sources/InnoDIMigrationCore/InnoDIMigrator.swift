@@ -19,13 +19,7 @@ public struct InnoDIMigrator {
 
     public func plan(root: URL) throws -> MigrationPlan {
         let root = root.standardizedFileURL.resolvingSymlinksInPath()
-        var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(
-            atPath: root.path(percentEncoded: false),
-            isDirectory: &isDirectory
-        ), isDirectory.boolValue else {
-            throw MigrationError.invalidRoot(root.path(percentEncoded: false))
-        }
+        try requireDirectoryRoot(root)
 
         let sourceURLs = try swiftSourceURLs(under: root)
         var parsedSources: [ParsedMigrationSource] = []
@@ -179,6 +173,8 @@ public struct InnoDIMigrator {
         beforePublishingChange: ((MigrationFileChange, Bool) throws -> Void)? = nil
     ) throws -> MigrationPlan {
         let root = root.standardizedFileURL.resolvingSymlinksInPath()
+        // Report a missing root as such, not as an anchoring failure.
+        try requireDirectoryRoot(root)
         let anchoredRoot = try AnchoredMigrationRoot(url: root)
         defer { anchoredRoot.close() }
         let plan = try plan(root: root)
@@ -282,6 +278,16 @@ public struct InnoDIMigrator {
             diagnostics: plan.diagnostics,
             recoveryPaths: recoveryPaths
         )
+    }
+}
+
+private func requireDirectoryRoot(_ root: URL) throws {
+    var isDirectory: ObjCBool = false
+    guard FileManager.default.fileExists(
+        atPath: root.path(percentEncoded: false),
+        isDirectory: &isDirectory
+    ), isDirectory.boolValue else {
+        throw MigrationError.invalidRoot(root.path(percentEncoded: false))
     }
 }
 

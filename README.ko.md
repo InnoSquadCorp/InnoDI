@@ -810,10 +810,16 @@ swift run InnoDI-Doctor --root . --json
 
 기본 모드는 resolve, build, write, cache 삭제, process 종료를 하지 않습니다.
 Swift package에서는 literal target source root와 plugin 배열을 parse하므로 주석,
-문자열, 다른 target의 plugin이 누락을 가릴 수 없습니다. Dynamic manifest와 Tuist
+문자열, 다른 target의 plugin이 누락을 가릴 수 없습니다. literal `path: "."`
+target은 package root의 source를 소유합니다. 자체 `Package.swift`가 있는 nested
+package의 컨테이너는 그 package의 manifest로 검사하고, nested Git repository는
+`InnoDI-Migrate`처럼 건너뜁니다. Dynamic manifest와 Tuist
 target mapping은 healthy가 아니라 분석 불완전으로 남깁니다. migration 검사가 자기
 모듈 때문에 `migrate.unqualified-ownership-ambiguous`를 보고하면
-`InnoDI-Migrate`에 주는 `--trust-module <name>` 옵션을 그대로 넘기세요.
+`InnoDI-Migrate`에 주는 `--trust-module <name>` 옵션을 그대로 넘기고,
+`--swiftui-import-access`로 변환한 root에는 같은 선택을 넘기세요. 선택이 없으면
+`InnoDISwiftUI` import의 visibility보다 낮은 명시적 SwiftUI import는
+`migrate.swiftui-import-access-ambiguous`로 남습니다.
 `--apply`는 migrator의 atomic exchange 검사를 사용합니다. 성공해도 이전 파일을 `RECOVERY` 경로에
 보존하므로 editor를 닫고 두 파일을 검토한 뒤 불필요한 복사본만 삭제하세요.
 POSIX mode는 유지하지만 ACL/xattr 보존이나 파일시스템 전체 트랜잭션은 보장하지 않습니다.

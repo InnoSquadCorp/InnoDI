@@ -128,7 +128,7 @@ package 또는 공개 API에 SwiftUI 타입이 나타나면 `package` 또는 `pu
 수준의 import는 낮추지 않으며 exported import는 항상 public으로 유지합니다.
 선택은 해당 migration root에 적용되고 도구는 타깃 구성을 알 수 없으므로,
 타깃마다 선택이 다르면 더 좁은 root를 사용하세요. 변환 후에는 소비자의 원래
-import 기본값과 경고 설정으로 빌드하세요. 변환은 다시 실행해도 결과가 같지만,
+import 기본값과 경고 설정으로 빌드하세요. 같은 선택으로 다시 실행한 변환은 결과가 같지만,
 같은 타깃 안에서 접근 수준이 다르면 API에 필요한 파일에 먼저 전체
 `package`/`public` SwiftUI import를 직접 추가하고, 나머지 파일에는
 `--swiftui-import-access internal`로 다시 실행하세요. 기존의 더 높은 접근
@@ -139,6 +139,18 @@ import 기본값과 경고 설정으로 빌드하세요. 변환은 다시 실행
 import를 고치지 않습니다. 같은 실행에서 새로 생기는 import끼리의 충돌도
 쓰기 전에 검사하며, 충돌 시 일부 파일만 기록하지 않습니다. 진단을 피하려고
 모든 import를 public으로 올리지 말고 타깃 경계와 import 기본값을 검토하세요.
+
+선택해서 변환한 root는 같은 선택으로 검사하고 `InnoDI-Doctor`에도 넘기세요.
+
+```bash
+swift run InnoDI-Migrate --root /path/to/target-sources --check --swiftui-import-access internal
+swift run InnoDI-Doctor --root /path/to/package --swiftui-import-access internal
+```
+
+선택 없이 검사하면 `InnoDISwiftUI` import의 visibility보다 낮은 명시적
+`internal`·`package` SwiftUI import는 계속 `migrate.swiftui-import-access-ambiguous`로
+보고됩니다. 소스만으로는 제거된 re-export에 공개 API를 기대던 미변환 파일과
+구별할 수 없기 때문입니다.
 
 ### Feature-root hosting 명시
 
@@ -639,7 +651,8 @@ swift run InnoDI-Migrate --root . --check
 ```
 
 안전하게 자동 변경할 파일이 있으면 `--check`는 파일마다 `MIGRATE` record를
-출력하고 exit code `1`로 종료합니다. `--report`는 동일한 read-only preflight를
+출력하고 exit code `1`로 종료합니다. `--swiftui-import-access`를 준 `--write`
+뒤의 마지막 `--check`에는 같은 선택을 넘기세요. `--report`는 동일한 read-only preflight를
 실행한 뒤 deterministic schema-v1 JSON inventory를 표준 출력 또는 `--output`으로
 지정한 경로에 atomic하게 기록합니다. 리포트에는 상대 경로, 안정적인 code, count,
 status, diagnostic message만 포함하며 원본 또는 변환된 source 본문은 포함하지
@@ -648,7 +661,11 @@ status, diagnostic message만 포함하며 원본 또는 변환된 source 본문
 줄에도 같은 rule code가 출력됩니다. Exit code는 clean `0`, 변경 필요 `1`, 차단 `2`입니다. `--write`는 먼저
 전체 source tree를 parse·preflight하고 UTF-8 BOM과 POSIX mode를 보존합니다.
 소유권이 모호한 attribute, 지원하지 않는 legacy argument, parse error,
-source symlink 등 preflight 실패는 파일을 쓰지 않습니다.
+source symlink 등 preflight 실패는 파일을 쓰지 않습니다. source symlink는
+`.swift` link, 그리고 root 밖이나 `.build`·`.git`·`.swiftpm`, nested Git
+repository 안을 가리키는 디렉터리 link입니다. framework의 `Versions/Current`처럼
+scan이 이미 다루는 root 안 디렉터리를 가리키는 link는 따라가지 않으며, 그 뒤의
+source는 실제 경로로 계획하고 기록합니다.
 
 게시 시 원본과 staged 파일을 atomic exchange하고 기존 파일을 같은 디렉터리의
 `.innodi-migrate-recovery-<name>-<UUID>` 경로에 남깁니다. 성공해도 `RECOVERY`
@@ -666,7 +683,9 @@ InnoDI 소유 선언이라면 `@InnoDI.DIContainer`와 `@InnoDI.Provide`, 또는
 `@InnoDI.SubContainer`와 `@InnoDISwiftUI.DIFeatureRoot`처럼 짝이 되는 macro
 전체를 module-qualified 형태로 바꾼 뒤 다시 실행하세요. Scanner는 `.build`,
 `.git`, `.swiftpm`, nested Git repository를 건너뜁니다. Nested repository도
-바꿔야 한다면 해당 repository를 별도 `--root`로 지정하세요.
+바꿔야 한다면 해당 repository를 별도 `--root`로 지정하세요. `InnoDI-Doctor`도
+plugin 검사에서 nested repository를 제외하고, 자체 `Package.swift`가 있는
+nested package의 컨테이너는 그 package의 manifest로 검사합니다.
 
 공개된 underscored `DIEnvironmentBridging` witness는 5.0에서 breaking rename이
 적용됩니다. `_innodiEnvironmentBridgeModifier()`를

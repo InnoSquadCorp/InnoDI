@@ -847,10 +847,17 @@ swift run InnoDI-Doctor --root . --json
 The default mode does not resolve, build, write, delete caches, or stop
 processes. For Swift packages, Doctor parses literal target source roots and
 plugin arrays, so a comment, string, or another target's plugin cannot hide a
-missing attachment. Dynamic manifests and Tuist target mappings remain
-explicitly incomplete instead of being reported healthy. Pass the same
-`--trust-module <name>` options you give `InnoDI-Migrate` when the migration
-check reports `migrate.unqualified-ownership-ambiguous` for your own modules.
+missing attachment. A literal `path: "."` target owns the sources at the
+package root. A container in a nested package, a directory with its own
+`Package.swift`, is checked against that package's manifest, and nested Git
+repositories are skipped as `InnoDI-Migrate` skips them. Dynamic manifests and
+Tuist target mappings remain explicitly incomplete instead of being reported
+healthy. Pass the same `--trust-module <name>` options you give
+`InnoDI-Migrate` when the migration check reports
+`migrate.unqualified-ownership-ambiguous` for your own modules, and the same
+`--swiftui-import-access` choice for a root migrated with one; without it, an
+explicit SwiftUI import below the visibility of its `InnoDISwiftUI` import
+remains `migrate.swiftui-import-access-ambiguous`.
 `--apply` uses the migrator's preserving atomic-exchange checks. Successful writes retain displaced
 files at reported `RECOVERY` paths; review those files after closing editors
 before removing them. Doctor schema v3 includes `recoveryPaths`.

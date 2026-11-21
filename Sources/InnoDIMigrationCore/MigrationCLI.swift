@@ -20,7 +20,8 @@ public enum MigrationCLI {
       --swiftui-import-access <internal|package|public>
                      Resolve ambiguous SwiftUI import access for this root;
                      match access to SwiftUI use in internal/package/public API.
-                     Exported imports always remain public.
+                     Exported imports always remain public. Check a root
+                     migrated with a choice using the same choice.
       --help, -h     Show this help
     """
 
