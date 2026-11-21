@@ -32,7 +32,7 @@ Linux ship by default:
 |---|---|---|
 | APFS | ✅ supported | Default macOS / iOS simulator builds. |
 | HFS+ | ✅ supported | |
-| ext4 / btrfs / xfs | ✅ supported | Linux SPM builds. |
+| ext4 / btrfs / xfs | ✅ classified local | The detector's Linux branch accepts them. InnoDI itself supports Apple platforms only and does not build or test on Linux. |
 | tmpfs | ✅ supported | Often the SPM scratch path on CI. |
 | **NFS** | ❌ unsupported by default | InnoDI classifies NFS mounts as unsafe because the detector cannot reliably distinguish mount versions and lock semantics. Redirect the scratch path to a local volume or opt in with `INNODI_ALLOW_UNSAFE_LOCK=1`. |
 | **SMB / CIFS** | ❌ unsupported | Atomicity is not guaranteed. |

@@ -33,6 +33,21 @@ InnoDI 매크로가 만드는 모든 error/warning/note는
 - `assisted-factory.access-level-mismatch`: factory의 접근 수준이 child
   container나 child input bridge 중 하나 이상보다 넓습니다.
 
+build plugin은 각 `@SubContainerFactory`를 child container와 대조합니다.
+
+- `assisted-factory.invalid-bindings`: `bindings:`가 `(child:, parent:)`
+  key-path tuple의 literal 배열이 아닙니다.
+- `assisted-factory.child-has-no-assisted-input`: child에 `@Input(.assisted)`
+  member가 없습니다. 고정 child에는 `@SubContainer`를 쓰세요.
+- `assisted-factory.duplicate-static-binding`: 일반 child input을 두 번 이상
+  binding했습니다.
+- `assisted-factory.assisted-input-bound-as-static`: `bindings:`가 assisted
+  child input을 캡처합니다. 그 값은 `callAsFunction`에 넘기세요.
+- `assisted-factory.unknown-static-input`: binding의 child key path가 일반
+  child `@Input`을 가리키지 않습니다.
+- `assisted-factory.missing-static-binding`: binding이 없는 일반 child input이
+  하나 이상 있습니다.
+
 ## Multibinding 진단
 
 - `multibinding.invalid-contributors`: 인자가 canonical `\Self.member` key
@@ -157,7 +172,7 @@ struct App {
   `.onDemand`가 아닙니다.
 - `provide.unknown-effect` — `effect:`가 `.none` 또는 `.sideEffect`가 아닙니다.
   지원되는 literal 분류를 사용하세요. 매크로는 임의 표현식을 평가하거나
-  부작용을 추론하지 않습니다.
+  그 표현식으로 분류를 추론하지 않습니다.
 - `provide.initialization-invalid-scope` — `.shared`가 아닌 scope에
   `.onDemand`를 사용했습니다.
 - `provide.input-invalid-configuration` — `@Input` 멤버는 factory,
@@ -255,7 +270,16 @@ struct App {
   호출되어 그 의도가 무력화됐습니다.
 - `provide.lazy-aliased` / `provide.provider-aliased` — `Lazy<T>` /
   `Provider<T>`에 대한 `typealias`를 썼습니다. 직접 표기로 다시
-  쓰세요.
+  쓰세요. 매크로는 자신이 확장되는 소스만 보고, 실제 compiler는 붙은 선언만
+  넘기므로 unit test 밖에서는 file scope 별칭에 이 경고가 나오지 않습니다.
+- `deferred-alias.workspace-finding` (build plugin, warning) — file scope,
+  타입 member, extension member의 `typealias`가 `Lazy<T>`나 `Provider<T>`를
+  직접, 괄호를 통해, 또는 그런 별칭을 거쳐 다시 이름 붙입니다. InnoDI는 별칭을
+  해석하지 않으므로 그 별칭으로 적은 factory 파라미터는 hard edge가 됩니다.
+  factory 파라미터에 wrapper를 직접 쓰세요.
+- `provide.deferred-wrapper-alias-unsupported` (build plugin) — factory
+  파라미터가 `Deferred<Service>`처럼 `Lazy`나 `Provider`의 generic 별칭으로
+  적혀 있습니다. `InnoDI.Lazy<T>`나 `InnoDI.Provider<T>`로 쓰세요.
 - `provide.deferred-wrapper-qualification-required` (build plugin) — factory
   파라미터가 `Lazy<T>`나 `Provider<T>`로 적혀 있는데 같은 모듈이 그 이름의
   타입을 선언해, 그 이름이 InnoDI의 wrapper를 가리키지 않습니다.
@@ -327,9 +351,18 @@ struct App {
   provider가 있는 컨테이너에 `closeAsyncProviders`라는 direct value 또는
   function이 이미 있습니다. 생성되는 close API가 모호하지 않도록 이름을
   바꾸세요.
+- `container.missing-effect-overrides-name-conflict` — effect가 표시된
+  provider가 있는 컨테이너는 `Overrides` 빌더가 `DIOverrideEffectValidating`을
+  준수하고, 그 `missingEffectOverrides` 요구 사항은 이름을 바꿀 수 없습니다.
+  그런데 provider, child, 또는 child의 `<name>Overrides` 슬롯도
+  `missingEffectOverrides`라는 이름을 갖게 됩니다(`missingEffect`라는 child가
+  그 슬롯을 차지합니다). member 이름을 바꾸세요. `requiredEffectOverrides`,
+  `missing`, `set`, `useDefault`라는 provider는 영향을 받지 않습니다.
 - `container.mainactor-conflict` — main-actor `@DIContainerRole`이 container
   또는 dependency member의 다른 global actor와 충돌합니다. custom actor를
-  제거하거나 `mainActor` 생성을 비활성화하세요.
+  제거하거나 `mainActor` 생성을 비활성화하세요. `mainActor:` 없이 custom global
+  actor를 붙인 컨테이너 타입은 그 actor의 격리를 유지합니다. <doc:DIContainer>를
+  참고하세요.
 - `container.mainactor-nonisolated-member` — `@Provide` 또는 `@SubContainer`
   member가 `nonisolated`로 격리를 해제해 container의 `mainActor: true`
   계약과 충돌합니다.
@@ -448,6 +481,16 @@ struct App {
   cycle이 감지됐습니다.
 - `graph.ambiguous-container-reference` — 한 이름이 여러 컨테이너에
   매칭됐습니다.
+- `graph.unresolved-container-reference` — 컨테이너 참조가 분석한 어떤
+  컨테이너로도 해석되지 않습니다.
+- `graph.excluded-container-reference` — 컨테이너 참조가 semantic resolver가
+  지원하지 않는 형태입니다. 해당 줄에 이유가 표시됩니다.
+- `graph.duplicate-semantic-identity` — 조건 없는 두 선언이 하나의 컨테이너
+  identity를 공유합니다.
+- `graph.conditional-identity-unresolved` — 한 컨테이너 identity의 선언들이
+  분석이 평가할 수 없는 `#if` 분기를 통해서만 충돌합니다.
+- `graph.root-pruning-no-roots` — `--root-pruning roots`를 요청했지만
+  `@DIContainerRole(role: ContainerRole.root)`를 선언한 컨테이너가 없습니다.
 
 ## SwiftUI 진단
 
@@ -466,6 +509,10 @@ struct App {
   key path가 컨테이너 멤버로 해소되지 않습니다.
 - `swiftui.environment-bridge-duplicate-member` — 같은 key path가
   두 번 나열됐습니다.
+- `swiftui.environment-bridge-duplicate-environment` (warning) — 두 매핑이
+  같은 `EnvironmentValues` key path를 설정합니다. 생성 modifier는 매핑을 순서대로
+  적용하므로 bridge 아래 뷰는 첫 멤버를 읽고 뒤 매핑은 효과가 없습니다. 두 매핑 중
+  하나를 제거하세요.
 - `swiftui.environment-bridge-async-member` — `asyncFactory` 기반의
   컨테이너 멤버가 `EnvironmentValues`로 매핑됐습니다. synchronous
   값을 노출하거나, 내부에서 async 작업을 수행하는 service를
@@ -475,7 +522,9 @@ struct App {
   direct-property key-path literal이 아닙니다. 생성 코드에서 lexical capture
   없이 key path를 보존하기 위해 alias, 다른 root, chain, subscript를 거부합니다.
 - `swiftui.environment-bridge-invalid-arguments` — bridge 매크로가
-  지원되는 key-path 리스트 형태 외의 인자를 받았습니다.
+  지원되는 key-path 리스트 형태 외의 인자를 받았거나, 매핑 tuple에 `member` 또는
+  `environment` 요소가 없습니다. `("service", \EnvironmentValues.service)` 같은
+  레이블 없는 tuple은 매크로 파라미터의 tuple 타입처럼 위치로 읽습니다.
 - `swiftui.environment-bridge-reserved-module-name` — bridge 대상이나 이를
   감싸는 nominal·generic parameter, 또는 target의 direct nested
   type/typealias에 있는 `Swift`/`SwiftUI`/`InnoDISwiftUI` 이름이 생성 modifier의
@@ -529,8 +578,45 @@ struct App {
   component `@DIContainerRole` 타입으로 이주해야 합니다.
 - `component.overrides-builder-required` — component role은 합성된
   overrides 빌더가 필요합니다.
+- `component.custom-global-actor-unsupported` — component-role 컨테이너에
+  custom global actor가 붙어 있습니다. 생성되는 mounting conformance는
+  nonisolated이므로 그 actor에 격리된 initializer로는 충족할 수 없습니다.
+  actor를 제거하거나, main-actor 격리에는 `mainActor: true`를 쓰거나, local
+  또는 root role을 사용하세요.
 - `hierarchy-root.requires-container` — legacy `@DIHierarchyRoot`는 지원되는
   root `@DIContainerRole` 타입으로 이주해야 합니다.
+
+build plugin은 module을 넘는 `@SubContainer` edge를 다음 code로 검증합니다.
+
+- `hierarchy.unresolved-child-reference` — child 타입이 알려진 컨테이너로
+  해석되지 않습니다.
+- `hierarchy.ambiguous-child-reference` — child 타입이 둘 이상의 컨테이너로
+  해석됩니다.
+- `hierarchy.child-not-in-workspace` (warning) — child의 컨테이너 기록이 없어
+  그 edge의 교차 module 검사를 건너뜁니다.
+- `hierarchy.child-not-component` — edge가 module을 넘지만 child가
+  `ContainerRole.component`를 선언하지 않았습니다.
+- `hierarchy.module-edge-missing` — parent module이 dependency로 선언하지 않은
+  module의 child를 mount합니다.
+- `hierarchy.invalid-same-name-wiring` — `with:`가 완전히 parse할 수 있는
+  literal 배열이 아닙니다.
+- `hierarchy.invalid-bindings` — `bindings:`가 완전히 parse할 수 있는
+  child-to-parent key-path tuple literal 배열이 아닙니다.
+- `hierarchy.bindings-conflicts-with-with` — 한 edge가 `with:`와 `bindings:`를
+  함께 씁니다.
+- `hierarchy.duplicate-with-dependency` — `with:`에 같은 dependency가 두 번
+  이상 있습니다.
+- `hierarchy.duplicate-binding-mapping` — `bindings:`가 한 child input을 두 번
+  이상 매핑합니다.
+- `hierarchy.unknown-child-input` — parent가 child의 `@Input`이 아닌 이름을
+  전달합니다.
+- `hierarchy.unsatisfied-dependency` — parent가 component input을 제공하지
+  못하거나 타입이 다른 member를 제공합니다.
+- `hierarchy.duplicate-parent` — component가 둘 이상의 parent에서 mount됩니다.
+- `hierarchy.component-cycle` — `@SubContainer` 소유 관계가 rooted hierarchy에서
+  순환합니다.
+- `hierarchy.orphan-component` — component를 mount할 수 있는 어떤
+  `ContainerRole.root` 컨테이너에서도 그 component에 도달할 수 없습니다.
 
 ## Mock generation 진단
 
@@ -540,11 +626,17 @@ struct App {
 - `mock.experimental-skeleton` — protocol에 member가 없을 때 note로
   발생합니다. 매크로 plugin이 attribute를 보고 빈 mock skeleton을
   생성했음을 확인하는 신호입니다.
-- `mock.unsupported-member` — static/class requirement, subscript,
-  associated type, `inout` parameter, `rethrows`/typed `throws`,
-  opaque `some` return type 등 때문에 mock synthesis가 불가능합니다.
-  메시지에 최대 다섯 개의 member 이름이 표시되며, 다음 RFC 0001 단계가
-  적용될 때까지 해당 mock은 수동으로 구현해야 합니다.
+- `mock.unsupported-member` — 하나 이상의 protocol requirement나 protocol
+  기능 때문에 mock synthesis가 불가능합니다. `static`/`class`, `init`,
+  `subscript` requirement, associated type, `typealias` member, `#if` 안의
+  member, `AnyObject`와 `Sendable`이 아닌 protocol 상속(`where Self:` 절 포함),
+  custom global actor와 개별 격리 requirement, InnoDI의 최소 platform과
+  protocol의 availability를 넘는 requirement 자체의 platform `@available`,
+  `inout`과 nonescaping closure parameter, parameter pack, `rethrows`, generic
+  typed `throws`, `Sendable` protocol의 generic requirement, opaque `some` 타입이
+  여기에 해당합니다. 메시지에는 최대 다섯 개의 member가 해당하는 경우 이유와
+  함께 표시되며, 매크로는 mock을 생성하지 않습니다. 그런 mock은 직접
+  작성하세요.
 
 지원하는 member 형태와 생성 storage layout은 <doc:AutoMock>을 참고하세요.
 

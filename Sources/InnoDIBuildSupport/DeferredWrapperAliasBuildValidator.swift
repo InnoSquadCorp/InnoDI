@@ -1,10 +1,12 @@
 import Foundation
 import InnoDIWorkspaceAnalysis
 
-/// Surfaces top-level `typealias` declarations that rename `Lazy<T>` or
-/// `Provider<T>`. InnoDI classifies a factory parameter by its written
-/// spelling and never resolves aliases, in any file, so a parameter typed
-/// with such an alias is a hard edge rather than a deferred handle.
+/// Surfaces `typealias` declarations that rename `Lazy<T>` or `Provider<T>`,
+/// directly or through another alias, at file scope or inside a type or
+/// extension body (see `scanDeferredWrapperAliases(in:)`). InnoDI classifies
+/// a factory parameter by its written spelling and never resolves aliases,
+/// in any file, so a parameter typed with such an alias is a hard edge
+/// rather than a deferred handle.
 ///
 /// The validator runs alongside the other build-support passes through
 /// `ValidationCoordinator`. Findings are emitted as `warning` severity so a

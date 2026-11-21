@@ -55,7 +55,10 @@ For each supported protocol member the macro emits the following:
 * **`func name(args)` (sync, non-throwing)** — a `struct NameCall`
   capturing the arguments, a `private(set) var nameCalls: [NameCall]`
   list, an optional `var nameReturnValue: ReturnType?` slot, and the
-  conforming method which appends to `nameCalls` and unwraps the stub.
+  conforming method which appends to `nameCalls` and unwraps the stub. When
+  a requirement already spells a type named `NameCall`, the record becomes
+  `NameCall2` (or the next free suffix) so that type keeps its meaning inside
+  the mock.
 * **`func name(args) async`** — same as the sync case but with the
   `async` effect on the generated method.
 * **`func name(args) throws -> T`** — replaces the optional return
@@ -63,7 +66,9 @@ For each supported protocol member the macro emits the following:
   tests choose between `.success(value)` and `.failure(error)` with
   one assignment. The default failure surfaces a nested
   `_InnoDIMockNotStubbed` error that prints the unstubbed selector
-  name.
+  name. Generated code spells the untyped error `_InnoDIMockError`, InnoDI's
+  reserved alias of `Error`, so a type named `Error` or `Swift` next to the
+  protocol cannot capture it; the slot is still a `Result<T, any Error>`.
 * **`func name(args) throws` (Void return)** — adds a single
   `var nameThrownError: Error?` hook the generated body re-throws when
   set. Assign `nil` explicitly to mark the success behavior as configured.
@@ -83,6 +88,8 @@ For each supported protocol member the macro emits the following:
   return a value of the type requested by that particular invocation. Returning
   a different type still triggers the documented cast precondition; a handler
   cannot promise arbitrary generic results merely by returning `Any`.
+  Generic requirements on a `Sendable` protocol, and requirements with a
+  parameter pack (`each T`), are rejected.
 * **`mutating` requirements** — supported through the generated `final class`
   mock; the synthesized method does not need to be marked `mutating`.
 * **Access level** — mocks for `private` and `fileprivate` protocols inherit
@@ -96,20 +103,28 @@ For each supported protocol member the macro emits the following:
   recorded closure. Nonescaping closures, including plain `@autoclosure`
   arguments, cannot be retained and receive an unsupported-shape diagnostic.
   Optional closures, variadic closure arrays, and C function pointers
-  (`@convention(c)`) remain storable.
+  (`@convention(c)`) remain storable. The macro recognizes a closure only from
+  the parameter's written type. A function type behind a typealias
+  (`typealias Visitor = (Int) -> Void`) looks like any other named type, so
+  the macro cannot tell that `_ visit: Visitor` is a nonescaping closure: it
+  emits the mock, and Swift reports the escape inside the expansion. Spell the
+  function type in the requirement, or write `@escaping Visitor` when
+  retaining the closure is part of the contract.
 * **Variadic arguments** — the requirement keeps its variadic call syntax and
   the call record stores an array, including an empty array for no arguments.
 * **Ownership parameters** — `consuming`, `borrowing`, and `sending` parameter
   spellings are preserved on the witness and removed from its record field.
   Borrowing and consuming parameters are explicitly copied into call history
-  and generic handler arguments. Recorded values must be `Copyable` and
-  `Escapable`; transfer-only results and noncopyable generic inputs require a
-  hand-written mock.
+  and generic handler arguments. A `Sendable` mock copies `sending`
+  arguments the same way before it enters its lock. Recorded values must be
+  `Copyable` and `Escapable`; transfer-only results and noncopyable generic
+  inputs require a hand-written mock.
 * **Protocol `Self`** — witness and stored types bind to the concrete final
   mock class, including arguments stored in nested call records. This also
   permits configuring a `Self` return or property with another mock instance.
-* **Concurrency** — a protocol inheriting `Sendable` receives lock-backed call
-  and stub storage from the `InnoDITesting` product. Snapshots and reset-safe
+* **Concurrency** — a protocol inheriting `Sendable`, in its inheritance
+  clause or as `where Self: Sendable`, receives lock-backed call and stub
+  storage from the `InnoDITesting` product. Snapshots and reset-safe
   support types do not use unchecked conformance. The compiler still rejects
   non-`Sendable` arguments, results, and stored properties. Ordinary protocols
   remain single-executor mocks.
@@ -118,14 +133,34 @@ For each supported protocol member the macro emits the following:
   Explicit `nonisolated` protocols likewise produce `nonisolated` mocks,
   including in targets using default MainActor isolation. An unannotated
   protocol and mock in such a target remain on MainActor.
+* **Availability** — the mock inherits the `@available` of the protocol and of
+  its enclosing declarations. A requirement's own `@available` that only
+  deprecates or renames it, or marks it `noasync`, is accepted. A platform
+  version it introduces is accepted when InnoDI's minimum platforms (iOS 17,
+  macOS 14, Mac Catalyst 17, tvOS 17, watchOS 10, visionOS 1), the protocol,
+  or an enclosing declaration already guarantee it, since no consumer deploys
+  below those. A later version, `obsoleted:`, or `unavailable` is rejected:
+  the mock keeps the requirement's stubs in stored properties, which Swift
+  cannot make potentially unavailable, and a macro cannot see the deployment
+  target. Put that availability on the protocol instead.
+* **Optional results** — optionality comes from the written type. `T?`, `T!`,
+  `Optional<T>`, and `Swift.Optional<T>` are optional: `nil` assigned to their
+  `nameReturnValue` slot is a configured stub, and the method returns it. `T!`
+  is stored and stubbed as `T?`. A function type with an optional result, such
+  as `() -> Int?`, is not optional. For a non-optional result, assigning `nil`
+  leaves the stub missing. A macro cannot resolve a typealias, so a result
+  spelled through one (`typealias MaybeInt = Int?`) is non-optional: assign
+  `.some(nil)` to stub its `nil` result. A property setter accepts `nil` for
+  every optional type, including one behind a typealias.
 * **Interaction validation** — every generated mock with functions exposes
   `recordedCallCounts`. Every property, value-returning function, throwing
   function, and generic handler contributes to `missingStubSelectors` until
   its generated slot is assigned. The setup flag is separate from optional
   storage, so assigning a legitimate `nil` property or optional return marks
-  that stub as configured. Run `DIStubValidation.requireAllStubbed` before the
-  operation, then pass the same selectors and `recordedCallCounts` to
-  `DIInteractionValidation` for strict or recording-only verification.
+  that stub as configured (see the optional results above). Run
+  `DIStubValidation.requireAllStubbed` before the operation, then pass the
+  same selectors and `recordedCallCounts` to `DIInteractionValidation` for
+  strict or recording-only verification.
 * **Reset** — every non-empty generated mock exposes
   `innoDIReset(_:)`, `innoDICallHistoryGeneration`, and
   `innoDICallHistorySnapshot`. Use `.calls` to clear call history while
@@ -155,7 +190,8 @@ invocation that already started; reset does not cancel arbitrary user work.
 `.calls` preserves every stub and setup flag. `.all` resets the backing value
 and setup flag together, so `missingStubSelectors` reports the member again
 after reset. Method helpers and private storage are disambiguated from protocol
-requirements. Collisions with the fixed aggregate API (`recordedCallCounts`,
+requirements, and call records from the types that requirements spell.
+Collisions with the fixed aggregate API (`recordedCallCounts`,
 `missingStubSelectors`, and the public reset/history members) fail closed.
 Parameter names such as `handler` and `generation` remain valid; generated
 locals cannot replace their values. Inspect the expansion when referring to a
@@ -169,7 +205,13 @@ when any of these appear, because that would generate a broken conformance:
 
 * `static` and `class` requirements (RFC 0001 stage 4).
 * Custom global-actor protocols and individually actor-isolated requirements.
-  Protocol-level `@MainActor` is supported.
+  Protocol-level `@MainActor` is supported. A macro sees attribute names, not
+  their declarations, so it recognizes a custom global actor by a name that
+  ends in `Actor` (`@DatabaseActor`, `@Feature.SessionActor`). A global actor
+  named otherwise is not recognized: the mock is emitted without that
+  attribute, and Swift infers the mock's isolation from the conformance, so
+  test code must reach the mock on that actor.
+* `init` requirements, `typealias` members, and members inside `#if` blocks.
 * Function requirement modifiers other than `mutating`, including
   `nonisolated`, `borrowing`, and `consuming`.
 * `subscript` requirements (no stable lowering yet).
@@ -183,13 +225,19 @@ when any of these appear, because that would generate a broken conformance:
 * `rethrows` requirements. Typed `throws(ErrorType)` is supported for
   non-generic requirements; generic typed-throws requirements fail at the
   source attribute instead of emitting a partial conformance.
-* Opaque `some` return types.
+* Generic requirements on a `Sendable` protocol, and parameter packs
+  (`each T`).
+* Opaque `some` return types, and `some` anywhere in a non-generic
+  requirement's parameter types, such as `[some Sequence<Int>]`.
+* A requirement's own platform `@available` beyond InnoDI's minimum platforms
+  and the protocol's availability (see Availability above).
 * Associated types — hand-roll those mocks. RFC 0010 tracks the pinning and
   cross-module resolution path.
-* Protocol inheritance other than `AnyObject` and `Sendable`. Attached peer macros cannot
-  inspect inherited requirements across files or modules, so InnoDI fails
-  closed instead of emitting a mock with a potentially incomplete
-  conformance.
+* Protocol inheritance other than `AnyObject` and `Sendable`, whether written
+  in the inheritance clause or as `where Self: Parent`, and any other protocol
+  `where` requirement. Attached peer macros cannot inspect inherited
+  requirements across files or modules, so InnoDI fails closed instead of
+  emitting a mock with a potentially incomplete conformance.
 
 If the protocol declares no members at all, the macro emits the
 informational `mock.experimental-skeleton` note so adopters can confirm

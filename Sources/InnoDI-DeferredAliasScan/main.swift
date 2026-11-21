@@ -2,9 +2,12 @@
 //  InnoDI-DeferredAliasScan / main.swift
 //
 //  Workspace-wide scanner for `typealias` declarations that rename
-//  `Lazy<T>` or `Provider<T>`. InnoDI classifies a factory parameter by its
-//  written spelling and never resolves aliases, so a parameter typed with
-//  one is a hard edge instead of a deferred handle. The macro-level
+//  `Lazy<T>` or `Provider<T>`, directly or through another alias, at file
+//  scope or inside a type or extension body. InnoDI classifies a factory
+//  parameter by its written spelling and never resolves aliases, so a
+//  parameter typed with one is a hard edge instead of a deferred handle.
+//  Aliases local to a function, closure, or accessor body cannot be named
+//  at a factory parameter and are not listed. The macro-level
 //  `DILazyProviderAliasCheck` cannot see file-scope aliases in a real build,
 //  because the compiler hands the macro only the attached declaration.
 //
@@ -43,7 +46,8 @@ func parseArguments() throws -> ScanArguments {
     var index = 0
 
     func requireValue(for option: String) throws -> String {
-        guard index + 1 < argv.count else {
+        // An empty path would silently select the current directory.
+        guard index + 1 < argv.count, !argv[index + 1].isEmpty else {
             throw ScanArgumentError.missingValue(option: option)
         }
         return argv[index + 1]
@@ -63,9 +67,13 @@ func parseArguments() throws -> ScanArguments {
             Usage: InnoDI-DeferredAliasScan [--root <path>] [--json <path>]
 
             Scans the workspace for `typealias` declarations that rename
-            `Lazy<T>` or `Provider<T>`. Cross-file aliases silently disable
-            the macro's canonical-identifier detection of deferred wrappers,
-            so this scanner reports them as informational findings.
+            `Lazy<T>` or `Provider<T>`, directly or through another alias, at
+            file scope or inside a type or extension body. A factory parameter
+            spelled with such an alias defeats the macro's canonical-identifier
+            detection of deferred wrappers, so this scanner reports them as
+            informational findings. Aliases local to a function, closure, or
+            accessor body are not listed. A Swift source symbolic link that
+            resolves outside the root is not scanned and is named on stderr.
 
             Options:
               --root <path>   Workspace root (default: current directory)
@@ -134,7 +142,7 @@ func renderMarkdown(report: DeferredAliasReport) -> String {
     lines.append("")
     lines.append(
         "These aliases prevent the macro's canonical-identifier detection from "
-        + "recognising soft edges across files. At factory-parameter sites, prefer "
+        + "recognising soft edges, in any file. At factory-parameter sites, prefer "
         + "spelling `Lazy<T>` / `Provider<T>` (or `InnoDI.Lazy<T>` / "
         + "`InnoDI.Provider<T>`) directly so deferred wiring continues to work."
     )
@@ -144,6 +152,9 @@ func renderMarkdown(report: DeferredAliasReport) -> String {
 do {
     let arguments = try parseArguments()
     let snapshot = try loadWorkspaceSourceSnapshot(rootPath: arguments.rootPath)
+    for link in snapshot.externalSourceLinks {
+        FileHandle.standardError.write(Data("\(link.warningMessage)\n".utf8))
+    }
     let findings = scanDeferredWrapperAliases(in: snapshot)
 
     let report = DeferredAliasReport(
@@ -181,6 +192,6 @@ do {
     FileHandle.standardError.write(Data("Error: \(error.localizedDescription)\n".utf8))
     Foundation.exit(2)
 } catch {
-    FileHandle.standardError.write(Data("Error: \(error)\n".utf8))
+    FileHandle.standardError.write(Data("Error: \(error.localizedDescription)\n".utf8))
     Foundation.exit(1)
 }

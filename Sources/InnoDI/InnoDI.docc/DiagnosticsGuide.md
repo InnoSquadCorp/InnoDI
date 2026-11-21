@@ -34,6 +34,22 @@ The category prefix reflects the stage that emits the diagnostic:
 - `assisted-factory.access-level-mismatch`: the factory is more visible than
   its child container or at least one child input bridge.
 
+The build plugin checks each `@SubContainerFactory` against its child
+container:
+
+- `assisted-factory.invalid-bindings`: `bindings:` is not a literal array of
+  `(child:, parent:)` key-path tuples.
+- `assisted-factory.child-has-no-assisted-input`: the child declares no
+  `@Input(.assisted)` member; use `@SubContainer` for a fixed child.
+- `assisted-factory.duplicate-static-binding`: an ordinary child input is bound
+  more than once.
+- `assisted-factory.assisted-input-bound-as-static`: `bindings:` captures an
+  assisted child input; pass that value to `callAsFunction` instead.
+- `assisted-factory.unknown-static-input`: a binding's child key path does not
+  name an ordinary child `@Input`.
+- `assisted-factory.missing-static-binding`: at least one ordinary child input
+  has no binding.
+
 ## Multibinding diagnostics
 
 - `multibinding.invalid-contributors`: the argument is not one literal array
@@ -254,7 +270,18 @@ Most frequently-hit codes:
 - `provide.provider-eager-call` — `Provider<T>` invoked at construction
   time, which defeats its purpose.
 - `provide.lazy-aliased` / `provide.provider-aliased` — a `typealias` for
-  `Lazy<T>` / `Provider<T>` was used; rewrite as the direct spelling.
+  `Lazy<T>` / `Provider<T>` was used; rewrite as the direct spelling. The
+  macro sees only the source it is expanded with, and a real compiler passes
+  the attached declaration alone, so these warnings do not fire for a
+  file-scope alias outside unit tests.
+- `deferred-alias.workspace-finding` (build plugin, warning) — a file-scope,
+  type-member, or extension-member `typealias` renames `Lazy<T>` or
+  `Provider<T>`, directly, through parentheses, or through another such alias.
+  InnoDI never resolves aliases, so a factory parameter typed with it is a
+  hard edge. Spell the wrapper directly at the factory parameter.
+- `provide.deferred-wrapper-alias-unsupported` (build plugin) — a factory
+  parameter is spelled through a generic alias of `Lazy` or `Provider`, such as
+  `Deferred<Service>`. Spell `InnoDI.Lazy<T>` or `InnoDI.Provider<T>`.
 - `provide.deferred-wrapper-qualification-required` (build plugin) — a
   factory parameter spells `Lazy<T>` or `Provider<T>` while its own module
   declares a type with that name, so the name no longer means InnoDI's
@@ -329,9 +356,18 @@ Most frequently-hit codes:
   asynchronous on-demand provider already has a direct value or function named
   `closeAsyncProviders`. Rename it so the generated close API remains
   unambiguous.
+- `container.missing-effect-overrides-name-conflict` — a container with an
+  effect-marked provider makes its `Overrides` builder conform to
+  `DIOverrideEffectValidating`, whose `missingEffectOverrides` requirement
+  cannot be renamed, but a provider, a child, or a child's `<name>Overrides`
+  slot would also be named `missingEffectOverrides` (a child named
+  `missingEffect` claims that slot). Rename the member. Providers named
+  `requiredEffectOverrides`, `missing`, `set`, or `useDefault` are unaffected.
 - `container.mainactor-conflict` — a main-actor `@DIContainerRole` is combined
   with another global actor on the container or a dependency member. Remove
-  the custom actor or disable `mainActor` generation.
+  the custom actor or disable `mainActor` generation. Without `mainActor:`, a
+  container type annotated with a custom global actor keeps that actor's
+  isolation; see <doc:DIContainer>.
 - `container.mainactor-nonisolated-member` — a `@Provide` or `@SubContainer`
   member opts out with `nonisolated`, which contradicts the container's
   `mainActor: true` contract.
@@ -451,6 +487,16 @@ Most frequently-hit codes:
   detected a cycle.
 - `graph.ambiguous-container-reference` — a name matched multiple
   containers.
+- `graph.unresolved-container-reference` — a container reference resolves to
+  no analyzed container.
+- `graph.excluded-container-reference` — a container reference uses a shape
+  the semantic resolver does not support; the line names the reason.
+- `graph.duplicate-semantic-identity` — two unconditional declarations share
+  one container identity.
+- `graph.conditional-identity-unresolved` — declarations of one container
+  identity collide only through `#if` branches the analysis cannot evaluate.
+- `graph.root-pruning-no-roots` — `--root-pruning roots` was requested, but no
+  container declares `@DIContainerRole(role: ContainerRole.root)`.
 
 ## SwiftUI diagnostics
 
@@ -469,6 +515,10 @@ Most frequently-hit codes:
   key path doesn't resolve to a container member.
 - `swiftui.environment-bridge-duplicate-member` — the same key path is
   listed twice.
+- `swiftui.environment-bridge-duplicate-environment` (warning) — two
+  mappings set the same `EnvironmentValues` key path. The generated modifier
+  applies mappings in order, so views under the bridge read the first member
+  and the later mapping has no effect. Remove one of the two mappings.
 - `swiftui.environment-bridge-async-member` — an `asyncFactory`-backed
   container member was mapped into `EnvironmentValues`; expose a synchronous
   value or inject a service that performs async work internally.
@@ -478,7 +528,10 @@ Most frequently-hit codes:
   are rejected so generated code can preserve the key path without lexical
   capture.
 - `swiftui.environment-bridge-invalid-arguments` — the bridge macro received
-  arguments outside its supported key-path list shape.
+  arguments outside its supported key-path list shape, or a mapping tuple
+  lacks a `member` or `environment` element. Unlabeled tuples such as
+  `("service", \EnvironmentValues.service)` are read by position, like the
+  macro parameter's tuple type.
 - `swiftui.environment-bridge-reserved-module-name` — the bridge target, an
   enclosing nominal or generic parameter, or a direct nested type/typealias in
   the target named `Swift`, `SwiftUI`, or `InnoDISwiftUI` shadows a qualifier
@@ -534,8 +587,47 @@ Most frequently-hit codes:
   supported component `@DIContainerRole` type.
 - `component.overrides-builder-required` — a component role requires the
   synthesized overrides builder.
+- `component.custom-global-actor-unsupported` — a component-role container is
+  annotated with a custom global actor. Its generated mounting conformance is
+  nonisolated, so no initializer isolated to that actor can witness it. Remove
+  the actor, use `mainActor: true` for main-actor isolation, or use a local or
+  root role.
 - `hierarchy-root.requires-container` — legacy `@DIHierarchyRoot` must migrate
   to a supported root `@DIContainerRole` type.
+
+The build plugin validates cross-module `@SubContainer` edges with these
+codes:
+
+- `hierarchy.unresolved-child-reference` — the child type resolves to no known
+  container.
+- `hierarchy.ambiguous-child-reference` — the child type resolves to more than
+  one container.
+- `hierarchy.child-not-in-workspace` (warning) — no container record exists for
+  the child, so the cross-module checks for that edge are skipped.
+- `hierarchy.child-not-component` — the edge crosses modules, but the child
+  does not declare `ContainerRole.component`.
+- `hierarchy.module-edge-missing` — the parent's module mounts a child from a
+  module it does not declare as a dependency.
+- `hierarchy.invalid-same-name-wiring` — `with:` is not a fully parseable
+  literal array.
+- `hierarchy.invalid-bindings` — `bindings:` is not a fully parseable literal
+  child-to-parent key-path tuple array.
+- `hierarchy.bindings-conflicts-with-with` — one edge uses both `with:` and
+  `bindings:`.
+- `hierarchy.duplicate-with-dependency` — `with:` lists a dependency more than
+  once.
+- `hierarchy.duplicate-binding-mapping` — `bindings:` maps a child input more
+  than once.
+- `hierarchy.unknown-child-input` — the parent forwards a name that the child
+  does not declare as an `@Input`.
+- `hierarchy.unsatisfied-dependency` — the parent cannot supply a component
+  input, or supplies a member of a different type.
+- `hierarchy.duplicate-parent` — a component is mounted from more than one
+  parent.
+- `hierarchy.component-cycle` — `@SubContainer` ownership forms a cycle in the
+  rooted hierarchy.
+- `hierarchy.orphan-component` — a component is not reachable from any
+  `ContainerRole.root` container that could mount it.
 
 ## Mock generation diagnostics
 
@@ -545,11 +637,17 @@ Most frequently-hit codes:
 - `mock.experimental-skeleton` — emitted as a note when the protocol
   declares no members. Confirms the macro plugin saw the attribute and
   produced the empty mock skeleton.
-- `mock.unsupported-member` — one or more protocol requirements prevent
-  synthesis (static/class requirements, subscripts, associated types,
-  `inout` parameters, `rethrows` or typed `throws`, or opaque `some`
-  return types). The diagnostic message lists up to five member names;
-  implement those mocks manually until the next RFC 0001 stage lands.
+- `mock.unsupported-member` — one or more protocol requirements or protocol
+  features prevent synthesis: `static`/`class`, `init`, and `subscript`
+  requirements, associated types, `typealias` members, members inside `#if`,
+  protocol inheritance other than `AnyObject` and `Sendable` (including
+  `where Self:` clauses), custom global actors and individually isolated
+  requirements, a requirement's own platform `@available` beyond InnoDI's
+  minimum platforms and the protocol's availability, `inout` and nonescaping
+  closure parameters, parameter packs, `rethrows`, generic typed `throws`,
+  generic requirements on `Sendable` protocols, and opaque `some` types. The
+  message lists up to five members, with the reason where one applies, and
+  the macro emits no mock; write those mocks by hand.
 
 See <doc:AutoMock> for the supported member shapes and the generated
 storage layout.

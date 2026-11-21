@@ -24,7 +24,7 @@ plugin을 자동으로 붙이지는 않습니다. consumer가 target manifest에
 - **Production 릴리스 브랜치**: plugin은 downstream 도구가 쓰는 validation
   metrics artifact를 만드는 gate입니다. 우회하면 audit trail이 사라집니다.
 - **공유 인프라의 CI**에서 어디에서도
-  `swift run InnoDI-DependencyGraph --validate-dag`를 돌리지 않는 경우: 대체
+  `swift run InnoDI-DependencyGraph --root . --validate-dag`를 돌리지 않는 경우: 대체
   수단이 없으면 global DAG gate가 사라집니다.
 - **사용자에게 닿는 모든 것**: plugin의 역할은 깨진 그래프가 consumer에게 가지
   않게 막는 것입니다. 배포되는 경로에서 끄는 것은 계약을 없애는 것과 같습니다.

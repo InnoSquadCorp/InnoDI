@@ -4,14 +4,20 @@
 
 ## 개요
 
-InnoDI는 `@DIContainer`와 `@Provide`를 통해 file scope 또는 nominal type 안에
-nested된, 지원되는 유효한 non-generic Swift struct를 DI 컨테이너로 바꿉니다.
-함수, closure, accessor, `switch` case를 포함한 executable/local code scope
-안의 선언은 지원하지 않습니다. 런타임 변형보다 명시적 wiring, 결정적 검증,
+InnoDI는 `@DIContainer`와 `@Provide`를 통해 file scope 또는 non-generic
+nominal 선언 안에 선언된, 지원되는 유효한 non-generic Swift struct를 DI 컨테이너로
+바꿉니다. 함수, closure, accessor, `switch` case를 포함한 executable/local code
+scope 안의 선언은 거부됩니다. 런타임 변형보다 명시적 wiring, 결정적 검증,
 graph tooling에 초점을 둡니다.
 
-최신 안정 릴리스는 7.0.2입니다. 이 소스 문서는 7.0 API를 설명합니다.
-안정 버전을 설치했다면 해당 tag의 문서를 사용하세요. 패키지는 다음을 제공합니다:
+생성되는 API는 의도적으로 initializer 중심입니다. InnoDI는 `@Injected`
+property wrapper나 동적 등록 컨테이너를 제공하지 않습니다. 이런 패턴은 런타임
+DI 도구에서는 유용하지만, InnoDI는 코드 리뷰 가시성, 결정적인 매크로 확장,
+빌드 타임 graph 검증을 우선합니다.
+
+최신 안정 릴리스는 7.0.2입니다. 이 소스 문서는 현재 revision의 소스를 설명하므로
+`CHANGELOG.md`의 미출시 변경이 포함될 수 있습니다. 안정 버전을 설치했다면 해당
+tag의 문서를 사용하세요. 패키지는 다음을 제공합니다:
 
 - 매크로 기반 컨테이너 API 생성
 - 컴파일 타임과 빌드 타임 검증
@@ -78,7 +84,7 @@ Portable 테스트 일부의 통과가 지원 Apple toolchain과 release 검증�
 - ``Input(_:escaping:)``
 - ``DIContainerRole(role:mainActor:validateDAG:initializationOrder:generateOwned:)``
 
-### Experimental
+### 테스트
 
 - <doc:AutoMock>
 

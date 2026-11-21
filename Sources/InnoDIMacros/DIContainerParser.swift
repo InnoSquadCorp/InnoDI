@@ -261,6 +261,7 @@ struct DIContainerParser {
 
         return DIContainerExpansionModel(
             explicitlyMainActor: findStandardMainActorAttribute(in: decl.attributes) != nil,
+            explicitlyCustomGlobalActor: detectConflictingGlobalActor(in: decl.attributes) != nil,
             options: options,
             accessLevel: accessLevel,
             members: members,
@@ -290,6 +291,20 @@ struct DIContainerParser {
                     actorName: conflictingActor
                 ),
                 at: Syntax(declaration)
+            )
+            hadErrors = true
+        } else if options.role == .component,
+                  let customActor = findCustomGlobalActorAttribute(
+                    in: declaration.attributes
+                  ) {
+            // The mounting protocol is nonisolated (or MainActor-isolated for
+            // main-actor components), so no conformance can witness an
+            // initializer isolated to another global actor.
+            context.emit(
+                SimpleDiagnostic.componentCustomGlobalActorUnsupported(
+                    actorName: customActor.attributeName.trimmedDescription
+                ),
+                at: Syntax(customActor)
             )
             hadErrors = true
         }
@@ -895,6 +910,16 @@ func declarationAccessLevel(
 }
 
 internal func detectConflictingGlobalActor(in attributes: AttributeListSyntax?) -> String? {
+    findCustomGlobalActorAttribute(in: attributes)
+        .flatMap { globalActorAttributeName(from: $0.attributeName)?.sourceSpelling }
+}
+
+/// The first source-written attribute that names a global actor other than
+/// `MainActor`, recognized by the same `*Actor` spelling heuristic as
+/// ``detectConflictingGlobalActor(in:)``.
+internal func findCustomGlobalActorAttribute(
+    in attributes: AttributeListSyntax?
+) -> AttributeSyntax? {
     guard let attributes else { return nil }
     for attribute in attributes {
         guard let attr = attribute.as(AttributeSyntax.self) else { continue }
@@ -904,7 +929,7 @@ internal func detectConflictingGlobalActor(in attributes: AttributeListSyntax?) 
             continue
         }
         if attributeName.terminalName.hasSuffix("Actor") {
-            return attributeName.sourceSpelling
+            return attr
         }
     }
     return nil

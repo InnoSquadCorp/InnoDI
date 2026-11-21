@@ -39,13 +39,166 @@ struct ResolvedHierarchyEdgesResult {
     let pendingIssues: [PendingHierarchyIssue]
 }
 
+/// Resolves child references and member types from the target that
+/// declares them.
+///
+/// A manifest snapshot holds the primary target and every dependency
+/// target, so one unqualified path can name declarations in several
+/// targets. A reference matches its own target's declarations through the
+/// nested-type suffix lookup, but another target's declarations only by
+/// their written (or module-qualified) path: Swift never reaches
+/// `Client.Config` or `Shop.Cart` declared in another module through a bare
+/// `Config` or `Cart`. A root-path snapshot is a single scope and keeps its
+/// workspace-wide lookup.
+struct HierarchySemanticScopes {
+    private struct Scope {
+        let resolver: SemanticResolverIndex
+        let typePaths: Set<String>
+        let externalTypePaths: Set<String>
+        let containerPaths: Set<String>
+        let externalContainerPaths: Set<String>
+    }
+
+    private let workspaceWide: Scope
+    private let scopesByKey: [String?: Scope]
+    private let scopeKeysByContainerFilePath: [String: String?]
+
+    /// - Parameter files: each source file's collector with its declaring
+    ///   target, or `nil` for a root-path snapshot.
+    init(files: [(scope: String?, collector: WorkspaceHierarchyFileCollector)]) {
+        var orderedKeys: [String?] = []
+        var nominalTypesByKey: [String?: [SemanticNominalTypeRecord]] = [:]
+        var aliasesByKey: [String?: [SemanticTypeAliasRecord]] = [:]
+        var containerPathsByKey: [String?: Set<String>] = [:]
+        var scopeKeysByContainerFilePath: [String: String?] = [:]
+
+        for file in files {
+            if nominalTypesByKey[file.scope] == nil {
+                orderedKeys.append(file.scope)
+            }
+            nominalTypesByKey[file.scope, default: []]
+                .append(contentsOf: file.collector.nominalTypes)
+            aliasesByKey[file.scope, default: []]
+                .append(contentsOf: file.collector.typeAliases)
+            for container in file.collector.containers {
+                containerPathsByKey[file.scope, default: []].insert(container.nominalPath)
+                scopeKeysByContainerFilePath.updateValue(file.scope, forKey: container.filePath)
+            }
+        }
+
+        let allNominalTypes = orderedKeys.flatMap { nominalTypesByKey[$0] ?? [] }
+        let allAliases = orderedKeys.flatMap { aliasesByKey[$0] ?? [] }
+        let allTypePaths = Set(allNominalTypes.map(\.path))
+        let allContainerPaths = orderedKeys.reduce(into: Set<String>()) { paths, key in
+            paths.formUnion(containerPathsByKey[key] ?? [])
+        }
+        workspaceWide = Scope(
+            resolver: SemanticResolverIndex(
+                nominalTypes: allNominalTypes,
+                topLevelTypeAliases: allAliases
+            ),
+            typePaths: allTypePaths,
+            externalTypePaths: [],
+            containerPaths: allContainerPaths,
+            externalContainerPaths: []
+        )
+
+        var scopesByKey: [String?: Scope] = [:]
+        if orderedKeys.count > 1 {
+            // Only targets that declare containers write references.
+            for key in orderedKeys where containerPathsByKey[key] != nil {
+                let nominalTypes = nominalTypesByKey[key] ?? []
+                let typePaths = Set(nominalTypes.map(\.path))
+                let containerPaths = containerPathsByKey[key] ?? []
+                scopesByKey.updateValue(
+                    Scope(
+                        resolver: SemanticResolverIndex(
+                            nominalTypes: nominalTypes,
+                            topLevelTypeAliases: aliasesByKey[key] ?? [],
+                            externalTypeAliases: orderedKeys
+                                .filter { $0 != key }
+                                .flatMap { aliasesByKey[$0] ?? [] }
+                        ),
+                        typePaths: typePaths,
+                        externalTypePaths: allTypePaths.subtracting(typePaths),
+                        containerPaths: containerPaths,
+                        externalContainerPaths: allContainerPaths.subtracting(containerPaths)
+                    ),
+                    forKey: key
+                )
+            }
+        }
+        self.scopesByKey = scopesByKey
+        self.scopeKeysByContainerFilePath = scopeKeysByContainerFilePath
+    }
+
+    /// A single workspace-wide scope over an existing resolver.
+    init(resolver: SemanticResolverIndex, typeCandidatePaths: Set<String>) {
+        workspaceWide = Scope(
+            resolver: resolver,
+            typePaths: typeCandidatePaths,
+            externalTypePaths: [],
+            containerPaths: [],
+            externalContainerPaths: []
+        )
+        scopesByKey = [:]
+        scopeKeysByContainerFilePath = [:]
+    }
+
+    private func scope(declaring container: WorkspaceHierarchyContainerRecord) -> Scope {
+        guard let key = scopeKeysByContainerFilePath[container.filePath],
+              let scope = scopesByKey[key] else {
+            return workspaceWide
+        }
+        return scope
+    }
+
+    func resolveChildReference(
+        _ reference: SemanticTypeReference,
+        from parent: WorkspaceHierarchyContainerRecord
+    ) -> SemanticResolutionResult {
+        let scope = scope(declaring: parent)
+        return scope.resolver.resolvePath(
+            for: reference,
+            candidatePaths: scope.containerPaths,
+            externalCandidatePaths: scope.externalContainerPaths
+        )
+    }
+
+    func resolveMemberType(
+        _ member: WorkspaceHierarchyMemberRecord,
+        of container: WorkspaceHierarchyContainerRecord
+    ) -> HierarchyMemberTypeResolution {
+        guard let reference = member.semanticTypeReference else {
+            return .fallback
+        }
+
+        let scope = scope(declaring: container)
+        let resolution = scope.resolver.resolvePath(
+            for: reference,
+            candidatePaths: scope.typePaths,
+            externalCandidatePaths: scope.externalTypePaths
+        )
+        switch resolution.state {
+        case .resolved:
+            guard let resolvedPath = resolution.resolvedPath else {
+                return .fallback
+            }
+            return .resolved(resolvedPath)
+        case .ambiguous:
+            return .ambiguous
+        case .excluded, .unresolved:
+            return .fallback
+        }
+    }
+}
+
 func resolveHierarchyEdges(
     containers: [WorkspaceHierarchyContainerRecord],
     containersByNominalPath: [String: [WorkspaceHierarchyContainerRecord]],
     moduleGraph: WorkspaceModuleGraphSnapshot,
-    resolver: SemanticResolverIndex,
-    modulesByContainerID: [String: ResolvedHierarchyModuleContext],
-    candidatePaths: Set<String>
+    scopes: HierarchySemanticScopes,
+    modulesByContainerID: [String: ResolvedHierarchyModuleContext]
 ) -> ResolvedHierarchyEdgesResult {
     var pendingIssues: [PendingHierarchyIssue] = []
 
@@ -67,9 +220,9 @@ func resolveHierarchyEdges(
                 return nil
             }
 
-            let resolution = resolver.resolvePath(
-                for: childReference,
-                candidatePaths: candidatePaths
+            let resolution = scopes.resolveChildReference(
+                childReference,
+                from: parent
             )
             switch resolution.state {
             case .resolved:
@@ -554,21 +707,14 @@ private func resolvedDependencyMappings(
 }
 
 func hierarchyMemberTypesMatch(
-    _ parent: WorkspaceHierarchyMemberRecord,
-    _ child: WorkspaceHierarchyMemberRecord,
-    resolver: SemanticResolverIndex,
-    typeCandidatePaths: Set<String>
+    _ parentMember: WorkspaceHierarchyMemberRecord,
+    of parent: WorkspaceHierarchyContainerRecord,
+    _ childMember: WorkspaceHierarchyMemberRecord,
+    of child: WorkspaceHierarchyContainerRecord,
+    scopes: HierarchySemanticScopes
 ) -> Bool {
-    let parentResolution = resolveHierarchyMemberType(
-        parent,
-        resolver: resolver,
-        typeCandidatePaths: typeCandidatePaths
-    )
-    let childResolution = resolveHierarchyMemberType(
-        child,
-        resolver: resolver,
-        typeCandidatePaths: typeCandidatePaths
-    )
+    let parentResolution = scopes.resolveMemberType(parentMember, of: parent)
+    let childResolution = scopes.resolveMemberType(childMember, of: child)
 
     switch (parentResolution, childResolution) {
     case let (.resolved(parentPath), .resolved(childPath)):
@@ -576,30 +722,7 @@ func hierarchyMemberTypesMatch(
     case (.ambiguous, _), (_, .ambiguous):
         return false
     case (.fallback, _), (_, .fallback):
-        return parent.rawTypeSpelling == child.rawTypeSpelling
-    }
-}
-
-func resolveHierarchyMemberType(
-    _ member: WorkspaceHierarchyMemberRecord,
-    resolver: SemanticResolverIndex,
-    typeCandidatePaths: Set<String>
-) -> HierarchyMemberTypeResolution {
-    guard let reference = member.semanticTypeReference else {
-        return .fallback
-    }
-
-    let resolution = resolver.resolvePath(for: reference, candidatePaths: typeCandidatePaths)
-    switch resolution.state {
-    case .resolved:
-        guard let resolvedPath = resolution.resolvedPath else {
-            return .fallback
-        }
-        return .resolved(resolvedPath)
-    case .ambiguous:
-        return .ambiguous
-    case .excluded, .unresolved:
-        return .fallback
+        return parentMember.rawTypeSpelling == childMember.rawTypeSpelling
     }
 }
 

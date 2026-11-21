@@ -63,7 +63,7 @@ final class CatalogMock: Catalog {
         }
         set {
             __innodi_itemReturnValueStorage = newValue
-            __innodi_itemIsStubbed = true
+            __innodi_itemIsStubbed = newValue != nil
         }
     }
     func item(at index: Int) -> String {

@@ -2,7 +2,7 @@
 //  DIContainerWithOverridesGenerator.swift
 //  InnoDIMacros
 //
-//  Emits the four `static func withOverrides<OperationResult>(...)` effect overloads
+//  Emits the four `static func withOverrides<_InnoDIOperationResult>(...)` effect overloads
 //  (sync / throws / async / async throws) that wrap a scoped container
 //  construction + operation closure invocation. Keeping them in a dedicated
 //  file makes the sub-container overrides threading and Sendable handling
@@ -11,6 +11,11 @@
 
 import SwiftSyntax
 import SwiftSyntaxBuilder
+
+/// Callers never name this generic parameter, so it lives in the reserved
+/// namespace. Any source spelling would shadow a user type of the same name
+/// in the input parameter types that share this signature.
+private let operationResultTypeName = "_InnoDIOperationResult"
 
 internal func makeWithOverridesMethods(model: DIContainerExpansionModel) -> [DeclSyntax] {
     return [
@@ -34,7 +39,7 @@ private func makeWithOverridesMethod(
     var modifiers = modifiersFromAccessLevel
     // An explicitly annotated enclosing type already isolates its generated
     // initializer. Do not override that inherited isolation on async helpers.
-    if isAsync && !model.isMainActor {
+    if isAsync && !model.isMainActor && !model.explicitlyCustomGlobalActor {
         modifiers.append(
             DeclModifierSyntax(
                 name: .keyword(.nonisolated),
@@ -89,7 +94,7 @@ private func makeWithOverridesMethod(
     )
     params.append(applyOverridesParam)
 
-    // operation: (Self) [async] [throws] -> OperationResult
+    // operation: (Self) [async] [throws] -> _InnoDIOperationResult
     var operationTypeDescription: String
     if model.isMainActor {
         operationTypeDescription = "@_Concurrency.MainActor (Self) "
@@ -100,7 +105,7 @@ private func makeWithOverridesMethod(
     }
     if isAsync { operationTypeDescription += "async " }
     if isThrowing { operationTypeDescription += "throws " }
-    operationTypeDescription += "-> OperationResult"
+    operationTypeDescription += "-> \(operationResultTypeName)"
     let operationParam = FunctionParameterSyntax(
         firstName: .identifier("operation"),
         secondName: .identifier("_innoDIOperation"),
@@ -112,11 +117,11 @@ private func makeWithOverridesMethod(
     )
     params.append(operationParam)
 
-    // <OperationResult>
+    // <_InnoDIOperationResult>
     let genericParameterClause = GenericParameterClauseSyntax(
         leftAngle: .leftAngleToken(),
         parameters: GenericParameterListSyntax([
-            GenericParameterSyntax(name: .identifier("OperationResult"))
+            GenericParameterSyntax(name: .identifier(operationResultTypeName))
         ]),
         rightAngle: .rightAngleToken()
     )
@@ -134,7 +139,7 @@ private func makeWithOverridesMethod(
 
     let returnClause = ReturnClauseSyntax(
         arrow: .arrowToken(),
-        type: TypeSyntax(stringLiteral: "OperationResult")
+        type: TypeSyntax(stringLiteral: operationResultTypeName)
     )
 
     let signature = FunctionSignatureSyntax(

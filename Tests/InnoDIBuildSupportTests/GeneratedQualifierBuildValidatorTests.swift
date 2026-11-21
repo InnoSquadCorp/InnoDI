@@ -37,6 +37,28 @@ struct GeneratedQualifierBuildValidatorTests {
         }
     }
 
+    // Root-path discovery used to list a file reached through an in-root
+    // symbolic link twice, and the import map trapped on the repeated path.
+    @Test("A repeated source path in a caller-assembled snapshot does not trap")
+    func repeatedSourcePathDoesNotTrap() {
+        let source = """
+        struct Swift {}
+        @DIContainer struct Container {
+            @Provide(.shared, initialization: .onDemand, factory: 1) var service: Int
+        }
+        """
+        let file = QualifierSourceFixture(path: "Sources/Shared/Shared.swift", source: source)
+
+        let control = GeneratedQualifierBuildValidator.validate(snapshot: makeSnapshot([file]))
+        let repeated = GeneratedQualifierBuildValidator.validate(
+            snapshot: makeSnapshot([file, file])
+        )
+
+        #expect(control.issues.count == 1)
+        #expect(control.issues.first?.metadata["qualifier"] == "Swift")
+        #expect(Set(repeated.issues.map(\.code)) == Set(control.issues.map(\.code)))
+    }
+
     @Test("Typed synchronous prewarm checks same-target Swift type shadows")
     func typedPrewarmTopLevelQualifierShadows() {
         for (shadow, expectedCount) in [("struct Swift {}", 1), ("let Swift = 0", 0)] {

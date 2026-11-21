@@ -45,11 +45,29 @@ The coordinated build pipeline adds:
 4. DAG validation
 5. metrics and summary artifact emission
 
+The plugin validates a snapshot of the target being built and every target it
+depends on. Hierarchy validation resolves a child reference or an input type
+from the target that declares it. A partial spelling such as `Cart` reaches
+that target's own nested `Checkout.Cart`, but another target's declarations
+only by their written or module-qualified path, so a nested `Shop.Cart` or
+`Client.Config` in a dependency never answers a bare `Cart` or `Config`. A
+component is reported as `hierarchy.orphan-component` only when the snapshot
+holds a root-role container in the component's own target or in a target that
+depends on it. A root in a dependency cannot mount the built target's
+component; that component's parent is validated when the target that mounts it
+is built. A coordinator run given a workspace root (`--root`) keeps one
+workspace-wide scope for these lookups and checks every component against every
+root.
+
 The build plugin's source manifest preserves each declared source's
 package-relative path, including an in-package directory symlink. The symlink
 must resolve inside its owning package, and two declared paths cannot claim
 the same physical file. An external symlink destination remains unsupported
 for a declared source.
+
+A container reference resolves through the imports of the file that writes
+it plus every `@_exported import` in any file of the same target, as Swift
+resolves names. A plain `import` in another file of the target does not count.
 
 ## Global DAG Validation
 
@@ -58,6 +76,24 @@ Use the CLI for global graph validation:
 ```bash
 swift run InnoDI-DependencyGraph --root . --validate-dag
 ```
+
+The `--root` input analyzes every `.swift` file under the directory and skips:
+
+- every top-level directory whose name starts with `.`, such as `.build`,
+  `.git`, and `.swiftpm`;
+- any directory named `.build`, `Derived`, `DerivedData`, `SourcePackages`,
+  `.tuist`, `.git`, `Pods`, `Carthage`, or `.swiftpm`, and any
+  `Tuist/Dependencies` directory, at any depth. `DerivedData` and
+  `SourcePackages` cover Xcode derived data and package checkouts kept inside
+  the repository;
+- every `*.xcodeproj` and `*.xcworkspace` bundle.
+
+Every path is resolved through symbolic links first. A file reached through a
+link inside the root is analyzed once, at its real path, and is skipped when
+that path is in a skipped directory. A `.swift` link that resolves outside the
+root is not analyzed; the CLI names it in a `warning:` line on stderr and
+leaves its output and exit code unchanged. The command does not descend into
+a linked directory.
 
 `validateDAG: false` containers are excluded from global DAG validation, but
 unsupported provider declarations and effect mismatches on explicit sibling

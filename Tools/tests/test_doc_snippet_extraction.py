@@ -22,6 +22,7 @@ class DocumentationExtractionTests(unittest.TestCase):
                  + '\nextract_snippets "$2"\n', "extract", str(snippets), str(document)],
                 text=True, capture_output=True, timeout=10,
             )
+            self.library_snippets = sorted(path.stem for path in snippets.glob("*.library"))
             return result, [path.read_text() for path in sorted(snippets.glob("*.swift"))]
 
     def test_whole_document_preserves_shared_declarations(self):
@@ -55,12 +56,28 @@ struct Service {}
         self.assertEqual(len(snippets), 2)
         self.assertTrue(all(source.count("struct Service") == 1 for source in snippets))
 
+    def test_library_marker_flags_only_its_block(self):
+        result, snippets = self.extract("""<!-- innodi:compile-library -->
+```swift
+#PreviewWithContainer(makeApp()) { container in Root(container: container) }
+```
+<!-- innodi:compile -->
+```swift
+let value = 1
+```
+""")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(snippets), 2)
+        self.assertEqual(self.library_snippets, ["001"])
+        self.assertIn("#PreviewWithContainer", snippets[0])
+
     def test_incomplete_contracts_fail(self):
         for source in [
             "<!-- innodi:compile-all -->\nNo Swift block.\n",
             "<!-- innodi:compile-all -->\n```swift\nstruct Service {}\n",
             "<!-- innodi:compile -->\n",
             "<!-- innodi:compile -->\nNot a code block.\n",
+            "<!-- innodi:compile-library -->\n",
         ]:
             with self.subTest(source=source):
                 result, _ = self.extract(source)

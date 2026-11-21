@@ -16,9 +16,12 @@ two downstream consumers:
   build-plugin coordinator and CLI that perform global DAG validation
   and rendering.
 
-Third-party tools (alternative renderers, editor integrations, lint
-rules) can depend on `InnoDICore` to reuse the same graph model and
-cycle detector without pulling in the full macro stack.
+`InnoDICore` is an internal target of the InnoDI package, not a package
+product, so code outside the package cannot depend on it. The graph model,
+`buildCycleDetectionAdjacency`, and the semantic resolver are declared
+`package`, and nothing in this module carries a source-compatibility
+promise. A tool outside the package reads the graph through
+`InnoDI-DependencyGraph`, whose JSON output is the versioned contract.
 
 ## Topics
 
@@ -41,5 +44,8 @@ detection lives in the `InnoDIMacros` target:
 `ClosureSyntaxHelpers.swift` defines `parseClosureParameterNames`, and
 `DIContainerModel.swift` defines `DependencyKind`. It treats written syntax
 as the source of truth; it does not follow `typealias` chains across files.
-Consumers that want to detect aliased `Lazy<T>` / `Provider<T>` should use
-the macro-side `DILazyProviderAliasCheck` facility instead.
+The macro-side alias check in `DILazyProviderAliasCheck.swift` is internal
+to that target and sees only the source the macro is expanded with, which in
+a real build excludes file-scope aliases. The build plugin's
+`deferred-alias.workspace-finding` warning and the `InnoDI-DeferredAliasScan`
+target report aliased `Lazy<T>` / `Provider<T>` across the validated sources.

@@ -462,6 +462,8 @@ uses exit codes `0` (clean), `1` (changes required), and `2` (blocked).
     _ type: Any.Type? = nil,
     with dependencies: [AnyKeyPath] = [],
     initialization: DIInitialization = .eager,
+    effect: DIProviderEffect = .none,
+    collection: DICollectionMetadata? = nil,
     factory: Any? = nil,
     asyncFactory: Any? = nil
 )
@@ -745,12 +747,20 @@ contract:
   named feature-root helpers for child containers. To add the identity/close
   host overload, use `FeatureRoot(RootView.self, hosted: true)` and import
   `SwiftUI` plus `InnoDISwiftUI` in that source file. Module availability alone
-  never changes generated helpers; the zero-argument helper remains.
+  never changes generated helpers; the zero-argument helper remains. Host a
+  `.transient` child to get one child per identity that the host closes. A
+  `.shared` child stays the parent's: its overload takes only `identity:`, and
+  the 7.0 `identity:close:` spelling is deprecated there because the hook would
+  receive the instance the parent keeps serving.
 - `DIContainerHost` lazily owns fixed or assisted children by route, document,
   or window identity. Applications compose loading/failure/retry UI and call
   its lifecycle handle from the actual close path instead of `onDisappear`.
 - `#PreviewWithContainer` uses the same lazy owner and keeps equal preview
-  payloads isolated by preview instance.
+  payloads isolated by preview instance. Its arguments cannot call
+  macro-generated initializers or helpers; build the container in a function
+  and render helpers from a wrapper view, as
+  [SwiftUI Preview Helper](Sources/InnoDI/InnoDI.docc/SwiftUIPreviewHelper.md#previews)
+  shows.
 - InnoDI 5.0 removes the deprecated `@DIFeatureRoot` compatibility macro.
   Replace it with the `@SubContainer` arguments so helper generation stays in
   the container macro pipeline and does not stack peer macros on one property.
@@ -777,6 +787,15 @@ Validate the global DAG:
 ```bash
 swift run InnoDI-DependencyGraph --root . --validate-dag
 ```
+
+`--root` analyzes every `.swift` file under the directory except hidden
+top-level directories (such as `.build` and `.git`), build and dependency
+output (`Derived`, `DerivedData`, `SourcePackages`, `Tuist/Dependencies`,
+`Pods`, `Carthage`), and Xcode project and workspace bundles. A file reached
+through a symbolic link is analyzed once, at its real path; a Swift source
+link that resolves outside the root is not analyzed and is named in a stderr
+warning. See [Global DAG Validation](Sources/InnoDI/InnoDI.docc/Validation.md#global-dag-validation)
+for the full list.
 
 Explain graph inclusion, inspect reverse impact, and find containers outside
 every explicit root:
@@ -838,13 +857,22 @@ swift run InnoDI-Doctor --root . --json
 The default mode does not resolve, build, write, delete caches, or stop
 processes. For Swift packages, Doctor parses literal target source roots and
 plugin arrays, so a comment, string, or another target's plugin cannot hide a
-missing attachment. Dynamic manifests and Tuist target mappings remain
-explicitly incomplete instead of being reported healthy. Pass the same
-`--trust-module <name>` options you give `InnoDI-Migrate` when the migration
-check reports `migrate.unqualified-ownership-ambiguous` for your own modules.
+missing attachment. A literal `path: "."` target owns the sources at the
+package root. A container in a nested package, a directory with its own
+`Package.swift`, is checked against that package's manifest, and nested Git
+repositories are skipped as `InnoDI-Migrate` skips them. Dynamic manifests and
+Tuist target mappings remain explicitly incomplete instead of being reported
+healthy. Pass the same `--trust-module <name>` options you give
+`InnoDI-Migrate` when the migration check reports
+`migrate.unqualified-ownership-ambiguous` for your own modules, and the same
+`--swiftui-import-access` choice for a root migrated with one; without it, an
+explicit SwiftUI import below the visibility of its `InnoDISwiftUI` import
+remains `migrate.swiftui-import-access-ambiguous`.
 `--apply` uses the migrator's preserving atomic-exchange checks. Successful writes retain displaced
 files at reported `RECOVERY` paths; review those files after closing editors
 before removing them. Doctor schema v3 includes `recoveryPaths`.
+POSIX access mode is preserved, but ACLs, extended attributes, and a
+filesystem-wide transaction are not.
 SwiftPM `--verify` runs `swift build`; Tuist
 verification first runs generation and only runs compilation when `--scheme`
 and `--destination` are explicit. Schema-v3 reports keep generation and

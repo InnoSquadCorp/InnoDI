@@ -135,7 +135,20 @@ For a container without `mainActor: true`, the generated `async` and
 be `nonisolated(nonsending)`. This preserves the caller's actor executor and
 keeps arbitrary non-`Sendable` containers and closures from crossing isolation.
 Keep synchronous overloads unchanged. Every `mainActor: true` overload and
-operation closure remains `@MainActor`.
+operation closure remains `@MainActor`. A type that carries a source-written
+global actor (`@MainActor`, or a custom `…Actor` attribute) already isolates its
+initializer, so its async overloads inherit that isolation and must not be
+`nonisolated(nonsending)`; a nested `@AssistedFactory` receives the custom actor.
+The operation closure type of a custom-actor container stays
+`nonisolated(nonsending)`; a `@MainActor` type's is `@MainActor`.
+A component role rejects a custom global actor with
+`component.custom-global-actor-unsupported`.
+
+Generated generic parameters and local bindings that share a scope with
+user-written type spellings, member-named parameters, or user expressions stay
+in the reserved `_InnoDI` / `_innoDI` namespace. Peer declarations outside the
+container body, such as a component's `<Name>Dependencies`, spell the
+container's directly nested types and `Self` through the container name.
 
 Every container, including a truly empty one, synthesizes the complete
 overrides scaffolding. A user-declared nested `Overrides` type is a terminal
@@ -292,8 +305,13 @@ sibling edge even when the container uses `validateDAG: false`.
   them. Classify spellings only through `parentMemberKeyPathSpelling` in
   `InnoDICore`, and never call `filter` on a syntax collection when the result
   anchors a diagnostic, because it builds a modified tree.
-- `swift run InnoDI-DeferredAliasScan --root .` lists every top-level
-  `typealias` in the workspace that renames `Lazy<T>` or `Provider<T>`.
+- `swift run InnoDI-DeferredAliasScan --root .` lists every `typealias` in
+  the workspace, at file scope or inside a type or extension body, that
+  renames `Lazy<T>` or `Provider<T>` (bare, or qualified by `InnoDI` or by
+  `InnoDISwiftUI` or `InnoDITesting`, which re-export it), directly, through
+  redundant parentheses, or through another listed alias. Aliases in function, closure, or accessor
+  bodies cannot be named at a factory parameter and are not listed; neither
+  is another type that is merely named `Provider`, such as `Vendor.Provider`.
   InnoDI never resolves aliases: a factory parameter typed with one is a hard
   edge, and the generated call usually fails to type-check. The macro-level
   `provide.lazy-aliased` / `provide.provider-aliased` check only sees the

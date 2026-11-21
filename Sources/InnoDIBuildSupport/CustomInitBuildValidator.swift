@@ -9,10 +9,17 @@ package enum CustomInitBuildValidator {
     }
 
     package static func validate(snapshot: WorkspaceSourceSnapshot) throws -> ValidationIssueReport {
-        var containersByPath: [String: [ContainerDeclarationRecord]] = [:]
-        var extensionRecords: [ExtensionInitializerRecord] = []
-        var nominalTypes: [SemanticNominalTypeRecord] = []
-        var typeAliases: [SemanticTypeAliasRecord] = []
+        // A manifest snapshot holds every target the build can see, so an
+        // unqualified path such as `Dependencies` can name a container in one
+        // target and an unrelated type in another. An extension initializer
+        // is a custom init only of a container declared in the extension's
+        // own target: an initializer in another module's extension must
+        // delegate through `self.init(...)` or `self = ...`, which reaches the
+        // synthesized initializer. Each target's extensions therefore resolve
+        // against that target's own declarations and aliases only. A
+        // root-path snapshot is a single scope.
+        var scopes: [String?] = []
+        var recordsByScope: [String?: CustomInitScopeRecords] = [:]
 
         for sourceFile in snapshot.files {
             let collector = CustomInitFileCollector(
@@ -21,22 +28,40 @@ package enum CustomInitBuildValidator {
             )
             collector.walk(sourceFile.syntax)
 
-            for container in collector.containerDeclarations {
-                containersByPath[container.declarationPath, default: []].append(container)
+            let scope = sourceFile.targetID?.rawValue
+            if recordsByScope[scope] == nil {
+                scopes.append(scope)
             }
-            extensionRecords.append(contentsOf: collector.extensionInitializers)
-            nominalTypes.append(contentsOf: collector.nominalTypes)
-            typeAliases.append(contentsOf: collector.typeAliases)
+            recordsByScope[scope, default: CustomInitScopeRecords()].append(collector)
         }
 
+        var issues: [ValidationIssue] = []
+        for scope in scopes {
+            guard let records = recordsByScope[scope] else {
+                continue
+            }
+            issues.append(contentsOf: validate(records))
+        }
+
+        issues.sort {
+            if $0.location.filePath != $1.location.filePath { return $0.location.filePath < $1.location.filePath }
+            if $0.location.line != $1.location.line { return $0.location.line < $1.location.line }
+            return $0.location.column < $1.location.column
+        }
+
+        return ValidationIssueReport(issues: issues)
+    }
+
+    private static func validate(_ records: CustomInitScopeRecords) -> [ValidationIssue] {
+        let containersByPath = records.containersByPath
         let resolver = SemanticResolverIndex(
-            nominalTypes: nominalTypes,
-            topLevelTypeAliases: typeAliases
+            nominalTypes: records.nominalTypes,
+            topLevelTypeAliases: records.typeAliases
         )
         let candidatePaths = Set(containersByPath.keys)
         var issues: [ValidationIssue] = []
 
-        for record in extensionRecords {
+        for record in records.extensionRecords {
             let resolution = resolver.resolvePath(
                 for: record.extendedTypeReference,
                 candidatePaths: candidatePaths
@@ -106,13 +131,24 @@ package enum CustomInitBuildValidator {
             }
         }
 
-        issues.sort {
-            if $0.location.filePath != $1.location.filePath { return $0.location.filePath < $1.location.filePath }
-            if $0.location.line != $1.location.line { return $0.location.line < $1.location.line }
-            return $0.location.column < $1.location.column
-        }
+        return issues
+    }
+}
 
-        return ValidationIssueReport(issues: issues)
+/// Declarations collected from the files of one target.
+private struct CustomInitScopeRecords {
+    var containersByPath: [String: [ContainerDeclarationRecord]] = [:]
+    var extensionRecords: [ExtensionInitializerRecord] = []
+    var nominalTypes: [SemanticNominalTypeRecord] = []
+    var typeAliases: [SemanticTypeAliasRecord] = []
+
+    mutating func append(_ collector: CustomInitFileCollector) {
+        for container in collector.containerDeclarations {
+            containersByPath[container.declarationPath, default: []].append(container)
+        }
+        extensionRecords.append(contentsOf: collector.extensionInitializers)
+        nominalTypes.append(contentsOf: collector.nominalTypes)
+        typeAliases.append(contentsOf: collector.typeAliases)
     }
 }
 

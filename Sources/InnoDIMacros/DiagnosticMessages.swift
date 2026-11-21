@@ -592,6 +592,18 @@ extension SimpleDiagnostic {
         )
     }
 
+    static func swiftUIEnvironmentBridgeDuplicateEnvironment(
+        memberName: String,
+        firstMemberName: String,
+        environment: String
+    ) -> Self {
+        Self(
+            "@DIEnvironmentBridge maps '\(memberName)' to \(environment), which '\(firstMemberName)' already sets. Views under the bridge read '\(firstMemberName)', so this mapping has no effect; remove one of the two mappings.",
+            code: .swiftUIEnvironmentBridgeDuplicateEnvironment,
+            severity: .warning
+        )
+    }
+
     static func swiftUIEnvironmentBridgeAsyncMember(memberName: String) -> Self {
         Self(
             "@DIEnvironmentBridge cannot map async container member '\(memberName)' into SwiftUI EnvironmentValues. Expose a synchronous value or inject a service that performs async work internally.",
@@ -634,6 +646,13 @@ extension SimpleDiagnostic {
         Self(
             "Component-role container '\(name)' cannot use a backtick-escaped identifier. Rename it to an unescaped Swift identifier so the generated dependency protocol has a canonical name.",
             code: .componentEscapedTargetUnsupported
+        )
+    }
+
+    static func componentCustomGlobalActorUnsupported(actorName: String) -> Self {
+        Self(
+            "A component-role container cannot be isolated to the custom global actor '@\(actorName)': its generated mounting conformance is nonisolated. Remove '@\(actorName)', or use mainActor: true for main-actor isolation.",
+            code: .componentCustomGlobalActorUnsupported
         )
     }
 
@@ -788,6 +807,16 @@ extension SimpleDiagnostic {
         Self(
             "A @DIContainer with an asynchronous on-demand provider synthesizes closeAsyncProviders(), but a direct declaration already uses the name 'closeAsyncProviders'. Rename that declaration so the generated close API remains unambiguous.",
             code: .containerCloseAsyncProvidersNameConflict
+        )
+    }
+
+    static func containerMissingEffectOverridesNameConflict(
+        memberName: String,
+        slotName: String
+    ) -> Self {
+        Self(
+            "A @DIContainer with an effect-marked provider synthesizes Overrides.missingEffectOverrides for DIOverrideEffectValidating, but '\(memberName)' would add an override slot named '\(slotName)'. Rename '\(memberName)' so the generated effect validation remains unambiguous.",
+            code: .containerMissingEffectOverridesNameConflict
         )
     }
 
@@ -1075,21 +1104,21 @@ extension SimpleDiagnostic {
 
     static func previewWithContainerMissingContainerExpression() -> Self {
         Self(
-            "#PreviewWithContainer requires a container expression as its first argument, e.g. `#PreviewWithContainer(AppContainer(baseURL: \"...\")) { container in ... }`.",
+            "#PreviewWithContainer requires a container expression as its first argument, e.g. `#PreviewWithContainer(makePreviewApp()) { container in ... }`, where an ordinary function builds the container.",
             code: .previewWithContainerMissingContainerExpression
         )
     }
 
     static func previewWithContainerMissingTrailingClosure() -> Self {
         Self(
-            "#PreviewWithContainer requires a closure with a single container parameter, e.g. `{ container in container.featureRootView() }`.",
+            "#PreviewWithContainer requires a closure with a single container parameter, e.g. `{ container in PreviewRoot(container: container) }`.",
             code: .previewWithContainerMissingTrailingClosure
         )
     }
 
     static func previewWithContainerMissingContainerParameter() -> Self {
         Self(
-            "#PreviewWithContainer requires the preview closure to declare one container parameter, e.g. `{ container in container.featureRootView() }`. Use #Preview directly when the body does not need the container.",
+            "#PreviewWithContainer requires the preview closure to declare one container parameter, e.g. `{ container in PreviewRoot(container: container) }`. Use #Preview directly when the body does not need the container.",
             code: .previewWithContainerMissingContainerParameter
         )
     }
@@ -1113,7 +1142,7 @@ extension SimpleDiagnostic {
         let listed = memberNames.prefix(5).joined(separator: ", ")
         let suffix = memberNames.count > 5 ? " (+\(memberNames.count - 5) more)" : ""
         return Self(
-            "@GenerateMock cannot synthesize this protocol because one or more requirements or protocol features are unsupported: \(listed)\(suffix). Custom global actors, individually actor-isolated requirements, associated types, protocol inheritance other than AnyObject or Sendable, unsupported requirement modifiers, subscripts, rethrows, inout parameters, opaque return types, generic requirements on Sendable protocols, and generic typed-throws requirements need a hand-written mock until the RFC 0001 support matrix expands.",
+            "@GenerateMock cannot synthesize this protocol because one or more requirements or protocol features are unsupported: \(listed)\(suffix). Custom global actors, individually actor-isolated or platform-restricted requirements, associated types, protocol inheritance other than AnyObject or Sendable, unsupported requirement modifiers, subscripts, rethrows, inout parameters, parameter packs, opaque some types, generic requirements on Sendable protocols, and generic typed-throws requirements need a hand-written mock until the RFC 0001 support matrix expands.",
             code: .generateMockUnsupportedMember,
             severity: .warning
         )

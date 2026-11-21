@@ -1,7 +1,9 @@
 # 문서 안내
 
-하려는 작업에 맞는 현재 API 안내부터 읽으세요. 이 문서는 InnoDI 7.0.1을
-기준으로 합니다. 다른 버전을 설치했다면 해당 릴리스 tag의 소스를 보세요.
+하려는 작업에 맞는 현재 API 안내부터 읽으세요. 이 문서는 현재 revision의 소스를
+설명하므로 `CHANGELOG.md`가 아직 미출시로 표시한 변경이 포함될 수 있습니다. 최신
+안정 릴리스도 `CHANGELOG.md`에 있습니다. 설치한 버전은 해당 릴리스 tag의 소스를
+보세요.
 
 ## 설치와 첫 사용
 
@@ -104,11 +106,12 @@ import 설정으로 Apple target을 빌드하고 테스트하세요. 변경한 �
 `docs/reviews`, `docs/rfcs`와 예전 changelog는 과거 근거를 보존합니다.
 그 안의 제안과 오래된 코드는 현재 API 사용 예제가 아닙니다. Examples는 로컬
 checkout을 사용하고 README의 package snippet은 공개 릴리스를 선택합니다.
-과거 7.0.0 fixture 통과를 실제 7.0.1 소비자의 검증 근거로 취급하지 마세요.
+이전 릴리스에 고정된 fixture 통과를 이후 릴리스 소비자의 검증 근거로 취급하지
+마세요.
 
 영어가 전체 canonical reference이며 한국어는 영어 README와 DocC article
 소스를 함께 유지합니다. 일본어, 중국어 간체, 독일어, 스페인어, 러시아어
 README는 전체 reference로 연결하는 현재 버전의 요약 안내입니다. 해당 언어의
 DocC 디렉터리는 여전히 과거 6.0.0 번역 안내입니다. 생성하는 DocC archive는
-영어 catalog를 빌드합니다. 저장소에 번역 소스가 있다고 공개 archive에 언어
-선택기가 있다는 뜻은 아닙니다.
+영어 catalog를 `/InnoDI`에, 한국어 mirror를 별도 catalog로 `/InnoDI/ko`에
+렌더링합니다. 다른 번역은 렌더링된 catalog가 없습니다.

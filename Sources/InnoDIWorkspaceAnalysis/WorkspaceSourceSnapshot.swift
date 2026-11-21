@@ -6,6 +6,12 @@ import SwiftSyntax
 package let workspaceSourceSkipTokens = [
     "/.build/",
     "/Derived/",
+    // Xcode's derived-data and package-checkout directories when a project
+    // keeps them inside the repository (`-derivedDataPath`,
+    // `-clonedSourcePackagesDirPath`). Their checkouts include dependency
+    // sources, InnoDI's own examples among them.
+    "/DerivedData/",
+    "/SourcePackages/",
     "/Tuist/Dependencies/",
     "/.tuist/",
     "/.git/",
@@ -56,10 +62,47 @@ package struct WorkspaceSourceFile {
     }
 }
 
+/// A Swift source symbolic link under a workspace root whose destination
+/// lies outside that root. Root-path discovery does not analyze the
+/// destination; callers report the omission instead of dropping it silently.
+package struct WorkspaceExternalSourceLink: Equatable, Sendable {
+    /// Location of the link itself, relative to the workspace root.
+    package let relativePath: String
+    /// Fully resolved destination path.
+    package let destinationPath: String
+
+    package init(relativePath: String, destinationPath: String) {
+        self.relativePath = relativePath
+        self.destinationPath = destinationPath
+    }
+
+    /// One-line stderr warning shared by the root-path command-line tools.
+    package var warningMessage: String {
+        "warning: skipped '\(relativePath)': the symbolic link resolves "
+            + "outside the workspace root to '\(destinationPath)', so its "
+            + "declarations are not analyzed."
+    }
+}
+
+/// Root-path discovery result.
+package struct WorkspaceSourceDiscovery: Equatable, Sendable {
+    /// Sorted, unique root-relative paths of the analyzed sources. A file
+    /// reached through a symbolic link inside the root appears once, at its
+    /// resolved path.
+    package let relativePaths: [String]
+    /// Swift source links whose destinations lie outside the root, sorted by
+    /// link location.
+    package let externalSourceLinks: [WorkspaceExternalSourceLink]
+}
+
 package struct WorkspaceSourceSnapshot {
     package let rootPath: String
     package let rootURL: URL
     package let files: [WorkspaceSourceFile]
+    /// Root-path discovery only: Swift source links that resolve outside the
+    /// root and were therefore not loaded. Always empty for manifest-backed
+    /// and captured-source snapshots.
+    package let externalSourceLinks: [WorkspaceExternalSourceLink]
     package let primaryTargetID: WorkspaceTargetID?
     /// Authoritative target topology for manifest-backed analysis.
     ///
@@ -77,11 +120,13 @@ package struct WorkspaceSourceSnapshot {
         files: [WorkspaceSourceFile],
         primaryTargetID: WorkspaceTargetID? = nil,
         analysisManifest: WorkspaceAnalysisManifest? = nil,
-        analysisTargetIndex: WorkspaceAnalysisTargetIndex? = nil
+        analysisTargetIndex: WorkspaceAnalysisTargetIndex? = nil,
+        externalSourceLinks: [WorkspaceExternalSourceLink] = []
     ) {
         self.rootPath = rootPath
         self.rootURL = rootURL
         self.files = files
+        self.externalSourceLinks = externalSourceLinks
         self.primaryTargetID = primaryTargetID
         self.analysisManifest = analysisManifest
         self.analysisTargetIndex = analysisTargetIndex
@@ -159,13 +204,17 @@ package func loadWorkspaceSourceSnapshot(
 ) throws -> WorkspaceSourceSnapshot {
     let rootURL = try validatedWorkspaceRootURL(rootPath: rootPath)
     let sourceFiles: [String]
+    let externalSourceLinks: [WorkspaceExternalSourceLink]
     if let capturedSourceBytes {
         guard Set(capturedSourceBytes.keys).isDisjoint(with: reusingParsedSources.keys) else {
             throw WorkspaceSourceSnapshotError.inconsistentCapturedSources
         }
         sourceFiles = (Array(capturedSourceBytes.keys) + Array(reusingParsedSources.keys)).sorted()
+        externalSourceLinks = []
     } else {
-        sourceFiles = try discoverWorkspaceSourceFiles(rootPath: rootPath)
+        let discovery = try discoverWorkspaceSources(rootPath: rootPath)
+        sourceFiles = discovery.relativePaths
+        externalSourceLinks = discovery.externalSourceLinks
     }
 
     // Trees the signature collector already parsed (keyed by the same
@@ -233,7 +282,12 @@ package func loadWorkspaceSourceSnapshot(
         }
     }
 
-    return WorkspaceSourceSnapshot(rootPath: rootPath, rootURL: rootURL, files: files)
+    return WorkspaceSourceSnapshot(
+        rootPath: rootPath,
+        rootURL: rootURL,
+        files: files,
+        externalSourceLinks: externalSourceLinks
+    )
 }
 
 /// Loads exactly the sources SwiftPM declared visible to one primary target.
@@ -414,10 +468,20 @@ private func loadWorkspaceSourcesInParallel(
 
 /// Discovers Swift source files that participate in workspace-wide validation.
 ///
-/// The returned paths are relative to `rootPath` and sorted so callers can
-/// build deterministic signatures or diagnostics independent of filesystem
-/// enumeration order.
+/// The returned paths are relative to `rootPath`, unique, and sorted so
+/// callers can build deterministic signatures or diagnostics independent of
+/// filesystem enumeration order.
 package func discoverWorkspaceSourceFiles(rootPath: String) throws -> [String] {
+    try discoverWorkspaceSources(rootPath: rootPath).relativePaths
+}
+
+/// Discovers workspace sources and the Swift source links it cannot analyze.
+///
+/// Every item is resolved through symbolic links before it is classified, so
+/// a file linked from another directory inside the root is analyzed once, at
+/// its real path. A `.swift` link whose existing destination lies outside the
+/// root is not analyzed and is returned in `externalSourceLinks`.
+package func discoverWorkspaceSources(rootPath: String) throws -> WorkspaceSourceDiscovery {
     let fileManager = FileManager.default
     let rootURL = try validatedWorkspaceRootURL(rootPath: rootPath)
     let rootPrefix = rootURL.path(percentEncoded: false).hasSuffix("/")
@@ -437,7 +501,8 @@ package func discoverWorkspaceSourceFiles(rootPath: String) throws -> [String] {
         throw WorkspaceSourceSnapshotError.failedToCreateEnumerator(rootPath: rootPath, rootURL: rootURL)
     }
 
-    var sourceFiles: [String] = []
+    var sourceFiles: Set<String> = []
+    var externalSourceLinks: [WorkspaceExternalSourceLink] = []
 
     while let itemURL = enumerator.nextObject() as? URL {
         if let enumerationError {
@@ -449,6 +514,14 @@ package func discoverWorkspaceSourceFiles(rootPath: String) throws -> [String] {
             .standardizedFileURL
             .path(percentEncoded: false)
         guard itemPath.hasPrefix(rootPrefix) else {
+            if let link = externalWorkspaceSourceLink(
+                itemURL: itemURL,
+                resolvedPath: itemPath,
+                rootPrefix: rootPrefix,
+                fileManager: fileManager
+            ) {
+                externalSourceLinks.append(link)
+            }
             continue
         }
         let relativePath = String(itemPath.dropFirst(rootPrefix.count))
@@ -464,14 +537,66 @@ package func discoverWorkspaceSourceFiles(rootPath: String) throws -> [String] {
             continue
         }
         guard relativePath.hasSuffix(".swift") else { continue }
-        sourceFiles.append(relativePath)
+        // A file enumerated directly and again through an in-root link
+        // resolves to the same path; keep one entry so every consumer keyed by
+        // path sees each file once.
+        sourceFiles.insert(relativePath)
     }
 
     if let enumerationError {
         throw enumerationError
     }
 
-    return sourceFiles.sorted()
+    return WorkspaceSourceDiscovery(
+        relativePaths: sourceFiles.sorted(),
+        externalSourceLinks: externalSourceLinks.sorted {
+            $0.relativePath < $1.relativePath
+        }
+    )
+}
+
+/// Classifies an enumerated item whose resolved path left the root.
+///
+/// Only a Swift source link with an existing, non-directory destination is
+/// reported. A dangling link has no destination to omit, and a directory link
+/// is never descended into by the enumerator.
+private func externalWorkspaceSourceLink(
+    itemURL: URL,
+    resolvedPath: String,
+    rootPrefix: String,
+    fileManager: FileManager
+) -> WorkspaceExternalSourceLink? {
+    let resolvedURL = URL(fileURLWithPath: resolvedPath)
+    guard itemURL.pathExtension == "swift"
+        || resolvedURL.pathExtension == "swift" else {
+        return nil
+    }
+    var isDirectory = ObjCBool(false)
+    guard fileManager.fileExists(atPath: resolvedPath, isDirectory: &isDirectory),
+          !isDirectory.boolValue else {
+        return nil
+    }
+
+    // Resolve only the containing directory so the link keeps its own name
+    // and the same root-relative spelling as every other discovered path.
+    let parentPath = itemURL
+        .deletingLastPathComponent()
+        .resolvingSymlinksInPath()
+        .standardizedFileURL
+        .path(percentEncoded: false)
+    let parentPrefix = parentPath.hasSuffix("/") ? parentPath : parentPath + "/"
+    guard parentPrefix.hasPrefix(rootPrefix) else {
+        return nil
+    }
+    let relativePath = String(parentPrefix.dropFirst(rootPrefix.count))
+        + itemURL.lastPathComponent
+    guard !workspacePathShouldPruneDescendants(relativePath) else {
+        return nil
+    }
+    return WorkspaceExternalSourceLink(
+        relativePath: relativePath,
+        destinationPath: resolvedPath
+    )
 }
 
 package func workspacePathShouldPruneDescendants(_ path: String) -> Bool {

@@ -236,6 +236,11 @@ struct DIContainerExpansionModel {
     /// The original lexical Self, used only for types moved into owned support declarations.
     let explicitlyMainActor: Bool
 
+    /// A source-written custom global actor on the container type. The type's
+    /// members inherit that isolation, so generated async helpers must not
+    /// override it with `nonisolated(nonsending)`.
+    let explicitlyCustomGlobalActor: Bool
+
     var isMainActor: Bool { options.mainActor || explicitlyMainActor }
 
     var ownedMainActor: Bool { isMainActor }

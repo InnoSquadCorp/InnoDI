@@ -90,6 +90,11 @@ public struct GenerateMockMacro: PeerMacro {
             concreteSelfType = mockTypeName
         }
         let typeRewriter = MockSelfTypeRewriter(mockTypeName: concreteSelfType)
+        // A peer mock inherits the availability of the protocol and of every
+        // declaration enclosing it.
+        let enclosingAttributes = [protocolDecl.attributes] + context.lexicalContext.compactMap {
+            $0.asProtocol(WithAttributesSyntax.self)?.attributes
+        }
         let functionNames = plannedFunctionNames(
             in: protocolDecl,
             concurrent: usesConcurrentStorage
@@ -100,7 +105,11 @@ public struct GenerateMockMacro: PeerMacro {
             if let function = member.decl.as(FunctionDeclSyntax.self) {
                 let names = functionNames[functionIndex]
                 functionIndex += 1
-                if let reason = unsupportedMockFunctionShape(function) {
+                if let reason = unsupportedMockFunctionShape(function)
+                    ?? unsupportedMockMemberAvailability(
+                        function.attributes,
+                        enclosingAttributes: enclosingAttributes
+                    ) {
                     unsupportedMembers.append("\(function.name.text) (\(reason))")
                     continue
                 }
@@ -124,6 +133,14 @@ public struct GenerateMockMacro: PeerMacro {
                     unsupportedMembers.append(function.name.text)
                 }
             } else if let variable = member.decl.as(VariableDeclSyntax.self) {
+                if let reason = unsupportedMockMemberAvailability(
+                    variable.attributes,
+                    enclosingAttributes: enclosingAttributes
+                ) {
+                    let name = variable.bindings.first?.pattern.trimmedDescription ?? "<unknown>"
+                    unsupportedMembers.append("\(name) (\(reason))")
+                    continue
+                }
                 if let rendered = renderVariableMock(
                     variable: typeRewriter.rewrite(variable).cast(VariableDeclSyntax.self),
                     concurrent: usesConcurrentStorage,
@@ -183,7 +200,7 @@ public struct GenerateMockMacro: PeerMacro {
         if usesNotStubbedError {
             sections.insert(
                 MockMembers("""
-                    struct \(raw: stateNames.notStubbedError): Error, CustomStringConvertible {
+                    struct \(raw: stateNames.notStubbedError): \(raw: mockErrorType), CustomStringConvertible {
                         let selector: String
                         var description: String { "InnoDI mock selector '\\(selector)' was not stubbed before invocation." }
                     }
@@ -461,23 +478,44 @@ private func renderMockResetSurface(
 private func unsupportedMockInheritance(
     in protocolDecl: ProtocolDeclSyntax
 ) -> [String] {
-    guard let inheritanceClause = protocolDecl.inheritanceClause else {
-        return []
-    }
-    return inheritanceClause.inheritedTypes.compactMap { inherited in
-        guard !["AnyObject", "Sendable"].contains(
-            inheritedTypeBaseName(inherited.type)
-        ) else {
-            return nil
+    let inherited = (protocolDecl.inheritanceClause?.inheritedTypes.map(\.type) ?? [])
+        .compactMap { type -> String? in
+            guard !["AnyObject", "Sendable"].contains(inheritedTypeBaseName(type)) else {
+                return nil
+            }
+            return "\(type.trimmedDescription) inheritance"
         }
-        return "\(inherited.type.trimmedDescription) inheritance"
+    // `where Self: Parent` states the same refinement as `: Parent`. Any
+    // other protocol `where` requirement constrains associated types, which
+    // the macro rejects separately, or something it cannot see at all.
+    let constrained = (protocolDecl.genericWhereClause?.requirements ?? [])
+        .compactMap { requirement -> String? in
+            if let selfBound = whereSelfBound(requirement.requirement) {
+                guard !["AnyObject", "Sendable"].contains(inheritedTypeBaseName(selfBound)) else {
+                    return nil
+                }
+                return "\(selfBound.trimmedDescription) inheritance"
+            }
+            return "where \(requirement.requirement.trimmedDescription) requirement"
+        }
+    return inherited + constrained
+}
+
+/// `Parent` for a `where Self: Parent` protocol requirement.
+private func whereSelfBound(_ requirement: GenericRequirementSyntax.Requirement) -> TypeSyntax? {
+    guard case .conformanceRequirement(let conformance) = requirement,
+          conformance.leftType.as(IdentifierTypeSyntax.self)?.name.text == "Self" else {
+        return nil
     }
+    return conformance.rightType
 }
 
 private func inheritsSendable(_ protocolDecl: ProtocolDeclSyntax) -> Bool {
-    protocolDecl.inheritanceClause?.inheritedTypes.contains {
-        inheritedTypeBaseName($0.type) == "Sendable"
-    } == true
+    let inherited = protocolDecl.inheritanceClause?.inheritedTypes.map(\.type) ?? []
+    let constrained = (protocolDecl.genericWhereClause?.requirements ?? []).compactMap {
+        whereSelfBound($0.requirement)
+    }
+    return (inherited + constrained).contains { inheritedTypeBaseName($0) == "Sendable" }
 }
 
 func unsupportedMockIsolation(

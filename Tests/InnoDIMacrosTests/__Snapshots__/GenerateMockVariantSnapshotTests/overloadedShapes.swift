@@ -12,7 +12,7 @@ final class FormatterMock: Formatter {
 
     private var __innodiMockGeneration: UInt64 = 0
 
-    struct _InnoDIMockNotStubbed: Error, CustomStringConvertible {
+    struct _InnoDIMockNotStubbed: _InnoDIMockError, CustomStringConvertible {
         let selector: String
         var description: String {
             "InnoDI mock selector '\(selector)' was not stubbed before invocation."
@@ -32,7 +32,7 @@ final class FormatterMock: Formatter {
         }
         set {
             __innodi_formatUnlabeledIntReturnValueStorage = newValue
-            __innodi_formatUnlabeledIntIsStubbed = true
+            __innodi_formatUnlabeledIntIsStubbed = newValue != nil
         }
     }
     func format(_ value: Int) -> String {
@@ -59,7 +59,7 @@ final class FormatterMock: Formatter {
         }
         set {
             __innodi_formatUnlabeledDoubleReturnValueStorage = newValue
-            __innodi_formatUnlabeledDoubleIsStubbed = true
+            __innodi_formatUnlabeledDoubleIsStubbed = newValue != nil
         }
     }
     func format(_ value: Double) -> String {
@@ -80,8 +80,8 @@ final class FormatterMock: Formatter {
     }
     private(set) var formatUnlabeledIntWidthIntCalls: [FormatUnlabeledIntWidthIntCall] = []
     private var __innodi_formatUnlabeledIntWidthIntIsStubbed = false
-    private var __innodi_formatUnlabeledIntWidthIntResultStorage: Result<String, Error> = .failure(_InnoDIMockNotStubbed(selector: "formatUnlabeledIntWidthIntResult"))
-    var formatUnlabeledIntWidthIntResult: Result<String, Error> {
+    private var __innodi_formatUnlabeledIntWidthIntResultStorage: Result<String, _InnoDIMockError> = .failure(_InnoDIMockNotStubbed(selector: "formatUnlabeledIntWidthIntResult"))
+    var formatUnlabeledIntWidthIntResult: Result<String, _InnoDIMockError> {
         get {
             __innodi_formatUnlabeledIntWidthIntResultStorage
         }

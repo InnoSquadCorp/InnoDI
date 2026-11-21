@@ -16,7 +16,8 @@ patterns are useful in runtime DI tools, but InnoDI optimizes for code-review
 visibility, deterministic macro expansion, and build-time graph validation.
 
 The latest stable release is 7.0.2. This source documentation describes the
-7.0 API line; use the documentation tagged for your installed version.
+source at this revision, which can include unreleased changes listed in
+`CHANGELOG.md`; use the documentation tagged for your installed version.
 The package provides:
 
 - macro-generated container APIs
@@ -85,7 +86,7 @@ supported Apple toolchain and release gates.
 - ``Input(_:escaping:)``
 - ``DIContainerRole(role:mainActor:validateDAG:initializationOrder:generateOwned:)``
 
-### Experimental
+### Testing
 
 - <doc:AutoMock>
 
