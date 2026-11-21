@@ -25,6 +25,12 @@ Current development train: `7.1.0` (unreleased)
 - Promote `@GenerateMock` to general availability. Semantic versioning now
   covers the generated mock shape as well as the attribute. The expansion is
   unchanged.
+- Scope build-plugin lookups by declaring target, so a name that a dependency
+  target also declares no longer fails a valid build. A plain type in another
+  target that shares a container's name keeps its extension initializers. A
+  nested typealias or container in another target no longer answers a bare
+  input type or child name in hierarchy validation. A root in a dependency no
+  longer reports the built target's component as an orphan.
 
 ### Breaking and Behavior Changes
 
@@ -52,10 +58,23 @@ with Xcode 27.2 (Swift 6.4.2): 40.5 s at `604.0.0` and 42.8 s at `603.0.2`
 (`--swift-syntax-version 603.0.2`). Swift 6.3 at `603.0.2` is not measured
 yet; the weekly cold-build benchmark now records it.
 
+The build plugin now accepts code it rejected when a dependency target declared
+a matching name. The custom-init preflight matches an extension only against a
+container in the extension's own target, so it no longer reports an
+initializer that another module adds to a container; Swift requires that
+initializer to delegate through `self.init(...)` or `self = ...`. Hierarchy
+validation reaches another target's nested declarations only by their written
+or module-qualified path, and reports `hierarchy.orphan-component` only when
+the snapshot holds a root in the component's target or in a target that
+depends on it. Two targets whose own aliases name different input types still
+fail with `hierarchy.unsatisfied-dependency`, and a coordinator run given a
+workspace root (`--root`) keeps its workspace-wide lookups.
+
 ### Upgrade Actions
 
 No source change is required. Code that already uses `@GenerateMock` keeps
-compiling without edits.
+compiling without edits. A type rename or a dropped root role that only worked
+around one of the build failures above can be reverted.
 
 To use InnoDI beside a macro package that limits SwiftSyntax to versions below
 `604.0.0`, its requirement has to admit `603.0.2` or a later 603 release; one
@@ -80,6 +99,11 @@ swift package show-dependencies
   끝나는 범위는 여전히 해석에 실패합니다. 위 명령으로 선택된 버전을 확인하세요.
 - `@GenerateMock`이 정식(GA)이 됐습니다. 이미 쓰고 있는 코드는 수정 없이
   컴파일되며, 7.1.0부터 생성되는 mock 형태에도 semantic versioning이 적용됩니다.
+- build plugin이 dependency target에 같은 이름의 선언이 있다는 이유로 정상
+  코드를 거부하던 문제가 고쳐졌습니다(`container.custom-init-unsupported`,
+  `hierarchy.unsatisfied-dependency`, `hierarchy.ambiguous-child-reference`,
+  `hierarchy.orphan-component`). 소스 변경은 필요하지 않으며, 이 실패를 피하려고
+  바꾼 타입 이름이나 root role은 되돌릴 수 있습니다.
 
 ## 7.0.2
 

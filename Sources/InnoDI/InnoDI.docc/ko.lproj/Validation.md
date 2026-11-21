@@ -45,6 +45,19 @@ coordinated build pipeline은 다음을 추가합니다.
 4. DAG validation
 5. metrics / summary artifact emission
 
+plugin은 빌드하는 target과 그 target이 의존하는 모든 target의 snapshot을
+검증합니다. hierarchy validation은 child reference와 input type을 그것을 선언한
+target 기준으로 해석합니다. `Cart` 같은 부분 표기는 그 target 자신의 nested
+`Checkout.Cart`에 닿지만, 다른 target의 선언에는 작성된 경로나 module-qualified
+경로로만 닿습니다. 따라서 dependency에 있는 nested `Shop.Cart`나
+`Client.Config`는 bare `Cart`나 `Config`에 대응하지 않습니다. component는
+snapshot에 그 component의 target이나 그 target에 의존하는 target에 선언된
+root-role 컨테이너가 있을 때만 `hierarchy.orphan-component`로 보고됩니다.
+dependency의 root는 빌드하는 target의 component를 mount할 수 없으며, 그
+component의 parent는 그것을 mount하는 target을 빌드할 때 검증됩니다. workspace
+root(`--root`)를 받은 coordinator 실행은 이 해석에 workspace 전체를 하나의
+scope로 쓰고, 모든 component를 모든 root에 대해 검사합니다.
+
 빌드 plugin의 소스 manifest는 package 내부 디렉터리의 symlink를 포함해
 선언된 소스의 package-relative 경로를 유지합니다. symlink는 해당 package
 내부로 해석되어야 하며, 서로 다른 선언 경로가 같은 실제 파일을 소유할 수는

@@ -24,6 +24,13 @@ The build layer matches:
 - `@DIContainer` declarations by normalized nominal path
 - extension `init` declarations by normalized extended type path
 
+The plugin's snapshot holds the target being built and every target it depends
+on, and the match stays inside one target: an extension `init` counts only
+against a container declared in the extension's own target. A type in another
+target that shares a container's name keeps its extension initializers. An
+initializer that another module adds to a container must delegate through
+`self.init(...)` or `self = ...`, which reaches the synthesized initializer.
+
 ## Boundaries
 
 - nested paths are supported

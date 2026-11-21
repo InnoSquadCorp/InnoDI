@@ -23,6 +23,13 @@ build-validation plugin을 적용하지 않으면 모든 extension에 대한 cus
 - normalized nominal path 기준의 `@DIContainer`
 - normalized extended type path 기준의 extension `init`
 
+plugin snapshot에는 빌드하는 target과 그 target이 의존하는 모든 target이
+들어 있으며, 매칭은 한 target 안에서만 이뤄집니다. extension `init`은 그
+extension과 같은 target에 선언된 컨테이너에만 대응합니다. 다른 target에서
+컨테이너와 이름이 같은 타입은 extension initializer를 그대로 유지합니다. 다른
+모듈이 컨테이너에 추가하는 initializer는 `self.init(...)` 또는 `self = ...`로
+위임해야 하므로 합성된 initializer를 거칩니다.
+
 ## Boundaries
 
 - nested path는 지원합니다.
