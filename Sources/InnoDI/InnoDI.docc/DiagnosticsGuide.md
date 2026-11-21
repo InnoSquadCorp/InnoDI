@@ -329,9 +329,18 @@ Most frequently-hit codes:
   asynchronous on-demand provider already has a direct value or function named
   `closeAsyncProviders`. Rename it so the generated close API remains
   unambiguous.
+- `container.missing-effect-overrides-name-conflict` — a container with an
+  effect-marked provider makes its `Overrides` builder conform to
+  `DIOverrideEffectValidating`, whose `missingEffectOverrides` requirement
+  cannot be renamed, but a provider, a child, or a child's `<name>Overrides`
+  slot would also be named `missingEffectOverrides` (a child named
+  `missingEffect` claims that slot). Rename the member. Providers named
+  `requiredEffectOverrides`, `missing`, `set`, or `useDefault` are unaffected.
 - `container.mainactor-conflict` — a main-actor `@DIContainerRole` is combined
   with another global actor on the container or a dependency member. Remove
-  the custom actor or disable `mainActor` generation.
+  the custom actor or disable `mainActor` generation. Without `mainActor:`, a
+  container type annotated with a custom global actor keeps that actor's
+  isolation; see <doc:DIContainer>.
 - `container.mainactor-nonisolated-member` — a `@Provide` or `@SubContainer`
   member opts out with `nonisolated`, which contradicts the container's
   `mainActor: true` contract.
@@ -534,6 +543,11 @@ Most frequently-hit codes:
   supported component `@DIContainerRole` type.
 - `component.overrides-builder-required` — a component role requires the
   synthesized overrides builder.
+- `component.custom-global-actor-unsupported` — a component-role container is
+  annotated with a custom global actor. Its generated mounting conformance is
+  nonisolated, so no initializer isolated to that actor can witness it. Remove
+  the actor, use `mainActor: true` for main-actor isolation, or use a local or
+  root role.
 - `hierarchy-root.requires-container` — legacy `@DIHierarchyRoot` must migrate
   to a supported root `@DIContainerRole` type.
 

@@ -327,9 +327,18 @@ struct App {
   provider가 있는 컨테이너에 `closeAsyncProviders`라는 direct value 또는
   function이 이미 있습니다. 생성되는 close API가 모호하지 않도록 이름을
   바꾸세요.
+- `container.missing-effect-overrides-name-conflict` — effect가 표시된
+  provider가 있는 컨테이너는 `Overrides` 빌더가 `DIOverrideEffectValidating`을
+  준수하고, 그 `missingEffectOverrides` 요구 사항은 이름을 바꿀 수 없습니다.
+  그런데 provider, child, 또는 child의 `<name>Overrides` 슬롯도
+  `missingEffectOverrides`라는 이름을 갖게 됩니다(`missingEffect`라는 child가
+  그 슬롯을 차지합니다). member 이름을 바꾸세요. `requiredEffectOverrides`,
+  `missing`, `set`, `useDefault`라는 provider는 영향을 받지 않습니다.
 - `container.mainactor-conflict` — main-actor `@DIContainerRole`이 container
   또는 dependency member의 다른 global actor와 충돌합니다. custom actor를
-  제거하거나 `mainActor` 생성을 비활성화하세요.
+  제거하거나 `mainActor` 생성을 비활성화하세요. `mainActor:` 없이 custom global
+  actor를 붙인 컨테이너 타입은 그 actor의 격리를 유지합니다. <doc:DIContainer>를
+  참고하세요.
 - `container.mainactor-nonisolated-member` — `@Provide` 또는 `@SubContainer`
   member가 `nonisolated`로 격리를 해제해 container의 `mainActor: true`
   계약과 충돌합니다.
@@ -529,6 +538,11 @@ struct App {
   component `@DIContainerRole` 타입으로 이주해야 합니다.
 - `component.overrides-builder-required` — component role은 합성된
   overrides 빌더가 필요합니다.
+- `component.custom-global-actor-unsupported` — component-role 컨테이너에
+  custom global actor가 붙어 있습니다. 생성되는 mounting conformance는
+  nonisolated이므로 그 actor에 격리된 initializer로는 충족할 수 없습니다.
+  actor를 제거하거나, main-actor 격리에는 `mainActor: true`를 쓰거나, local
+  또는 root role을 사용하세요.
 - `hierarchy-root.requires-container` — legacy `@DIHierarchyRoot`는 지원되는
   root `@DIContainerRole` 타입으로 이주해야 합니다.
 

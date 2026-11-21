@@ -42,13 +42,16 @@ private func makeHostedFeatureRootHelperDecl(
     let accessPrefix = accessLevel.map { "\($0) " } ?? ""
     let childType = subContainer.type.trimmedDescription
 
+    // The generic parameter shares this signature with the child and root
+    // view type spellings, so a source name such as `Identity` would shadow a
+    // user type of that name. Callers never spell it.
     return DeclSyntax(
         stringLiteral: """
         @_Concurrency.MainActor
-        \(accessPrefix)func \(root.helperName)<Identity>(
-            identity: Identity,
-            close: @escaping InnoDISwiftUI.DIContainerHostOwner<Identity, \(childType)>.Close = { _ in }
-        ) -> some SwiftUI.View where Identity: Swift.Hashable & Swift.Sendable {
+        \(accessPrefix)func \(root.helperName)<_InnoDIIdentity>(
+            identity: _InnoDIIdentity,
+            close: @escaping InnoDISwiftUI.DIContainerHostOwner<_InnoDIIdentity, \(childType)>.Close = { _ in }
+        ) -> some SwiftUI.View where _InnoDIIdentity: Swift.Hashable & Swift.Sendable {
             InnoDISwiftUI.DIContainerHost(
                 identity: identity,
                 factory: { _ in self.\(subContainer.name) },

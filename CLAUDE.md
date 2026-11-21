@@ -135,7 +135,18 @@ For a container without `mainActor: true`, the generated `async` and
 be `nonisolated(nonsending)`. This preserves the caller's actor executor and
 keeps arbitrary non-`Sendable` containers and closures from crossing isolation.
 Keep synchronous overloads unchanged. Every `mainActor: true` overload and
-operation closure remains `@MainActor`.
+operation closure remains `@MainActor`. A type that carries a source-written
+global actor (`@MainActor`, or a custom `…Actor` attribute) already isolates its
+initializer, so its async overloads inherit that isolation and must not be
+`nonisolated(nonsending)`; a nested `@AssistedFactory` receives the custom actor.
+A component role rejects a custom global actor with
+`component.custom-global-actor-unsupported`.
+
+Generated generic parameters and local bindings that share a scope with
+user-written type spellings, member-named parameters, or user expressions stay
+in the reserved `_InnoDI` / `_innoDI` namespace. Peer declarations outside the
+container body, such as a component's `<Name>Dependencies`, spell the
+container's directly nested types and `Self` through the container name.
 
 Every container, including a truly empty one, synthesizes the complete
 overrides scaffolding. A user-declared nested `Overrides` type is a terminal

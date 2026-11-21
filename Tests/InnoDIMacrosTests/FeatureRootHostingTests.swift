@@ -35,9 +35,9 @@ extension DIContainerMacroTests {
         )
         #expect(result.diagnostics.isEmpty)
         #expect(result.expansion.contains("func childRootView() -> Root"))
-        #expect(result.expansion.contains("func childRootView<Identity>"))
+        #expect(result.expansion.contains("func childRootView<_InnoDIIdentity>"))
         #expect(result.expansion.contains("func otherRootView() -> Other"))
-        #expect(!result.expansion.contains("func otherRootView<Identity>"))
+        #expect(!result.expansion.contains("func otherRootView<_InnoDIIdentity>"))
         #expect(!result.expansion.contains("canImport"))
     }
 

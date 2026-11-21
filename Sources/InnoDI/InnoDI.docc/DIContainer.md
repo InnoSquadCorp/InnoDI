@@ -50,6 +50,17 @@ The synchronous overloads are unchanged. With explicit `@MainActor` or
 `mainActor: true` on `@DIContainerRole`, every `withOverrides` overload and
 operation closure remains on MainActor.
 
+A container type annotated with another global actor, such as
+`@SessionActor @DIContainer`, keeps that actor's isolation. Its async
+`withOverrides` overloads inherit the type's actor instead of being
+`nonisolated(nonsending)`, so their `nonisolated(nonsending)` operation
+closures run on that actor; a caller outside it reaches the container's members
+with `await`. A nested `@AssistedFactory` receives the same actor unless it
+names one itself. The attribute is recognized by its `…Actor` spelling, as for
+`container.mainactor-conflict`; a global actor with another name still fails in
+generated code. A component-role container cannot use a custom global actor
+(`component.custom-global-actor-unsupported`).
+
 Every supported container, including one with no managed members, synthesizes
 the complete overrides scaffolding. A user-declared nested `Overrides` type is
 unsupported and emits `container.overrides-name-conflict`; rename
@@ -95,7 +106,12 @@ workaround, not automatic detection of the build setting.
 
 - `role`: Required by `@DIContainerRole`. Use `ContainerRole.local` for an
   explicit local boundary, `.component` for a cross-module mount contract, or
-  `.root` for the hierarchy and graph-reachability entry point.
+  `.root` for the hierarchy and graph-reachability entry point. A component's
+  `<Container>Dependencies` protocol is declared beside the container, so its
+  requirements spell an input type that names a type nested directly in the
+  container, or `Self`, through the container (`FeatureContainer.Mode`). The
+  macro cannot see a nested type declared in an extension; spell such an input
+  type qualified in the source.
 - `validateDAG`: Enables global DAG validation plus the macro's local
   graph-derived checks. When set to `false`, global DAG and local availability checks
   are skipped, but local ownership-cycle validation, declaration validation and

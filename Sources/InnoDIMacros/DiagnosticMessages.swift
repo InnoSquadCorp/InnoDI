@@ -637,6 +637,13 @@ extension SimpleDiagnostic {
         )
     }
 
+    static func componentCustomGlobalActorUnsupported(actorName: String) -> Self {
+        Self(
+            "A component-role container cannot be isolated to the custom global actor '@\(actorName)': its generated mounting conformance is nonisolated. Remove '@\(actorName)', or use mainActor: true for main-actor isolation.",
+            code: .componentCustomGlobalActorUnsupported
+        )
+    }
+
     static func componentOverridesBuilderRequired() -> Self {
         Self(
             "A component-role container requires the synthesized Overrides builder. Rename or remove the user-defined Overrides type; custom Overrides types are unsupported in InnoDI 6.0.",
@@ -788,6 +795,16 @@ extension SimpleDiagnostic {
         Self(
             "A @DIContainer with an asynchronous on-demand provider synthesizes closeAsyncProviders(), but a direct declaration already uses the name 'closeAsyncProviders'. Rename that declaration so the generated close API remains unambiguous.",
             code: .containerCloseAsyncProvidersNameConflict
+        )
+    }
+
+    static func containerMissingEffectOverridesNameConflict(
+        memberName: String,
+        slotName: String
+    ) -> Self {
+        Self(
+            "A @DIContainer with an effect-marked provider synthesizes Overrides.missingEffectOverrides for DIOverrideEffectValidating, but '\(memberName)' would add an override slot named '\(slotName)'. Rename '\(memberName)' so the generated effect validation remains unambiguous.",
+            code: .containerMissingEffectOverridesNameConflict
         )
     }
 

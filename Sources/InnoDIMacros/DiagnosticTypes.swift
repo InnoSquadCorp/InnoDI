@@ -125,6 +125,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case containerOwnedRequiresDAG = "container.owned-requires-dag"
     case containerPrewarmNameConflict = "container.prewarm-name-conflict"
     case containerCloseAsyncProvidersNameConflict = "container.close-async-providers-name-conflict"
+    case containerMissingEffectOverridesNameConflict = "container.missing-effect-overrides-name-conflict"
     case containerReservedNamePrefix = "container.reserved-name-prefix"
     case containerReservedModuleName = "container.reserved-module-name"
     case containerDuplicateMemberName = "container.duplicate-member-name"
@@ -171,6 +172,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
     case componentRequiresContainer = "component.requires-container"
     case componentEscapedTargetUnsupported = "component.escaped-target-unsupported"
     case componentOverridesBuilderRequired = "component.overrides-builder-required"
+    case componentCustomGlobalActorUnsupported = "component.custom-global-actor-unsupported"
     case hierarchyRootRequiresContainer = "hierarchy-root.requires-container"
     case previewWithContainerMissingContainerExpression = "swiftui.preview-with-container-missing-container"
     case previewWithContainerMissingTrailingClosure = "swiftui.preview-with-container-missing-closure"
@@ -250,6 +252,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .containerPrewarmNameConflict,
                 .containerOwnedNameConflict, .containerOwnedUnsupported, .containerOwnedRequiresDAG,
                 .containerCloseAsyncProvidersNameConflict,
+                .containerMissingEffectOverridesNameConflict,
                 .containerReservedNamePrefix, .containerReservedModuleName,
                 .containerDuplicateMemberName,
                 .containerGeneratedSymbolCollision,
@@ -273,6 +276,7 @@ enum InnoDIDiagnosticCode: String, CaseIterable {
                 .swiftUIEnvironmentBridgeReservedModuleName,
                 .swiftUIEnvironmentBridgeGeneratedNameConflict,
                 .componentRequiresContainer, .componentOverridesBuilderRequired,
+                .componentCustomGlobalActorUnsupported,
                 .hierarchyRootRequiresContainer,
                 .previewWithContainerMissingContainerExpression,
                 .previewWithContainerMissingTrailingClosure,

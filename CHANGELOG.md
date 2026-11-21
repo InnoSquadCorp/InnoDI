@@ -31,6 +31,15 @@ Current development train: `7.1.0` (unreleased)
   nested typealias or container in another target no longer answers a bare
   input type or child name in hierarchy validation. A root in a dependency no
   longer reports the built target's component as an orphan.
+- Make five accepted container shapes compile or fail with one InnoDI
+  diagnostic instead of an error inside the expansion. A container under a
+  custom global actor such as `@SessionActor` keeps that actor on its async
+  `withOverrides` overloads and on a nested `@AssistedFactory`. An input type
+  named `OperationResult`, and a hosted feature-root child named `Identity`, no
+  longer collide with generated generic parameters. A transient `@SubContainer`
+  wired from a parent input named `apply` receives that input. A component's
+  `<Name>Dependencies` protocol spells input types nested in the container
+  through the container name.
 
 ### Breaking and Behavior Changes
 
@@ -70,11 +79,39 @@ depends on it. Two targets whose own aliases name different input types still
 fail with `hierarchy.unsatisfied-dependency`, and a coordinator run given a
 workspace root (`--root`) keeps its workspace-wide lookups.
 
+The container macros change generated spellings that callers never write. The
+`withOverrides` generic parameter is now `_InnoDIOperationResult` (was
+`OperationResult`) and the hosted feature-root helper's is `_InnoDIIdentity`
+(was `Identity`); both shadowed a user type of the same name in the input or
+child types of the same signature. A transient child's resolver binds its
+override closure as `_innoDIApply` (was `apply`), which shadowed a parent input
+of that name. A container type with a custom global actor attribute no longer
+marks its async `withOverrides` overloads `nonisolated(nonsending)`; they
+inherit the actor, as an explicit `@MainActor` type already did, and the
+container's member-attribute role gives a nested `@AssistedFactory` without its
+own actor that attribute. The actor is recognized by its `…Actor` spelling,
+like `container.mainactor-conflict`. A component's `<Name>Dependencies`
+requirements spell a type nested directly in the container, and `Self`, as
+`<Name>.Mode`; spellings that name nothing nested are unchanged.
+
+Two diagnostics reject shapes whose expansion could never compile:
+`container.missing-effect-overrides-name-conflict` reports an override slot
+named `missingEffectOverrides` (a provider, a child, or the `<name>Overrides`
+slot of a child named `missingEffect`) beside an effect-marked provider, which
+redeclared the `DIOverrideEffectValidating` requirement.
+`component.custom-global-actor-unsupported` reports a component-role container
+under a custom global actor, whose initializer cannot witness the nonisolated
+mounting protocol. Both shapes already failed in generated code, so no code
+that compiled is newly rejected.
+
 ### Upgrade Actions
 
 No source change is required. Code that already uses `@GenerateMock` keeps
 compiling without edits. A type rename or a dropped root role that only worked
-around one of the build failures above can be reverted.
+around one of the build failures above can be reverted. A container that
+`container.missing-effect-overrides-name-conflict` reports needs that member
+renamed. For `component.custom-global-actor-unsupported`, remove the actor, use
+`mainActor: true`, or give the container a local or root role.
 
 To use InnoDI beside a macro package that limits SwiftSyntax to versions below
 `604.0.0`, its requirement has to admit `603.0.2` or a later 603 release; one
@@ -104,6 +141,18 @@ swift package show-dependencies
   `hierarchy.unsatisfied-dependency`, `hierarchy.ambiguous-child-reference`,
   `hierarchy.orphan-component`). 소스 변경은 필요하지 않으며, 이 실패를 피하려고
   바꾼 타입 이름이나 root role은 되돌릴 수 있습니다.
+- 수용된 뒤 확장 코드에서 컴파일 오류가 나던 컨테이너 형태 다섯 가지가 이제
+  컴파일되거나 하나의 InnoDI 진단으로 거부됩니다. `@SessionActor` 같은 custom
+  global actor를 붙인 컨테이너는 async `withOverrides`와 중첩된
+  `@AssistedFactory`에서 그 actor를 유지합니다. `OperationResult`라는 input
+  타입과 `Identity`라는 hosted feature-root child가 생성된 제네릭 매개변수에
+  가려지지 않고, `apply`라는 부모 input에서 연결된 transient `@SubContainer`가 그
+  값을 받으며, component의 `<Name>Dependencies`는 컨테이너에 중첩된 input 타입을
+  컨테이너 이름으로 표기합니다. 소스 변경은 필요하지 않습니다.
+- 새 진단 두 가지는 원래 컴파일될 수 없던 형태만 거부합니다.
+  `container.missing-effect-overrides-name-conflict`가 나오면 그 member 이름을
+  바꾸세요. `component.custom-global-actor-unsupported`가 나오면 actor를
+  제거하거나 `mainActor: true`를 쓰거나 local 또는 root role을 사용하세요.
 
 ## 7.0.2
 

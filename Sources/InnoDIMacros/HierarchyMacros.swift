@@ -61,7 +61,11 @@ extension DIComponentMacro: PeerMacro {
         }
 
         let protocolName = "\(nominalInfo.baseName)Dependencies"
-        let inputMembers = hierarchyInputMembers(in: model)
+        let inputMembers = hierarchyInputMembers(
+            in: model,
+            qualifyingNestedTypesOf: declGroup,
+            containerName: nominalInfo.baseName
+        )
         let protocolDecl = makeComponentDependenciesProtocolDecl(
             accessLevel: hierarchyAccessLevelModifiers(for: declGroup.modifiers),
             protocolName: protocolName,
@@ -342,6 +346,80 @@ private func hierarchyInputMembers(
         return HierarchyInputMember(
             name: member.name,
             type: member.type.trimmed
+        )
+    }
+}
+
+/// The dependency protocol is a peer of the container, where the
+/// container's nested types and `Self` are not in scope. Spell them through
+/// the container's own name, which the peer shares a scope with. Nested types
+/// declared in extensions are invisible to the macro and stay unqualified.
+private func hierarchyInputMembers(
+    in model: DIContainerExpansionModel,
+    qualifyingNestedTypesOf declaration: some DeclGroupSyntax,
+    containerName: String
+) -> [HierarchyInputMember] {
+    let qualifier = ContainerNestedTypeQualifier(
+        containerName: containerName,
+        nestedTypeNames: directNestedTypeNames(in: declaration)
+    )
+    return hierarchyInputMembers(in: model).map { member in
+        HierarchyInputMember(
+            name: member.name,
+            type: qualifier.rewrite(member.type).cast(TypeSyntax.self)
+        )
+    }
+}
+
+private func directNestedTypeNames(in declaration: some DeclGroupSyntax) -> Set<String> {
+    var names = Set<String>()
+    for item in declaration.memberBlock.members {
+        let decl = item.decl
+        if let nominal = decl.asProtocol(NamedDeclSyntax.self),
+           decl.is(StructDeclSyntax.self) || decl.is(EnumDeclSyntax.self)
+            || decl.is(ClassDeclSyntax.self) || decl.is(ActorDeclSyntax.self)
+            || decl.is(ProtocolDeclSyntax.self) || decl.is(TypeAliasDeclSyntax.self) {
+            names.insert(nominal.name.text)
+        }
+    }
+    return names
+}
+
+private final class ContainerNestedTypeQualifier: SyntaxRewriter {
+    private let containerName: String
+    private let nestedTypeNames: Set<String>
+
+    init(containerName: String, nestedTypeNames: Set<String>) {
+        self.containerName = containerName
+        self.nestedTypeNames = nestedTypeNames
+        super.init(viewMode: .sourceAccurate)
+    }
+
+    override func visit(_ node: IdentifierTypeSyntax) -> TypeSyntax {
+        // Rewrite generic arguments first; only the leading component of a
+        // spelling can name a nested type, so `Outer.Mode` stays untouched.
+        guard let visited = super.visit(node).as(IdentifierTypeSyntax.self) else {
+            return super.visit(node)
+        }
+        let containerType = IdentifierTypeSyntax(name: .identifier(containerName))
+        if visited.name.tokenKind == .keyword(.Self) {
+            return TypeSyntax(
+                containerType
+                    .with(\.leadingTrivia, visited.leadingTrivia)
+                    .with(\.trailingTrivia, visited.trailingTrivia)
+            )
+        }
+        guard nestedTypeNames.contains(visited.name.text) else {
+            return TypeSyntax(visited)
+        }
+        return TypeSyntax(
+            MemberTypeSyntax(
+                baseType: containerType,
+                name: visited.name.trimmed,
+                genericArgumentClause: visited.genericArgumentClause
+            )
+            .with(\.leadingTrivia, visited.leadingTrivia)
+            .with(\.trailingTrivia, visited.trailingTrivia)
         )
     }
 }

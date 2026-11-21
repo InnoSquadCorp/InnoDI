@@ -57,6 +57,10 @@ struct DIContainerValidator {
             declaration: declaration,
             context: context
         ) || hadErrors
+        hadErrors = validateMissingEffectOverridesNameConflict(
+            model: model,
+            context: context
+        ) || hadErrors
         hadErrors = validateReservedQualifierScopes(
             declaration: declaration,
             context: context
@@ -120,6 +124,40 @@ struct DIContainerValidator {
             at: conflict.anchor
         )
         return true
+    }
+
+    /// `Overrides` conforms to `DIOverrideEffectValidating` once any provider
+    /// is effect-marked, and that protocol's `missingEffectOverrides`
+    /// requirement cannot be renamed. Reject every override slot that would
+    /// redeclare it: a provider, a child's direct slot, or its
+    /// `<name>Overrides` slot.
+    private static func validateMissingEffectOverridesNameConflict(
+        model: DIContainerExpansionModel,
+        context: some MacroExpansionContext
+    ) -> Bool {
+        let reservedName = "missingEffectOverrides"
+        let candidates = overrideCandidateMembers(model)
+        guard candidates.contains(where: { $0.operationalEffect == .sideEffect }) else {
+            return false
+        }
+        var conflicts: [(memberName: String, anchor: Syntax)] = candidates
+            .filter { $0.name == reservedName }
+            .map { ($0.name, Syntax($0.bindingSyntax.pattern)) }
+        for subContainer in model.subContainerMembers
+            where subContainer.name == reservedName
+                || subContainer.overrideClosureName == reservedName {
+            conflicts.append((subContainer.name, Syntax(subContainer.bindingSyntax.pattern)))
+        }
+        for conflict in conflicts {
+            context.emit(
+                SimpleDiagnostic.containerMissingEffectOverridesNameConflict(
+                    memberName: conflict.memberName,
+                    slotName: reservedName
+                ),
+                at: conflict.anchor
+            )
+        }
+        return !conflicts.isEmpty
     }
 
     /// Rejects managed members whose generated support symbols collide.

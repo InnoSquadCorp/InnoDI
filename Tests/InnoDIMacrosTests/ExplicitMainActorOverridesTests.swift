@@ -13,6 +13,12 @@ struct ExplicitMainActorOverridesTests {
         ("@MainActor", "@DIContainer", 0),
         ("@MainActor", "@DIContainerRole(role: ContainerRole.local, mainActor: true)", 0),
         ("@_Concurrency.MainActor", "@DIContainer", 0),
+        // A custom global actor isolates the generated initializer the same
+        // way, so the async overloads must inherit it too.
+        ("@FeatureActor", "@DIContainer", 0),
+        ("@Module.FeatureActor", "@DIContainer", 0),
+        ("@FeatureActor", "@DIContainerRole(role: ContainerRole.local)", 0),
+        ("@FeatureActor", "@DIContainerRole(role: ContainerRole.root)", 0),
     ])
     func inheritedIsolation(prefix: String, attribute: String, nonisolatedOverloads: Int) {
         var macros = DIContainerMacroTests.macros
