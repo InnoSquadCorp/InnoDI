@@ -277,10 +277,13 @@ private func displayLabel(for node: DependencyGraphNode, duplicateDisplayNames: 
     return node.displayName
 }
 
+/// Mermaid has no backslash escapes in labels; it accepts HTML-style entity
+/// codes instead. Only path-derived labels (duplicate display names carry the
+/// graph ID) can contain either character.
 private func escapeMermaidLabel(_ label: String) -> String {
     label
-        .replacingOccurrences(of: "\"", with: "\\\"")
-        .replacingOccurrences(of: "|", with: "\\|")
+        .replacingOccurrences(of: "\"", with: "#quot;")
+        .replacingOccurrences(of: "|", with: "#124;")
 }
 
 private func escapeDOTLabel(_ label: String) -> String {

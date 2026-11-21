@@ -94,6 +94,13 @@ package func runDependencyGraphCLI() -> Int32 {
         return ExitCode.failure
     }
 
+    // Root-path discovery does not analyze a source link that leaves the
+    // root. Name each omission on stderr; stdout and the exit code are
+    // unchanged.
+    for link in snapshot.externalSourceLinks {
+        fputs("\(link.warningMessage)\n", stderr)
+    }
+
     let declarationMatrix = ContainerSemanticBuildValidator.validateDeclarationMatrix(
         snapshot: snapshot
     )

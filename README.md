@@ -778,6 +778,15 @@ Validate the global DAG:
 swift run InnoDI-DependencyGraph --root . --validate-dag
 ```
 
+`--root` analyzes every `.swift` file under the directory except hidden
+top-level directories (such as `.build` and `.git`), build and dependency
+output (`Derived`, `DerivedData`, `SourcePackages`, `Tuist/Dependencies`,
+`Pods`, `Carthage`), and Xcode project and workspace bundles. A file reached
+through a symbolic link is analyzed once, at its real path; a Swift source
+link that resolves outside the root is not analyzed and is named in a stderr
+warning. See [Global DAG Validation](Sources/InnoDI/InnoDI.docc/Validation.md#global-dag-validation)
+for the full list.
+
 Explain graph inclusion, inspect reverse impact, and find containers outside
 every explicit root:
 

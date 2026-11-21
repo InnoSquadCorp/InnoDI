@@ -65,6 +65,10 @@ must resolve inside its owning package, and two declared paths cannot claim
 the same physical file. An external symlink destination remains unsupported
 for a declared source.
 
+A container reference resolves through the imports of the file that writes
+it plus every `@_exported import` in any file of the same target, as Swift
+resolves names. A plain `import` in another file of the target does not count.
+
 ## Global DAG Validation
 
 Use the CLI for global graph validation:
@@ -72,6 +76,24 @@ Use the CLI for global graph validation:
 ```bash
 swift run InnoDI-DependencyGraph --root . --validate-dag
 ```
+
+The `--root` input analyzes every `.swift` file under the directory and skips:
+
+- every top-level directory whose name starts with `.`, such as `.build`,
+  `.git`, and `.swiftpm`;
+- any directory named `.build`, `Derived`, `DerivedData`, `SourcePackages`,
+  `.tuist`, `.git`, `Pods`, `Carthage`, or `.swiftpm`, and any
+  `Tuist/Dependencies` directory, at any depth. `DerivedData` and
+  `SourcePackages` cover Xcode derived data and package checkouts kept inside
+  the repository;
+- every `*.xcodeproj` and `*.xcworkspace` bundle.
+
+Every path is resolved through symbolic links first. A file reached through a
+link inside the root is analyzed once, at its real path, and is skipped when
+that path is in a skipped directory. A `.swift` link that resolves outside the
+root is not analyzed; the CLI names it in a `warning:` line on stderr and
+leaves its output and exit code unchanged. The command does not descend into
+a linked directory.
 
 `validateDAG: false` containers are excluded from global DAG validation, but
 unsupported provider declarations and effect mismatches on explicit sibling

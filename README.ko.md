@@ -744,6 +744,15 @@ global DAG 검증:
 swift run InnoDI-DependencyGraph --root . --validate-dag
 ```
 
+`--root`는 디렉터리 아래의 모든 `.swift` 파일을 분석하되, 숨김 최상위
+디렉터리(`.build`, `.git` 등), 빌드·의존성 출력(`Derived`, `DerivedData`,
+`SourcePackages`, `Tuist/Dependencies`, `Pods`, `Carthage`), Xcode project와
+workspace 번들은 제외합니다. symbolic link로 도달한 파일은 실제 경로로 한 번만
+분석합니다. root 밖으로 해석되는 Swift 소스 link는 분석하지 않고 stderr 경고에
+이름을 표시합니다. 전체 목록은
+[Global DAG Validation](Sources/InnoDI/InnoDI.docc/ko.lproj/Validation.md#global-dag-validation)을
+참고하세요.
+
 그래프 포함 경로와 역방향 영향 범위를 확인하고 명시적 루트에서 도달하지
 못하는 컨테이너 찾기:
 

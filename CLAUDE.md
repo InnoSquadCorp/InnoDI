@@ -303,8 +303,13 @@ sibling edge even when the container uses `validateDAG: false`.
   them. Classify spellings only through `parentMemberKeyPathSpelling` in
   `InnoDICore`, and never call `filter` on a syntax collection when the result
   anchors a diagnostic, because it builds a modified tree.
-- `swift run InnoDI-DeferredAliasScan --root .` lists every top-level
-  `typealias` in the workspace that renames `Lazy<T>` or `Provider<T>`.
+- `swift run InnoDI-DeferredAliasScan --root .` lists every `typealias` in
+  the workspace, at file scope or inside a type or extension body, that
+  renames `Lazy<T>` or `Provider<T>` (bare, or qualified by `InnoDI` or a
+  module that re-exports it), directly, through redundant parentheses, or
+  through another listed alias. Aliases in function, closure, or accessor
+  bodies cannot be named at a factory parameter and are not listed; neither
+  is another type that is merely named `Provider`, such as `Vendor.Provider`.
   InnoDI never resolves aliases: a factory parameter typed with one is a hard
   edge, and the generated call usually fails to type-check. The macro-level
   `provide.lazy-aliased` / `provide.provider-aliased` check only sees the

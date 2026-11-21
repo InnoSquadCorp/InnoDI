@@ -54,6 +54,24 @@ Current development train: `7.1.0` (unreleased)
   `where Self: Parent` inheritance, a requirement's own platform `@available`
   beyond InnoDI's minimum platforms and the protocol's availability, parameter
   packs, and `some` inside a parameter type such as `[some Sequence<Int>]`.
+- Repair the dependency-graph tooling's source discovery and lookups.
+  `InnoDI-DependencyGraph --root` no longer crashes with "Duplicate values for
+  key" when a Swift file is reachable through a symbolic link inside the root,
+  and `InnoDI-DeferredAliasScan` no longer lists that file's aliases twice.
+  `--root` skips Xcode `DerivedData` and `SourcePackages` directories, so a
+  derived-data path inside the repository no longer pulls dependency checkouts
+  into the graph. A Swift source linked from outside the root is named on
+  stderr instead of disappearing silently. A container imported only through
+  an `@_exported import` in another file of the same target now resolves in
+  `--analysis-manifest` mode and in the build plugin, instead of failing with
+  `graph.unresolved-container-reference`.
+- Align `InnoDI-DeferredAliasScan` and the build plugin's
+  `deferred-alias.workspace-finding` warnings with the aliases that can
+  actually hide `Lazy<T>` or `Provider<T>` at a factory parameter. They now
+  also list aliases written in parentheses, aliases of such aliases, and
+  aliases inside a type or extension body, and they no longer list an alias of
+  an unrelated type named `Provider` (such as `Vendor.Provider`) or an alias
+  local to a function body.
 
 ### Breaking and Behavior Changes
 
@@ -141,6 +159,24 @@ under a custom global actor, whose initializer cannot witness the nonisolated
 mounting protocol. Both shapes already failed in generated code, so no code
 that compiled is newly rejected.
 
+The graph tools' output changes only for inputs they mishandled. Root-path
+discovery resolves every path through symbolic links, keeps each resolved file
+once, and adds `DerivedData` and `SourcePackages` to the skipped directories;
+[Validation](Sources/InnoDI/InnoDI.docc/Validation.md#global-dag-validation)
+lists them all. A `.swift` link that resolves outside the
+root is still not analyzed, but `InnoDI-DependencyGraph` and
+`InnoDI-DeferredAliasScan` now print `warning: skipped '<path>': …` on stderr
+for it; stdout and exit codes are unchanged. The target-scoped resolver adds a
+target's `@_exported import` declarations to the imports of every file and
+file-scope alias in that target, so a reference that previously failed now
+yields its edge; a plain `import` in another file still does not count.
+`--root ""` and other empty option values now fail argument parsing (exit 1,
+or 2 for `InnoDI-DeferredAliasScan`) instead of analyzing the current
+directory. `InnoDI-DeferredAliasScan` prints error descriptions instead of raw
+error values. Mermaid output escapes `"` and `|` in labels as `#quot;` and
+`#124;`, which Mermaid accepts; only path-derived labels of containers that
+share a display name could contain them.
+
 ### Upgrade Actions
 
 No source change is required for containers. Code that already uses
@@ -154,6 +190,12 @@ worked around one of the build failures above can be reverted. A container that
 `container.missing-effect-overrides-name-conflict` reports needs that member
 renamed. For `component.custom-global-actor-unsupported`, remove the actor, use
 `mainActor: true`, or give the container a local or root role.
+
+A script that passed `--root ""` to mean the current directory must pass `.`.
+Review new `InnoDI-DeferredAliasScan` findings and spell `Lazy<T>` or
+`Provider<T>` directly at the factory parameters that use them. An
+`import` added only to work around `graph.unresolved-container-reference` for
+a sibling file's `@_exported import` can be removed.
 
 To use InnoDI beside a macro package that limits SwiftSyntax to versions below
 `604.0.0`, its requirement has to admit `603.0.2` or a later 603 release; one
@@ -204,6 +246,19 @@ swift package show-dependencies
   `container.missing-effect-overrides-name-conflict`가 나오면 그 member 이름을
   바꾸세요. `component.custom-global-actor-unsupported`가 나오면 actor를
   제거하거나 `mainActor: true`를 쓰거나 local 또는 root role을 사용하세요.
+- dependency-graph 도구가 고쳐졌습니다. `--root`는 root 안의 symbolic link로
+  같은 파일에 도달해도 더 이상 중단되지 않고 그 파일을 한 번만 분석하며,
+  `DerivedData`와 `SourcePackages` 디렉터리를 건너뜁니다. root 밖을 가리키는
+  Swift 소스 link는 stderr 경고로 표시되고 출력과 exit code는 바뀌지 않습니다.
+  같은 target의 다른 파일에 있는 `@_exported import`로만 보이는 컨테이너가 이제
+  해석되므로, 이를 피하려고 추가한 `import`는 지울 수 있습니다. `--root ""`처럼
+  빈 옵션 값은 이제 인자 오류이므로 현재 디렉터리는 `.`로 지정하세요.
+- `InnoDI-DeferredAliasScan`과 build plugin의 `deferred-alias.workspace-finding`
+  경고가 factory 매개변수에서 실제로 `Lazy<T>`·`Provider<T>`를 가릴 수 있는
+  별칭과 일치합니다. 괄호로 감싼 별칭, 그런 별칭의 별칭, 타입·extension 본문 안의
+  별칭이 추가로 보고되고, `Vendor.Provider` 같은 무관한 타입의 별칭과 함수 본문의
+  지역 별칭은 보고되지 않습니다. 새로 보고된 별칭을 쓰는 factory 매개변수는
+  `Lazy<T>`·`Provider<T>`를 직접 쓰세요.
 
 ## 7.0.2
 

@@ -22,10 +22,11 @@ package enum GeneratedQualifierBuildValidator {
     ) -> ValidationIssueReport {
         let manifest = snapshot.analysisManifest
         let targetIndex = snapshot.analysisTargetIndex
+        // Never `uniqueKeysWithValues`: a snapshot is caller-assembled, and a
+        // repeated key must not trap the build tool.
         let moduleNamesByTargetID = Dictionary(
-            uniqueKeysWithValues: (manifest?.targets ?? []).map {
-                ($0.id, $0.moduleName)
-            }
+            (manifest?.targets ?? []).map { ($0.id, $0.moduleName) },
+            uniquingKeysWith: { first, _ in first }
         )
         let scanResults = snapshot.files.map { sourceFile in
             QualifierFileScanResult(
@@ -68,9 +69,8 @@ package enum GeneratedQualifierBuildValidator {
             aliasesByScope: aliasesByScope
         )
         let importsBySourceIdentity = Dictionary(
-            uniqueKeysWithValues: scanResults.map {
-                ($0.sourceIdentity, $0.imports)
-            }
+            scanResults.map { ($0.sourceIdentity, $0.imports) },
+            uniquingKeysWith: { first, _ in first }
         )
         let exportedImportsByTargetID: [
             WorkspaceTargetID: [QualifierImportEntry]

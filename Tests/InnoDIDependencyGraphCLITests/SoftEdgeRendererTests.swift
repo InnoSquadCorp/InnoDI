@@ -47,6 +47,27 @@ struct SoftEdgeRendererTests {
         #expect(output.contains("N1 -.-> N0"))
     }
 
+    @Test("Mermaid escapes quotes and pipes with entity codes, not backslashes")
+    func mermaidEscapesPathDerivedLabels() {
+        // Duplicate display names append the graph ID, which carries the
+        // source path, so only path-derived labels can hold these characters.
+        let nodes = ["a\"b|c.swift", "plain.swift"].map { path in
+            DependencyGraphNode(
+                id: "\(path)#Feature",
+                displayName: "Feature",
+                semanticPath: "Feature",
+                isRoot: false,
+                requiredInputs: []
+            )
+        }
+        let output = renderMermaid(nodes: nodes, edges: [])
+
+        #expect(output.contains("N0[\"Feature (a#quot;b#124;c.swift#Feature)\"]"))
+        #expect(output.contains("N1[\"Feature (plain.swift#Feature)\"]"))
+        #expect(!output.contains("\\\""))
+        #expect(!output.contains("\\|"))
+    }
+
     @Test("DOT renders soft edges with style=dashed attribute")
     func dotSoftEdgeAttribute() {
         let (nodes, edges) = makeGraph()

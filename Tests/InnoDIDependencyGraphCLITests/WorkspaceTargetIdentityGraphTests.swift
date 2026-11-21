@@ -922,6 +922,133 @@ struct WorkspaceTargetIdentityGraphTests {
         )
         #expect(try fixture.validateGraph().exitCode == 0)
     }
+
+    // Swift makes an `@_exported import` in one file visible to every file of
+    // the module: `App.swift` below typechecks only while `Exports.swift`
+    // exists.
+    @Test(
+        "A sibling file's exported import exposes a dependency to the whole target",
+        arguments: ["@_exported import", "@_exported public import"]
+    )
+    func siblingExportedImportExposesDependency(directive: String) throws {
+        let fixture = try TargetGraphFixture(
+            primarySource: subContainerSource(childType: "FeatureContainer"),
+            additionalPrimarySources: [
+                "Sources/App/Exports.swift": "\(directive) FeatureKit\n"
+            ],
+            dependencies: [featureDependency()]
+        )
+        defer { fixture.remove() }
+
+        let analysis = try fixture.collectGraph(validateDAG: true)
+        let edge = try #require(analysis.edges.only)
+        let validation = try fixture.validateGraph()
+
+        #expect(edge.isOwnership)
+        #expect(edge.fromID == fixture.primaryContainerID())
+        #expect(
+            edge.toID == fixture.dependencyContainerID(
+                moduleName: "FeatureKit",
+                containerName: "FeatureContainer"
+            )
+        )
+        #expect(validation.exitCode == 0)
+        #expect(validation.stdout == "DAG validation passed.\n")
+    }
+
+    @Test("A sibling file's exported import also reaches factories and aliases")
+    func siblingExportedImportReachesFactoriesAndAliases() throws {
+        let fixture = try TargetGraphFixture(
+            primarySource: """
+            import InnoDI
+
+            @DIContainer(root: true)
+            struct AppContainer {
+                @Provide(.shared, factory: SelectedContainer())
+                var feature: SelectedContainer
+            }
+            """,
+            additionalPrimarySources: [
+                "Sources/App/Aliases.swift":
+                    "typealias SelectedContainer = FeatureContainer\n",
+                "Sources/App/Exports.swift": "@_exported import FeatureKit\n",
+            ],
+            dependencies: [featureDependency()]
+        )
+        defer { fixture.remove() }
+
+        let edge = try #require(try fixture.collectGraph().edges.only)
+
+        #expect(
+            edge.toID == fixture.dependencyContainerID(
+                moduleName: "FeatureKit",
+                containerName: "FeatureContainer"
+            )
+        )
+        #expect(try fixture.validateGraph().exitCode == 0)
+    }
+
+    @Test("A sibling file's plain import does not expose a dependency")
+    func siblingPlainImportDoesNotExposeDependency() throws {
+        for sibling in ["import FeatureKit\n", "// no imports\n"] {
+            let fixture = try TargetGraphFixture(
+                primarySource: subContainerSource(
+                    childType: "FeatureContainer"
+                ),
+                additionalPrimarySources: [
+                    "Sources/App/Exports.swift": sibling
+                ],
+                dependencies: [featureDependency()]
+            )
+            defer { fixture.remove() }
+
+            let validation = try fixture.validateGraph()
+
+            #expect(try fixture.collectGraph(validateDAG: true).edges.isEmpty)
+            #expect(validation.exitCode == 3)
+            #expect(
+                validation.stderr.contains(
+                    "[graph.unresolved-container-reference] AppContainer -> FeatureContainer"
+                )
+            )
+        }
+    }
+
+    @Test("A file's own import keeps resolving beside a sibling exported import")
+    func ownImportStillResolvesBesideExportedImport() throws {
+        let fixture = try TargetGraphFixture(
+            primarySource: subContainerSource(
+                childType: "FeatureContainer",
+                imports: ["FeatureKit"]
+            ),
+            additionalPrimarySources: [
+                "Sources/App/Exports.swift": "@_exported import FeatureKit\n"
+            ],
+            dependencies: [featureDependency()]
+        )
+        defer { fixture.remove() }
+
+        #expect(try fixture.collectGraph(validateDAG: true).edges.count == 1)
+        #expect(try fixture.validateGraph().exitCode == 0)
+    }
+}
+
+private func subContainerSource(
+    childType: String,
+    imports: [String] = []
+) -> String {
+    let dependencyImports = imports
+        .map { "import \($0)\n" }
+        .joined()
+    return """
+    import InnoDI
+    \(dependencyImports)
+    @DIContainerRole(role: ContainerRole.root)
+    struct AppContainer {
+        @SubContainer(scope: .shared)
+        var feature: \(childType)
+    }
+    """
 }
 
 private struct TargetGraphDependencySpec {

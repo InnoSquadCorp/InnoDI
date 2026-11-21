@@ -156,6 +156,8 @@ struct TargetAwareContainerResolutionIndex {
                 ? nodes.filter(\.validateDAG)
                 : nodes
             let allNodeIDsBySemanticPath = Self.idsBySemanticPath(nodes)
+            let exportedImports = exportedImportsByTargetID[target.id]
+                ?? .empty
             targets[target.id] = IndexedTarget(
                 id: target.id,
                 moduleName: target.moduleName,
@@ -167,7 +169,18 @@ struct TargetAwareContainerResolutionIndex {
                 allSemanticPathsBySuffix: Self.pathsBySuffix(
                     allNodeIDsBySemanticPath.keys
                 ),
-                aliases: (aliasesByTargetID[target.id] ?? []).sorted {
+                // An alias expands in its declaring file's scope, which
+                // includes every `@_exported import` of the same target.
+                aliases: (aliasesByTargetID[target.id] ?? []).map {
+                    TargetAwareContainerAlias(
+                        record: $0.record,
+                        sourceIdentity: $0.sourceIdentity,
+                        sourceImports: $0.sourceImports.merging(
+                            exportedImports
+                        )
+                    )
+                }
+                .sorted {
                     if $0.record.path != $1.record.path {
                         return $0.record.path < $1.record.path
                     }
@@ -178,8 +191,7 @@ struct TargetAwareContainerResolutionIndex {
                     }
                     return $0.sourceIdentity < $1.sourceIdentity
                 },
-                exportedImports: exportedImportsByTargetID[target.id]
-                    ?? .empty
+                exportedImports: exportedImports
             )
         }
         targetsByID = targets
@@ -190,12 +202,18 @@ struct TargetAwareContainerResolutionIndex {
         from targetID: WorkspaceTargetID,
         sourceImports: TargetAwareSourceImports
     ) -> GraphContainerResolver {
-        GraphContainerResolver { reference in
+        // Swift makes an `@_exported import` in any file of a module visible
+        // to every file of that module, so a file's own imports are not its
+        // whole lookup scope.
+        let visibleImports = sourceImports.merging(
+            targetsByID[targetID]?.exportedImports ?? .empty
+        )
+        return GraphContainerResolver { reference in
             var activeVisits: Set<ResolutionVisit> = []
             return resolve(
                 reference,
                 from: targetID,
-                sourceImports: sourceImports,
+                sourceImports: visibleImports,
                 activeVisits: &activeVisits
             )
         }
