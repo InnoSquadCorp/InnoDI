@@ -11,7 +11,7 @@ final class AsyncServiceMock: AsyncService {
 
     private var __innodiMockGeneration: UInt64 = 0
 
-    struct _InnoDIMockNotStubbed: Error, CustomStringConvertible {
+    struct _InnoDIMockNotStubbed: _InnoDIMockError, CustomStringConvertible {
         let selector: String
         var description: String {
             "InnoDI mock selector '\(selector)' was not stubbed before invocation."
@@ -24,8 +24,8 @@ final class AsyncServiceMock: AsyncService {
     }
     private(set) var fetchCalls: [FetchCall] = []
     private var __innodi_fetchIsStubbed = false
-    private var __innodi_fetchResultStorage: Result<String, Error> = .failure(_InnoDIMockNotStubbed(selector: "fetchResult"))
-    var fetchResult: Result<String, Error> {
+    private var __innodi_fetchResultStorage: Result<String, _InnoDIMockError> = .failure(_InnoDIMockNotStubbed(selector: "fetchResult"))
+    var fetchResult: Result<String, _InnoDIMockError> {
         get {
             __innodi_fetchResultStorage
         }
@@ -44,8 +44,8 @@ final class AsyncServiceMock: AsyncService {
     }
     private(set) var refreshCalls: [RefreshCall] = []
     private var __innodi_refreshIsStubbed = false
-    private var __innodi_refreshThrownErrorStorage: Error?
-    var refreshThrownError: Error? {
+    private var __innodi_refreshThrownErrorStorage: _InnoDIMockError?
+    var refreshThrownError: _InnoDIMockError? {
         get {
             __innodi_refreshThrownErrorStorage
         }

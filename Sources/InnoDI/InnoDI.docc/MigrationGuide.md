@@ -18,7 +18,7 @@ changes a consumer must make**.
 | 4.2 → 4.3 | Feature-root helper integration | Move new SwiftUI feature root helpers from stacked `@DIFeatureRoot` usage into `@SubContainer(featureRoot:)` or `featureRoots:`. `@DIFeatureRoot` remains deprecated for compatibility. |
 | 4.x → 4.x+1 (experimental) | `@GenerateMock` opt-in | RFC 0001 stage 1-3 ship as **experimental** — the attribute is stable, the generated mock shape may evolve. Adoption is opt-in. See <doc:AutoMock>. |
 | 5.x → 6.0 | Explicit input and container-role vocabulary | Replace `@Provide(.input)` with `@Input`, and hierarchy/isolation markers with `@DIContainerRole`; see [5.x → 6.0](#5x--60-vocabulary). |
-| 7.0 → 7.1 | `@GenerateMock` general availability | No source change. Semantic versioning now covers the generated mock shape. See <doc:AutoMock>. |
+| 7.0 → 7.1 | `@GenerateMock` general availability | Most code needs no source change. Semantic versioning now covers the generated mock shape. `@GenerateMock` now rejects a requirement whose own platform `@available` is later than InnoDI's minimum platforms and a `where Self:` refinement other than `Sendable` or `AnyObject`; a hosted feature root on a `.shared` child deprecates `close:`; `InnoDI-Doctor` rejects options it used to ignore. `CHANGELOG.md` lists every upgrade action. See <doc:AutoMock>. |
 | 6.x → 7.0 | Canonical parent key paths, explicit SwiftUI imports, typed prewarm, optional owned async lifecycle | Spell sub-container parent key paths as `\Self.member` and import SwiftUI wherever a file imports `InnoDISwiftUI`; `InnoDI-Migrate` does both. Raise macOS targets to 14 and move host-owner observation to Observation. Migrate key-path prewarm calls by hand. Owned preparation and override helpers are optional additions; see [6.x → 7.0](#6x--70). |
 | 4.x → 5.0 | Contract hardening | Remove `concrete:` and deprecated `@DIFeatureRoot`; adopt the supported declaration matrix, actor-correct access, and graph JSON schema v2. `@GenerateMock` remains experimental until its independent GA criteria pass. |
 
@@ -142,8 +142,21 @@ peer imports. A mixed implicit/non-public explicit plan is blocked, including
 when the conflicting imports would both be introduced in the same run. No
 partial writes occur; review target boundaries and import defaults rather than
 promoting every import to public to bypass the diagnostic.
-The rule remains idempotent; a successful source rewrite is not a substitute
-for the compiler's type and access checks.
+The rule remains idempotent for the same choice; a successful source rewrite is
+not a substitute for the compiler's type and access checks.
+
+Check a root migrated with a choice using that same choice, and pass it to
+`InnoDI-Doctor` too:
+
+```bash
+swift run InnoDI-Migrate --root /path/to/target-sources --check --swiftui-import-access internal
+swift run InnoDI-Doctor --root /path/to/package --swiftui-import-access internal
+```
+
+Without the choice, an explicit `internal` or `package` SwiftUI import below
+the visibility of its `InnoDISwiftUI` import still reports
+`migrate.swiftui-import-access-ambiguous`: source alone cannot tell it from an
+unmigrated file whose public API relied on the removed re-export.
 
 ### Explicit feature-root hosting
 
@@ -659,7 +672,8 @@ swift run InnoDI-Migrate --root . --check
 ```
 
 `--check` exits with `1` and prints one `MIGRATE` record per file when safe
-rewrites are pending. `--report` performs the same read-only preflight and emits
+rewrites are pending. Give the final `--check` the same
+`--swiftui-import-access` choice as the `--write` that used one. `--report` performs the same read-only preflight and emits
 a deterministic schema-v1 JSON inventory to standard output, or atomically to
 the path supplied with `--output`. The report contains relative paths, stable
 codes, counts, status, and diagnostic messages, but never original or migrated
@@ -670,7 +684,11 @@ as `migrate.parent-key-path` or `migrate.swiftui-import` for 7.0, and the
 before its first atomic file exchange, then preserves an existing UTF-8
 byte-order mark and POSIX access mode independently of umask. Ambiguous ownership, unsupported legacy arguments, parse
 errors, source symlinks, and concurrent source changes fail closed with exit
-code `2`. Preflight failures write nothing. Each publication atomically swaps
+code `2`. A source symlink is a `.swift` link, or a directory link that
+resolves outside the root, into `.build`, `.git`, or `.swiftpm`, or into a
+nested Git repository. A directory link to an in-root directory the scan
+already covers, such as a framework's `Versions/Current`, is not followed:
+each source behind it is planned and written through its real path. Preflight failures write nothing. Each publication atomically swaps
 the source with a staged file and retains the displaced entry under the printed
 `RECOVERY` path (`.innodi-migrate-recovery-<name>-<UUID>` in the same directory).
 The tool never unlinks that recovery entry, even on success: an editor holding
@@ -694,6 +712,9 @@ module-qualify the complete macro pair: `@InnoDI.DIContainer` with `@InnoDI.Prov
 `@InnoDI.SubContainer` with `@InnoDISwiftUI.DIFeatureRoot`, before rerunning.
 The scanner skips `.build`, `.git`, `.swiftpm`, and nested Git repositories;
 pass a nested repository as its own `--root` when it must be migrated too.
+`InnoDI-Doctor` leaves nested repositories out of its plugin check as well,
+and checks a container in a nested package, a directory with its own
+`Package.swift`, against that package's manifest.
 
 The public underscored `DIEnvironmentBridging` witness is a breaking rename in
 5.0: `_innodiEnvironmentBridgeModifier()` becomes

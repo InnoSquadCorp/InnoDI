@@ -79,26 +79,37 @@ package struct SemanticResolutionResult: Codable, Equatable, Sendable {
 /// The index resolves nominal paths and typealias chains without relying on
 /// compiler type-checking, which keeps build-time validation deterministic and
 /// package-local.
+///
+/// Records and candidate paths describe the module that wrote the reference
+/// being resolved, where a partial spelling such as `Cart` can still name a
+/// nested `Checkout.Cart`. External records and candidate paths come from
+/// other modules, which a reference reaches only by their full written path
+/// (or a module-qualified one), never through a suffix of a nested path.
 package struct SemanticResolverIndex: Equatable, Sendable {
     package let nominalTypes: [SemanticNominalTypeRecord]
     package let typeAliases: [SemanticTypeAliasRecord]
+    package let externalTypeAliases: [SemanticTypeAliasRecord]
 
     package init(
         nominalTypes: [SemanticNominalTypeRecord],
-        topLevelTypeAliases: [SemanticTypeAliasRecord]
+        topLevelTypeAliases: [SemanticTypeAliasRecord],
+        externalTypeAliases: [SemanticTypeAliasRecord] = []
     ) {
         self.nominalTypes = nominalTypes
         self.typeAliases = topLevelTypeAliases
+        self.externalTypeAliases = externalTypeAliases
     }
 
     package func resolvePath(
         for reference: SemanticTypeReference,
-        candidatePaths: Set<String>
+        candidatePaths: Set<String>,
+        externalCandidatePaths: Set<String> = []
     ) -> SemanticResolutionResult {
         let expansions = expandedReferences(for: reference)
         let exactMatches = uniqueMatches(
             for: expansions.compactMap { candidate in
                 candidatePaths.contains(candidate.reference.displayPath)
+                    || externalCandidatePaths.contains(candidate.reference.displayPath)
                     ? ResolutionMatch(
                         path: candidate.reference.displayPath,
                         aliasExpansionTrace: candidate.aliasExpansionTrace,
@@ -111,9 +122,16 @@ package struct SemanticResolverIndex: Equatable, Sendable {
             return result
         }
 
+        let qualifiedExternalPaths = externalCandidatePaths.subtracting(candidatePaths)
         let suffixResolutionMatches = uniqueMatches(
             for: expansions.flatMap { candidate in
-                suffixMatches(for: candidate.reference.components, candidatePaths: candidatePaths).map { path in
+                (
+                    suffixMatches(for: candidate.reference.components, candidatePaths: candidatePaths)
+                        + qualifiedMatches(
+                            for: candidate.reference.components,
+                            candidatePaths: qualifiedExternalPaths
+                        )
+                ).map { path in
                     ResolutionMatch(
                         path: path,
                         aliasExpansionTrace: candidate.aliasExpansionTrace,
@@ -145,6 +163,25 @@ package struct SemanticResolverIndex: Equatable, Sendable {
                 }
 
                 guard candidateComponents.count > 1 else {
+                    return false
+                }
+                return Array(components.suffix(candidateComponents.count)) == candidateComponents
+            }
+            .sorted()
+    }
+
+    /// Matches a reference that qualifies a candidate further, such as
+    /// `Module.Outer.Inner` for `Outer.Inner`, but never a reference that
+    /// spells only a suffix of the candidate.
+    private func qualifiedMatches(
+        for components: [String],
+        candidatePaths: Set<String>
+    ) -> [String] {
+        candidatePaths
+            .filter { path in
+                let candidateComponents = path.split(separator: ".").map(String.init)
+                guard candidateComponents.count > 1,
+                      candidateComponents.count < components.count else {
                     return false
                 }
                 return Array(components.suffix(candidateComponents.count)) == candidateComponents
@@ -211,17 +248,19 @@ package struct SemanticResolverIndex: Equatable, Sendable {
     }
 
     private func matchingAliases(for referencePrefix: [String]) -> [SemanticTypeAliasRecord] {
-        typeAliases
-            .filter { alias in
-                if alias.components == referencePrefix {
-                    return true
-                }
-                guard alias.components.count >= referencePrefix.count else {
-                    return false
-                }
-                return Array(alias.components.suffix(referencePrefix.count)) == referencePrefix
+        let localMatches = typeAliases.filter { alias in
+            if alias.components == referencePrefix {
+                return true
             }
-            .sorted { $0.path < $1.path }
+            guard alias.components.count >= referencePrefix.count else {
+                return false
+            }
+            return Array(alias.components.suffix(referencePrefix.count)) == referencePrefix
+        }
+        let externalMatches = externalTypeAliases.filter { alias in
+            alias.components == referencePrefix
+        }
+        return (localMatches + externalMatches).sorted { $0.path < $1.path }
     }
 
     private func uniqueMatches(for matches: [ResolutionMatch]) -> [ResolutionMatch] {

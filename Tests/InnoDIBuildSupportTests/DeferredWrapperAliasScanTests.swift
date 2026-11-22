@@ -94,6 +94,125 @@ struct DeferredWrapperAliasScanTests {
         #expect(findings.map(\.kind) == [.lazy, .lazy, .provider])
     }
 
+    // The macro classifies a factory parameter only when its written type is
+    // `Lazy<T>` / `Provider<T>` (bare or qualified). Any alias visible at a
+    // factory parameter that names the wrapper defeats that detection.
+    @Test("every alias that can stand in for a wrapper at a factory parameter is listed")
+    func aliasesThatDefeatDetectionAreListed() {
+        let snapshot = makeSnapshot([
+            ("Sources/Module/Aliases.swift", """
+            import InnoDI
+            typealias TopLazy = Lazy<Int>
+            typealias GenericLazy<T> = Lazy<T>
+            typealias Qualified = InnoDI.Provider<Int>
+            typealias Unbound = Lazy
+            typealias Paren = (Lazy<Int>)
+            typealias Chain = TopLazy
+            typealias Unrelated = Vendor.Provider
+            typealias OptionalLazy = Lazy<Int>?
+            struct Vendor { struct Provider {} ; typealias NestedLazy = Lazy<Int> }
+            func f() { typealias LocalLazy = Lazy<Int> }
+            """)
+        ])
+
+        let findings = scanDeferredWrapperAliases(in: snapshot)
+
+        #expect(findings.map(\.aliasName) == [
+            "TopLazy", "GenericLazy", "Qualified", "Unbound", "Paren", "Chain", "NestedLazy",
+        ])
+        #expect(findings.map(\.kind) == [.lazy, .lazy, .provider, .lazy, .lazy, .lazy, .lazy])
+    }
+
+    @Test("a qualified wrapper name counts only under InnoDI or a module that re-exports it")
+    func qualifiedWrapperRequiresInnoDIModule() {
+        let snapshot = makeSnapshot([
+            ("Sources/Module/A.swift", """
+            typealias A = InnoDISwiftUI.Lazy<Int>
+            typealias B = InnoDITesting.Provider<Int>
+            typealias C = Vendor.Provider<Int>
+            typealias D = Vendor.Lazy
+            struct Vendor { struct Provider<T> {} ; struct Lazy {} }
+            """)
+        ])
+
+        let findings = scanDeferredWrapperAliases(in: snapshot)
+
+        #expect(findings.map(\.aliasName) == ["A", "B"])
+        #expect(findings.map(\.kind) == [.lazy, .provider])
+    }
+
+    @Test("alias chains are followed across files, in any order, through type scopes")
+    func aliasChainsAcrossFilesAndScopes() {
+        let snapshot = makeSnapshot([
+            ("Sources/Module/A.swift", """
+            typealias Second = First
+            typealias Qualified = Holder.Inner
+            struct Box<T> { typealias Item = Lazy<T> }
+            typealias Boxed = Box<Int>.Item
+            """),
+            ("Sources/Module/B.swift", """
+            typealias First = (InnoDI.Provider<Int>)
+            struct Holder { typealias Inner = First }
+            extension Holder { typealias Scoped = Inner }
+            """)
+        ])
+
+        let findings = scanDeferredWrapperAliases(in: snapshot)
+
+        #expect(findings.map(\.aliasName) == [
+            "Second", "Qualified", "Item", "Boxed", "First", "Inner", "Scoped",
+        ])
+        #expect(findings.map(\.kind) == [
+            .provider, .provider, .lazy, .lazy, .provider, .provider, .provider,
+        ])
+    }
+
+    @Test("an inner declaration of the referenced name shadows an outer wrapper alias")
+    func innerDeclarationsShadowOuterAliases() {
+        let snapshot = makeSnapshot([
+            ("Sources/Module/A.swift", """
+            typealias Deferred = Lazy<Int>
+            struct Outer {
+                struct Deferred {}
+                typealias UsesNominal = Deferred
+            }
+            struct Other {
+                typealias Deferred = Int
+                typealias UsesAlias = Deferred
+            }
+            struct Plain {
+                typealias UsesOuter = Deferred
+            }
+            """)
+        ])
+
+        let findings = scanDeferredWrapperAliases(in: snapshot)
+
+        #expect(findings.map(\.aliasName) == ["Deferred", "UsesOuter"])
+    }
+
+    @Test("aliases local to functions, closures, and accessors are not listed")
+    func localAliasesAreIgnored() {
+        let snapshot = makeSnapshot([
+            ("Sources/Module/A.swift", """
+            struct Host {
+                init() { typealias InInit = Lazy<Int> }
+                func run() {
+                    struct Local { typealias InLocalType = Lazy<Int> }
+                    _ = { typealias InClosure = Lazy<Int> }
+                }
+                var computed: Int { typealias InGetter = Lazy<Int>; return 0 }
+                var observed: Int = 0 { didSet { typealias InObserver = Lazy<Int> } }
+                typealias Member = Provider<Int>
+            }
+            """)
+        ])
+
+        let findings = scanDeferredWrapperAliases(in: snapshot)
+
+        #expect(findings.map(\.aliasName) == ["Member"])
+    }
+
     @Test("source location reflects the alias name position")
     func aliasLocation() {
         let snapshot = makeSnapshot([

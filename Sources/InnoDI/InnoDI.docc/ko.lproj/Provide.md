@@ -33,6 +33,7 @@ Swift 자체의 structural diagnostic도 발생할 수 있습니다.
     with dependencies: [AnyKeyPath] = [],
     initialization: DIInitialization = .eager,
     effect: DIProviderEffect = .none,
+    collection: DICollectionMetadata? = nil,
     factory: Any? = nil,
     asyncFactory: Any? = nil
 )
@@ -137,8 +138,8 @@ struct Services {
 
 같은 호출자 격리로 이어지는 async 의존성 프로퍼티에도 각각 modifier를 적용하세요.
 이 문법은 컨테이너, 결과, 캡처한 의존성을 Sendable로 바꾸지 않습니다. Shared async
-저장소의 결과는 여전히 Sendable이어야 합니다. 컨테이너가 별도의 동기
-non-Sendable 입력을 보관하는 경우와 구분하세요. 일반 owned view의 async
+저장소의 결과는 받는 컨테이너가 동기 non-Sendable 입력을 보관하더라도 여전히
+Sendable이어야 합니다. 일반 owned view의 async
 프로퍼티에는 이미 이 modifier가 생성됩니다.
 
 MainActor 컨테이너는 actor 격리를 유지하고 MainActor에서 읽으세요.

@@ -23,8 +23,86 @@ Current development train: `7.1.0` (unreleased)
   Both endpoints pass the in-process contracts under complete strict
   concurrency with warnings as errors.
 - Promote `@GenerateMock` to general availability. Semantic versioning now
-  covers the generated mock shape as well as the attribute. The expansion is
-  unchanged.
+  covers the generated mock shape as well as the attribute. Generated helper
+  names, storage suffixes, and slot types are unchanged; the `@GenerateMock`
+  entry below lists the shapes this release repairs or rejects.
+- Scope build-plugin lookups by declaring target, so a name that a dependency
+  target also declares no longer fails a valid build. A plain type in another
+  target that shares a container's name keeps its extension initializers. A
+  nested typealias or container in another target no longer answers a bare
+  input type or child name in hierarchy validation. A root in a dependency no
+  longer reports the built target's component as an orphan.
+- Make five accepted container shapes compile or fail with one InnoDI
+  diagnostic instead of an error inside the expansion. A container under a
+  custom global actor such as `@SessionActor` keeps that actor on its async
+  `withOverrides` overloads and on a nested `@AssistedFactory`. An input type
+  named `OperationResult`, and a hosted feature-root child named `Identity`, no
+  longer collide with generated generic parameters. A transient `@SubContainer`
+  wired from a parent input named `apply` receives that input. A component's
+  `<Name>Dependencies` protocol spells input types nested in the container
+  through the container name.
+- Make every `@GenerateMock` shape that expanded to a broken or misbehaving
+  mock either compile or fail with `mock.unsupported-member`. Now generated:
+  `where Self: Sendable` protocols (lock-backed, like `: Sendable`); two or
+  more `borrowing`/`consuming` arguments and `sending` arguments on `Sendable`
+  protocols; call records that a signature type such as `ToolCall` would
+  shadow (`ToolCall2`); results and properties of function types with
+  optional results, implicitly unwrapped optionals (`T!`), and types written
+  across several lines; `Optional<T>` results that return a stubbed `nil`;
+  throwing mocks next to a type named `Error`; and method names such as
+  `_2fa` and arguments named `await`, `inout`, or `copy`. Now rejected:
+  `where Self: Parent` inheritance, a requirement's own platform `@available`
+  beyond InnoDI's minimum platforms and the protocol's availability, parameter
+  packs, and `some` inside a parameter type such as `[some Sequence<Int>]`.
+- Repair the dependency-graph tooling's source discovery and lookups.
+  `InnoDI-DependencyGraph --root` no longer crashes with "Duplicate values for
+  key" when a Swift file is reachable through a symbolic link inside the root,
+  and `InnoDI-DeferredAliasScan` no longer lists that file's aliases twice.
+  `--root` skips Xcode `DerivedData` and `SourcePackages` directories, so a
+  derived-data path inside the repository no longer pulls dependency checkouts
+  into the graph. A Swift source linked from outside the root is named on
+  stderr instead of disappearing silently. A container imported only through
+  an `@_exported import` in another file of the same target now resolves in
+  `--analysis-manifest` mode and in the build plugin, instead of failing with
+  `graph.unresolved-container-reference`.
+- Align `InnoDI-DeferredAliasScan` and the build plugin's
+  `deferred-alias.workspace-finding` warnings with the aliases that can
+  actually hide `Lazy<T>` or `Provider<T>` at a factory parameter. They now
+  also list aliases written in parentheses, aliases of such aliases, and
+  aliases inside a type or extension body, and they no longer list an alias of
+  an unrelated type named `Provider` (such as `Vendor.Provider`) or an alias
+  local to a function body.
+- Stop `InnoDI-Doctor` from reporting healthy or correctly migrated projects
+  as broken. Doctor accepts `--swiftui-import-access` and checks and applies
+  with that choice, so a root migrated with `--swiftui-import-access internal`
+  can be confirmed healthy. A container in a nested package is checked against
+  that package's `Package.swift`, and a nested Git repository is left out, as
+  `InnoDI-Migrate` leaves it out. A target with `path: "."` owns the sources at
+  the package root. A `Package.swift`, `Tuist.swift`, or `Project.swift` with
+  CRLF line endings no longer yields `doctor.toolchain.unknown` or a version
+  read from another line. A directory link to an in-root directory that both
+  tools scan anyway, such as a framework's `Versions/Current` or this
+  repository's product-test links, no longer stops `InnoDI-Doctor` and
+  `InnoDI-Migrate` with exit 2.
+- Make the SwiftUI surface agree with its documentation. A hosted feature root
+  on a `.shared` child presents the parent's child through
+  `<name>RootView(identity:)` without a close hook, and its 7.0
+  `identity:close:` spelling is deprecated, because that hook received the
+  parent's own child, which the parent keeps serving, at every identity change.
+  `@DIEnvironmentBridge` now reads unlabeled `("member", \EnvironmentValues.key)`
+  tuples, diagnoses a tuple without a member or key path instead of silently
+  dropping the conformance, no longer crashes the macro plugin when the target
+  redeclares a member, and warns when two mappings set the same key.
+  `DIContainerHost` no longer shows the previous identity's container or error
+  for the first evaluation after an identity change. The `#PreviewWithContainer`
+  documentation now shows a form that compiles and explains why arguments that
+  call generated initializers or helpers cannot.
+- Correct reference documentation that disagreed with the code. `InnoDICore`
+  is described as the internal target it is, the `Lazy` and `Provider` alias
+  warnings and the Xcode plugin outputs describe current behavior, the
+  `DiagnosticsGuide` lists the build plugin's assisted-factory, hierarchy,
+  graph and deferred-alias codes, and the Korean README and DocC mirrors regain
+  statements they had dropped.
 
 ### Breaking and Behavior Changes
 
@@ -52,10 +130,171 @@ with Xcode 27.2 (Swift 6.4.2): 40.5 s at `604.0.0` and 42.8 s at `603.0.2`
 (`--swift-syntax-version 603.0.2`). Swift 6.3 at `603.0.2` is not measured
 yet; the weekly cold-build benchmark now records it.
 
+The build plugin now accepts code it rejected when a dependency target declared
+a matching name. The custom-init preflight matches an extension only against a
+container in the extension's own target, so it no longer reports an
+initializer that another module adds to a container; Swift requires that
+initializer to delegate through `self.init(...)` or `self = ...`. Hierarchy
+validation reaches another target's nested declarations only by their written
+or module-qualified path, and reports `hierarchy.orphan-component` only when
+the snapshot holds a root in the component's target or in a target that
+depends on it. Two targets whose own aliases name different input types still
+fail with `hierarchy.unsatisfied-dependency`, and a coordinator run given a
+workspace root (`--root`) keeps its workspace-wide lookups.
+
+The container macros change generated spellings that callers never write. The
+`withOverrides` generic parameter is now `_InnoDIOperationResult` (was
+`OperationResult`) and the hosted feature-root helper's is `_InnoDIIdentity`
+(was `Identity`); both shadowed a user type of the same name in the input or
+child types of the same signature. A transient child's resolver binds its
+override closure as `_innoDIApply` (was `apply`), which shadowed a parent input
+of that name. A container type with a custom global actor attribute no longer
+marks its async `withOverrides` overloads `nonisolated(nonsending)`; they
+inherit the actor, as an explicit `@MainActor` type already did, and the
+container's member-attribute role gives a nested `@AssistedFactory` without its
+own actor that attribute. The actor is recognized by its `…Actor` spelling,
+like `container.mainactor-conflict`. A component's `<Name>Dependencies`
+requirements spell a type nested directly in the container, and `Self`, as
+`<Name>.Mode`; spellings that name nothing nested are unchanged.
+
+Two diagnostics reject shapes whose expansion could never compile:
+`container.missing-effect-overrides-name-conflict` reports an override slot
+named `missingEffectOverrides` (a provider, a child, or the `<name>Overrides`
+slot of a child named `missingEffect`) beside an effect-marked provider, which
+redeclared the `DIOverrideEffectValidating` requirement.
+`component.custom-global-actor-unsupported` reports a component-role container
+under a custom global actor, whose initializer cannot witness the nonisolated
+mounting protocol. Both shapes already failed in generated code, so no code
+that compiled is newly rejected.
+
+`@GenerateMock` changes generated code in two ways that keep its symbol shape.
+Untyped errors are spelled `_InnoDIMockError`, a new reserved public alias of
+`Error` in `InnoDI`, instead of `Error`, which a nested or file-scope type named
+`Error` captured; `Swift.Error` was not an option because a type named `Swift`
+hides the module. Slots such as `fetchResult: Result<String, any Error>` keep
+their type. A non-optional `nameReturnValue` slot now counts `nil` as missing,
+so `missingStubSelectors` reports it and agrees with the call, which already
+trapped. An optional result is recognized by its spelling (`T?`, `T!`,
+`Optional<T>`); one behind a typealias stays non-optional, so stub its `nil`
+with `.some(nil)`. A call record renamed away from a signature type, such as
+`ToolCall2`, was a type that failed to compile before.
+
+`@GenerateMock` now rejects two shapes that some protocols compiled with, and
+the `mock.unsupported-member` message lists them. A requirement's own `@available`
+that introduces a platform version later than InnoDI's minimum (iOS 17, macOS
+14, Mac Catalyst 17, tvOS 17, watchOS 10, visionOS 1) and not implied by the
+protocol or an enclosing declaration fails, because the mock's stored stubs
+cannot be made potentially unavailable; it compiled only when every type it
+used already existed at the deployment target. `obsoleted:` and `unavailable`
+fail the same way. `where Self: Parent` fails like `: Parent`; it compiled only
+when `Parent` had no requirements. Member-level deprecation and renaming are
+still accepted. Parameter packs and `some` inside a parameter type, such as
+`[some Sequence<Int>]`, now fail too; their mocks never compiled.
+
+The graph tools' output changes only for inputs they mishandled. Root-path
+discovery resolves every path through symbolic links, keeps each resolved file
+once, and adds `DerivedData` and `SourcePackages` to the skipped directories;
+[Validation](Sources/InnoDI/InnoDI.docc/Validation.md#global-dag-validation)
+lists them all. A `.swift` link that resolves outside the
+root is still not analyzed, but `InnoDI-DependencyGraph` and
+`InnoDI-DeferredAliasScan` now print `warning: skipped '<path>': …` on stderr
+for it; stdout and exit codes are unchanged. The target-scoped resolver adds a
+target's `@_exported import` declarations to the imports of every file and
+file-scope alias in that target, so a reference that previously failed now
+yields its edge; a plain `import` in another file still does not count.
+`--root ""` and other empty option values now fail argument parsing (exit 1,
+or 2 for `InnoDI-DeferredAliasScan`) instead of analyzing the current
+directory. `InnoDI-DeferredAliasScan` prints error descriptions instead of raw
+error values. Mermaid output escapes `"` and `|` in labels as `#quot;` and
+`#124;`, which Mermaid accepts; only path-derived labels of containers that
+share a display name could contain them.
+
+`InnoDI-Doctor` and `InnoDI-Migrate` change only for inputs they misjudged.
+A check without a `--swiftui-import-access` choice still reports
+`migrate.swiftui-import-access-ambiguous` for an explicit `internal` or
+`package` SwiftUI import below its `InnoDISwiftUI` import's visibility, even
+after a write with that choice: source alone cannot tell it from an unmigrated
+file whose public API relied on the removed re-export. The message now says to
+recheck with the same choice. Both tools skip a directory link whose
+destination is a directory inside the root that they scan; each source behind
+it is planned and written through its real path. A `.swift` link, and a
+directory link that resolves outside the root, into `.build`, `.git`, or
+`.swiftpm`, or into a nested Git repository, still blocks with exit 2.
+`InnoDI-Migrate` reports a missing or non-directory `--root` as
+`Migration root is not a readable directory` in every mode instead of
+`Could not anchor the migration root`. `InnoDI-Doctor` now rejects
+single-dash options such as `-x`, positional arguments, options without a
+value, and repeated options other than `--trust-module` with exit 64, as `InnoDI-Migrate` does; it used to
+ignore them and run a diagnosis. Its text output marks `Proposed:` as blocked
+while a `migrate.*` diagnostic prevents `--apply`. The schema-v3 JSON report
+keeps its shape and listing.
+
+The build plugin's shared-run validation cache key moves to version 14
+(`shared-run-v14`), so a workspace validated by 7.0.x is validated once more
+under the 7.1 lookup rules above: target-scoped custom-init and hierarchy
+lookups, sibling `@_exported import` visibility, the deferred-alias set, and
+root-path discovery. The first build after upgrading revalidates once and
+repopulates the cache; no action is required.
+
+The SwiftUI changes keep 7.0 code compiling and behaving the same, with these
+exceptions. A hosted feature root on a `.shared` child now also generates
+`<name>RootView(identity:)`; a call that passes `close:` to such a child
+resolves to the unchanged 7.0 overload and now gets a deprecation warning,
+which fails builds that treat warnings as errors. The hook still runs as before,
+on the parent's own instance. `swiftui.environment-bridge-duplicate-environment`
+is a new warning for a second mapping of an `EnvironmentValues` key path: the
+generated modifier applies mappings in order, so views read the first member and
+the later mapping never had an effect. A mapping tuple that lacks a member or
+key path, which compiled but generated no bridge and failed only at the
+`.innodi(_:)` call, now reports `swiftui.environment-bridge-invalid-arguments`
+at the tuple. `DIContainerHost` renders `loading` while a changed identity
+waits for its generation, where it rendered `content` or `failure` with the
+previous identity's container or error once. A factory that throws
+`CancellationError` itself still returns the host to `loading` until the
+identity changes or the host remounts; the documentation now says so, and that
+releasing the host never runs the close hook. The `#PreviewWithContainer`
+diagnostics suggest `makePreviewApp()` and a wrapper view instead of a call to
+a generated initializer. `Tools/check-docs-code-blocks.sh` accepts
+`<!-- innodi:compile-library -->` for a block that must compile as a library
+source file.
+
 ### Upgrade Actions
 
-No source change is required. Code that already uses `@GenerateMock` keeps
-compiling without edits.
+No source change is required for containers. Code that already uses
+`@GenerateMock` keeps compiling without edits unless a requirement carries its
+own platform `@available` later than InnoDI's minimum platforms, or the protocol
+refines another protocol through `where Self:`. Move that availability to the
+protocol, or write the mock by hand. A test that assigned `nil` to a
+non-optional `nameReturnValue` slot and then required every stub now sees that
+selector reported as missing. A type rename or a dropped root role that only
+worked around one of the build failures above can be reverted. A container that
+`container.missing-effect-overrides-name-conflict` reports needs that member
+renamed. For `component.custom-global-actor-unsupported`, remove the actor, use
+`mainActor: true`, or give the container a local or root role.
+
+A script that passed `--root ""` to mean the current directory must pass `.`.
+Review new `InnoDI-DeferredAliasScan` findings and spell `Lazy<T>` or
+`Provider<T>` directly at the factory parameters that use them. An
+`import` added only to work around `graph.unresolved-container-reference` for
+a sibling file's `@_exported import` can be removed.
+
+After `InnoDI-Migrate --write --swiftui-import-access <access>`, pass the same
+option to the follow-up `InnoDI-Migrate --check` and to `InnoDI-Doctor`. A
+script that gave `InnoDI-Doctor` an option it ignored, such as a positional
+`apply` or a second `--root`, must drop it or spell it as a supported option.
+
+For a hosted feature root on a `.shared` child, drop `close:` from
+`<name>RootView(identity:close:)`, or declare the child
+`@SubContainer(scope: .transient, ...)` when each identity needs its own child
+that the host closes. A hook that only logged or reset state can move to the
+route's own close path. Remove one of two `@DIEnvironmentBridge` mappings that
+`swiftui.environment-bridge-duplicate-environment` reports; keep the first if
+the current behavior is the one you want. Complete a mapping tuple that
+`swiftui.environment-bridge-invalid-arguments` reports. A preview that called a
+generated initializer inside `#PreviewWithContainer` never compiled; build the
+container in a function and call generated helpers from a wrapper view, as
+[SwiftUI Preview Helper](Sources/InnoDI/InnoDI.docc/SwiftUIPreviewHelper.md#previews)
+shows.
 
 To use InnoDI beside a macro package that limits SwiftSyntax to versions below
 `604.0.0`, its requirement has to admit `603.0.2` or a later 603 release; one
@@ -80,6 +319,80 @@ swift package show-dependencies
   끝나는 범위는 여전히 해석에 실패합니다. 위 명령으로 선택된 버전을 확인하세요.
 - `@GenerateMock`이 정식(GA)이 됐습니다. 이미 쓰고 있는 코드는 수정 없이
   컴파일되며, 7.1.0부터 생성되는 mock 형태에도 semantic versioning이 적용됩니다.
+- `@GenerateMock`이 수용한 뒤 깨진 mock을 만들던 형태가 이제 컴파일되거나
+  `mock.unsupported-member`로 거부됩니다. requirement 자체의 `@available`이
+  InnoDI 최소 platform(iOS 17, macOS 14, Mac Catalyst 17, tvOS 17, watchOS 10,
+  visionOS 1)보다 늦은 platform 버전을 도입하고 protocol이 그것을 보장하지
+  않으면, 또는 protocol이 `where Self:`로 다른 protocol을 상속하면 이제
+  거부됩니다. availability를 protocol로 옮기거나 mock을 직접 작성하세요.
+  parameter pack과 `[some Sequence<Int>]`처럼 파라미터 타입 안에 쓴 `some`도
+  거부되지만, 이런 mock은 원래 컴파일되지 않았습니다.
+  타입이 없는 오류는 `Error`와 같은 별칭 `_InnoDIMockError`로 생성되고, optional이
+  아닌 `nameReturnValue` slot에 `nil`을 대입하면 missing으로 보고됩니다.
+  typealias로 쓴 optional 반환의 `nil`은 `.some(nil)`로 stub하세요.
+- build plugin이 dependency target에 같은 이름의 선언이 있다는 이유로 정상
+  코드를 거부하던 문제가 고쳐졌습니다(`container.custom-init-unsupported`,
+  `hierarchy.unsatisfied-dependency`, `hierarchy.ambiguous-child-reference`,
+  `hierarchy.orphan-component`). 소스 변경은 필요하지 않으며, 이 실패를 피하려고
+  바꾼 타입 이름이나 root role은 되돌릴 수 있습니다.
+- 수용된 뒤 확장 코드에서 컴파일 오류가 나던 컨테이너 형태 다섯 가지가 이제
+  컴파일되거나 하나의 InnoDI 진단으로 거부됩니다. `@SessionActor` 같은 custom
+  global actor를 붙인 컨테이너는 async `withOverrides`와 중첩된
+  `@AssistedFactory`에서 그 actor를 유지합니다. `OperationResult`라는 input
+  타입과 `Identity`라는 hosted feature-root child가 생성된 제네릭 매개변수에
+  가려지지 않고, `apply`라는 부모 input에서 연결된 transient `@SubContainer`가 그
+  값을 받으며, component의 `<Name>Dependencies`는 컨테이너에 중첩된 input 타입을
+  컨테이너 이름으로 표기합니다. 소스 변경은 필요하지 않습니다.
+- 새 진단 두 가지는 원래 컴파일될 수 없던 형태만 거부합니다.
+  `container.missing-effect-overrides-name-conflict`가 나오면 그 member 이름을
+  바꾸세요. `component.custom-global-actor-unsupported`가 나오면 actor를
+  제거하거나 `mainActor: true`를 쓰거나 local 또는 root role을 사용하세요.
+- dependency-graph 도구가 고쳐졌습니다. `--root`는 root 안의 symbolic link로
+  같은 파일에 도달해도 더 이상 중단되지 않고 그 파일을 한 번만 분석하며,
+  `DerivedData`와 `SourcePackages` 디렉터리를 건너뜁니다. root 밖을 가리키는
+  Swift 소스 link는 stderr 경고로 표시되고 출력과 exit code는 바뀌지 않습니다.
+  같은 target의 다른 파일에 있는 `@_exported import`로만 보이는 컨테이너가 이제
+  해석되므로, 이를 피하려고 추가한 `import`는 지울 수 있습니다. `--root ""`처럼
+  빈 옵션 값은 이제 인자 오류이므로 현재 디렉터리는 `.`로 지정하세요.
+- `InnoDI-DeferredAliasScan`과 build plugin의 `deferred-alias.workspace-finding`
+  경고가 factory 매개변수에서 실제로 `Lazy<T>`·`Provider<T>`를 가릴 수 있는
+  별칭과 일치합니다. 괄호로 감싼 별칭, 그런 별칭의 별칭, 타입·extension 본문 안의
+  별칭이 추가로 보고되고, `Vendor.Provider` 같은 무관한 타입의 별칭과 함수 본문의
+  지역 별칭은 보고되지 않습니다. 새로 보고된 별칭을 쓰는 factory 매개변수는
+  `Lazy<T>`·`Provider<T>`를 직접 쓰세요.
+- build plugin의 shared-run 검증 캐시 키가 version 14(`shared-run-v14`)로
+  바뀌었습니다. 7.0.x에서 검증한 workspace는 업그레이드 후 첫 빌드에서 7.1
+  규칙으로 한 번 다시 검증되고 캐시가 다시 채워집니다. 별도 조치는 필요하지
+  않습니다.
+- `InnoDI-Doctor`가 정상이거나 올바르게 변환된 프로젝트를 깨진 것으로 보고하던
+  문제가 고쳐졌습니다. Doctor가 `--swiftui-import-access`를 받아 그 선택으로
+  검사·적용하므로, `--swiftui-import-access internal`로 변환한 root는
+  `InnoDI-Migrate --check`와 `InnoDI-Doctor`에 같은 선택을 넘기면 healthy로
+  확인됩니다. 선택 없이 검사하면 계속 `migrate.swiftui-import-access-ambiguous`가
+  나옵니다. nested package의 컨테이너는 그 package의 `Package.swift`로 검사하고
+  nested Git repository는 건너뛰며, `path: "."` target과 CRLF manifest도 정상으로
+  읽습니다. framework의 `Versions/Current`처럼 두 도구가 이미 scan하는 root 안
+  디렉터리를 가리키는 link는 더 이상 exit 2로 중단시키지 않습니다.
+- `InnoDI-Doctor`는 이제 `-x`처럼 대시 하나로 시작하는 옵션, 위치 인자, 값이 없는 옵션,
+  `--trust-module` 외의 반복 옵션을 exit 64로 거부합니다. 이전에는 무시하고 진단을
+  실행했으므로, 그런 인자를 넘기던 script는 인자를 지우거나 지원하는 옵션으로
+  고치세요. `InnoDI-Migrate`는 없는 `--root`를 `Migration root is not a readable
+  directory`로 보고합니다.
+- `.shared` child에 붙인 hosted feature root는 이제 close 훅 없는
+  `<name>RootView(identity:)`로 부모의 child를 보여줍니다. 그런 child에 `close:`를
+  넘기는 7.0 호출은 그대로 컴파일되고 동작하지만 deprecation 경고가 나오므로,
+  경고를 오류로 다루는 빌드에서는 `close:`를 지우거나 identity마다 host가 닫는
+  child가 필요하면 child를 `.transient`로 선언하세요.
+- `@DIEnvironmentBridge`가 레이블 없는 `("member", \EnvironmentValues.key)` tuple을
+  읽고, member나 key path가 빠진 tuple은 `swiftui.environment-bridge-invalid-arguments`로
+  보고하며, 같은 key를 두 번 매핑하면 새 경고
+  `swiftui.environment-bridge-duplicate-environment`를 냅니다. 뷰는 첫 매핑을
+  읽으므로 둘 중 하나를 지우세요. 대상 타입에 같은 이름의 멤버가 둘 있어도 매크로
+  plugin이 더 이상 중단되지 않습니다.
+- `DIContainerHost`는 identity가 바뀐 직후 이전 identity의 컨테이너나 오류 대신
+  `loading`을 보여줍니다. `#PreviewWithContainer` 인자에서는 생성된 initializer나
+  helper를 호출할 수 없으므로, 컨테이너는 함수에서 만들고 helper는 wrapper
+  view에서 호출하세요.
 
 ## 7.0.2
 

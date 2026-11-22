@@ -8,8 +8,8 @@
 generic parameter나 `where` clause가 없어야 합니다. `class`, `actor`, `enum`,
 `protocol`, 직접 annotated된 `extension`, extension 안에 nested된 struct는
 거부됩니다. 함수, closure, accessor, `switch` case를 포함한 executable/local
-code scope 안의 선언도 거부됩니다. 이 경계는 component 역할의 `@DIContainerRole`을 적용한
-선언에도 동일합니다. runtime 또는 타입별 state는 protocol dependency나
+code scope 안의 선언도 거부됩니다. 이 경계는 `@DIContainerRole`에도 동일하게
+적용됩니다. runtime 또는 타입별 state는 protocol dependency나
 `@Input` 뒤로 옮기세요.
 
 명시적으로 `private`인 컨테이너도 sibling container가 생성된 mount surface에
@@ -54,6 +54,17 @@ non-`Sendable` container와 closure 값이 isolation 경계를 넘지 않습니�
 overload는 바뀌지 않습니다. 명시적 `@MainActor` 또는 `mainActor: true`에서는 모든
 `withOverrides` overload와 operation closure가 계속 MainActor에 격리됩니다.
 
+`@SessionActor @DIContainer`처럼 다른 global actor를 붙인 컨테이너 타입은 그
+actor의 격리를 유지합니다. async `withOverrides` overload는
+`nonisolated(nonsending)`이 되는 대신 타입의 actor를 이어받으므로
+`nonisolated(nonsending)` operation closure도 그 actor에서 실행됩니다. actor 밖의
+호출자는 `await`로 컨테이너 member에 접근합니다. 중첩된 `@AssistedFactory`는 직접
+actor를 지정하지 않는 한 같은 actor를 받습니다. 이 attribute는
+`container.mainactor-conflict`와 마찬가지로 `…Actor`로 끝나는 이름으로 인식하므로,
+다른 이름의 global actor는 여전히 생성 코드에서 실패합니다. component-role
+컨테이너에는 custom global actor를 쓸 수 없습니다
+(`component.custom-global-actor-unsupported`).
+
 관리 멤버가 없는 경우까지 지원되는 모든 컨테이너가 전체 overrides scaffolding을
 생성합니다. 사용자가 nested `Overrides` 타입을 직접 선언하는 것은
 지원하지 않으며 `container.overrides-name-conflict` 오류가 발생합니다. mount 가능한
@@ -96,6 +107,10 @@ factory와 property initializer는 opaque한 zero-edge source이며 sibling memb
 
 - `role`: `@DIContainerRole`에서 필수입니다. `ContainerRole.local`은 local 경계,
   `.component`는 모듈 간 mount 계약, `.root`는 계층 및 그래프 reachability 진입점입니다.
+  component의 `<Container>Dependencies` protocol은 컨테이너 옆에 선언되므로,
+  컨테이너에 직접 중첩된 타입이나 `Self`를 가리키는 input 타입은 요구 사항에서
+  컨테이너를 거쳐 표기됩니다(`FeatureContainer.Mode`). 매크로는 extension에 선언된
+  중첩 타입을 볼 수 없으니, 그런 input 타입은 소스에서 한정된 이름으로 쓰세요.
 - `validateDAG`: global DAG validation과 local graph-derived 진단을 켭니다.
   `false`면 global DAG와 local availability 진단은 건너뛰지만 local ownership-cycle 검사, 선언 검증과 명시적
   sibling edge의 효과 호환성 검증은 계속 동작합니다.

@@ -22,11 +22,11 @@ seen in the parsed sources. Consumers ask the index to:
 
 ## When to reach into this module
 
-Most code never needs to construct `SemanticResolverIndex` directly —
-the dependency-graph CLI and the build plugin already do. Third-party
-consumers that want to run custom validators (e.g. "no container may
-import FooService directly") can reuse this machinery to share the same
-resolution rules instead of re-implementing them.
+Only code inside the InnoDI package can construct `SemanticResolverIndex`:
+it and its records are declared `package`, and `InnoDICore` is not a package
+product. The dependency-graph CLI and the build plugin construct it, so
+they share one set of resolution rules. A new validator inside the package
+should reuse it instead of re-implementing those rules.
 
 ## Package Types
 

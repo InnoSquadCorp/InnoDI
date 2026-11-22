@@ -39,8 +39,8 @@ struct AppContainer {
             if let direct = feature {
                 return direct
             }
-            if let apply = featureOverrides {
-                return .init(featureConfig: config, _innoDITrace: _innoDITrace, apply)
+            if let _innoDIApply = featureOverrides {
+                return .init(featureConfig: config, _innoDITrace: _innoDITrace, _innoDIApply)
             }
             return .init(featureConfig: config, _innoDITrace: _innoDITrace)
         }
@@ -68,25 +68,25 @@ struct AppContainer {
     }
 
     // MARK: - withOverrides
-    static func withOverrides<OperationResult>(config: AppConfig, _innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: (Self) -> OperationResult) -> OperationResult {
+    static func withOverrides<_InnoDIOperationResult>(config: AppConfig, _innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: (Self) -> _InnoDIOperationResult) -> _InnoDIOperationResult {
         let _innoDIContainer = Self(config: config, _innoDITrace: _innoDITrace, _innoDIApplyOverrides)
         return _innoDIOperation(_innoDIContainer)
     }
 
     // MARK: - withOverrides (throws)
-    static func withOverrides<OperationResult>(config: AppConfig, _innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: (Self) throws -> OperationResult) throws -> OperationResult {
+    static func withOverrides<_InnoDIOperationResult>(config: AppConfig, _innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: (Self) throws -> _InnoDIOperationResult) throws -> _InnoDIOperationResult {
         let _innoDIContainer = Self(config: config, _innoDITrace: _innoDITrace, _innoDIApplyOverrides)
         return try _innoDIOperation(_innoDIContainer)
     }
 
     // MARK: - withOverrides (async)
-    nonisolated(nonsending) static func withOverrides<OperationResult>(config: AppConfig, _innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: nonisolated(nonsending) (Self) async -> OperationResult) async -> OperationResult {
+    nonisolated(nonsending) static func withOverrides<_InnoDIOperationResult>(config: AppConfig, _innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: nonisolated(nonsending) (Self) async -> _InnoDIOperationResult) async -> _InnoDIOperationResult {
         let _innoDIContainer = Self(config: config, _innoDITrace: _innoDITrace, _innoDIApplyOverrides)
         return await _innoDIOperation(_innoDIContainer)
     }
 
     // MARK: - withOverrides (async throws)
-    nonisolated(nonsending) static func withOverrides<OperationResult>(config: AppConfig, _innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: nonisolated(nonsending) (Self) async throws -> OperationResult) async throws -> OperationResult {
+    nonisolated(nonsending) static func withOverrides<_InnoDIOperationResult>(config: AppConfig, _innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: nonisolated(nonsending) (Self) async throws -> _InnoDIOperationResult) async throws -> _InnoDIOperationResult {
         let _innoDIContainer = Self(config: config, _innoDITrace: _innoDITrace, _innoDIApplyOverrides)
         return try await _innoDIOperation(_innoDIContainer)
     }

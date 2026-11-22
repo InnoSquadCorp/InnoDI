@@ -11,6 +11,18 @@ struct MockFunctionNames {
     let thrownErrorProperty: String
     let handlerProperty: String
 
+    func renamingCallStruct(_ name: String) -> MockFunctionNames {
+        MockFunctionNames(
+            stem: stem,
+            callStructName: name,
+            callsProperty: callsProperty,
+            returnProperty: returnProperty,
+            resultProperty: resultProperty,
+            thrownErrorProperty: thrownErrorProperty,
+            handlerProperty: handlerProperty
+        )
+    }
+
     func generatedValueNames(
         for function: FunctionDeclSyntax,
         concurrent: Bool = false
@@ -53,7 +65,7 @@ private func makeFunctionNames(
     parameters: FunctionParameterListSyntax,
     forceQualifiedNames: Bool
 ) -> MockFunctionNames {
-    let base = baseName.safeLowerCamelIdentifier
+    let base = baseName.safeLowerCamelIdentifier.digitSafeIdentifier
     let stem: String
     if forceQualifiedNames {
         let suffix = parameters.map { parameter -> String in
@@ -123,7 +135,7 @@ func plannedFunctionNames(
     ).mapValues(\.count)
 
     var allocatedNames = declaredValueNames
-    return zip(functions, candidates).map { function, candidate in
+    let valueNames = zip(functions, candidates).map { function, candidate in
         let collidesWithFunction = (stemCounts[candidate.stem] ?? 0) > 1
         let collidesWithProperty = !candidate
             .generatedValueNames(for: function, concurrent: concurrent)
@@ -149,6 +161,18 @@ func plannedFunctionNames(
         }
         allocatedNames.formUnion(resolved.generatedValueNames(for: function, concurrent: concurrent))
         return resolved
+    }
+
+    // A nested call record hides any same-named type a requirement spells
+    // inside the mock, such as `ToolCall` in `func tool() -> ToolCall`. Only
+    // the record is renamed; the method's value helpers keep their names.
+    var allocatedTypeNames = Set(protocolDecl.memberBlock.members.flatMap {
+        mockReferencedTypeNames(in: $0.decl)
+    })
+    return valueNames.map { names in
+        let callStructName = freshMockIdentifier(names.callStructName, reserving: allocatedTypeNames)
+        allocatedTypeNames.insert(callStructName)
+        return names.renamingCallStruct(callStructName)
     }
 }
 
@@ -214,6 +238,28 @@ extension String {
             return "`\(self)`"
         }
         return self
+    }
+
+    /// This identifier spelled as a reference in expression position, where
+    /// `await` is an operator rather than a name.
+    var escapedSwiftExpressionIdentifier: String {
+        self == "await" ? "`await`" : escapedSwiftIdentifier
+    }
+
+    /// The spelling of an argument label: every keyword except `inout`,
+    /// `var`, and `let` is a valid label as written.
+    var escapedArgumentLabel: String {
+        ["inout", "var", "let"].contains(self) ? "`\(self)`" : self
+    }
+
+    /// An identifier that does not start with a digit, so a stem derived from
+    /// a name such as `_2fa` can still name a declaration.
+    var digitSafeIdentifier: String {
+        guard let first = unicodeScalars.first,
+              CharacterSet.decimalDigits.contains(first) else {
+            return self
+        }
+        return "_" + self
     }
 
     var capitalizedFirst: String {

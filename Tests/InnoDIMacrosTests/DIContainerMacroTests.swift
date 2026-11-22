@@ -278,25 +278,25 @@ struct DIContainerMacroTests {
                     }
 
                     // MARK: - withOverrides
-                    package static func withOverrides<OperationResult>(_innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: (Self) -> OperationResult) -> OperationResult {
+                    package static func withOverrides<_InnoDIOperationResult>(_innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: (Self) -> _InnoDIOperationResult) -> _InnoDIOperationResult {
                         let _innoDIContainer = Self(_innoDITrace: _innoDITrace, _innoDIApplyOverrides)
                         return _innoDIOperation(_innoDIContainer)
                     }
 
                     // MARK: - withOverrides (throws)
-                    package static func withOverrides<OperationResult>(_innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: (Self) throws -> OperationResult) throws -> OperationResult {
+                    package static func withOverrides<_InnoDIOperationResult>(_innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: (Self) throws -> _InnoDIOperationResult) throws -> _InnoDIOperationResult {
                         let _innoDIContainer = Self(_innoDITrace: _innoDITrace, _innoDIApplyOverrides)
                         return try _innoDIOperation(_innoDIContainer)
                     }
 
                     // MARK: - withOverrides (async)
-                    package nonisolated(nonsending) static func withOverrides<OperationResult>(_innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: nonisolated(nonsending) (Self) async -> OperationResult) async -> OperationResult {
+                    package nonisolated(nonsending) static func withOverrides<_InnoDIOperationResult>(_innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: nonisolated(nonsending) (Self) async -> _InnoDIOperationResult) async -> _InnoDIOperationResult {
                         let _innoDIContainer = Self(_innoDITrace: _innoDITrace, _innoDIApplyOverrides)
                         return await _innoDIOperation(_innoDIContainer)
                     }
 
                     // MARK: - withOverrides (async throws)
-                    package nonisolated(nonsending) static func withOverrides<OperationResult>(_innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: nonisolated(nonsending) (Self) async throws -> OperationResult) async throws -> OperationResult {
+                    package nonisolated(nonsending) static func withOverrides<_InnoDIOperationResult>(_innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: (inout Overrides) -> Void, operation _innoDIOperation: nonisolated(nonsending) (Self) async throws -> _InnoDIOperationResult) async throws -> _InnoDIOperationResult {
                         let _innoDIContainer = Self(_innoDITrace: _innoDITrace, _innoDIApplyOverrides)
                         return try await _innoDIOperation(_innoDIContainer)
                     }

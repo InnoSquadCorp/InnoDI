@@ -14,7 +14,7 @@ final class ParserMock: Parser {
 
     private var __innodiMockGeneration: UInt64 = 0
 
-    struct _InnoDIMockNotStubbed: Error, CustomStringConvertible {
+    struct _InnoDIMockNotStubbed: _InnoDIMockError, CustomStringConvertible {
         let selector: String
         var description: String {
             "InnoDI mock selector '\(selector)' was not stubbed before invocation."
@@ -27,8 +27,8 @@ final class ParserMock: Parser {
     }
     private(set) var parseCalls: [ParseCall] = []
     private var __innodi_parseIsStubbed = false
-    private var __innodi_parseResultStorage: Result<Int, Error> = .failure(_InnoDIMockNotStubbed(selector: "parseResult"))
-    var parseResult: Result<Int, Error> {
+    private var __innodi_parseResultStorage: Result<Int, _InnoDIMockError> = .failure(_InnoDIMockNotStubbed(selector: "parseResult"))
+    var parseResult: Result<Int, _InnoDIMockError> {
         get {
             __innodi_parseResultStorage
         }
@@ -48,8 +48,8 @@ final class ParserMock: Parser {
     }
     private(set) var validateCalls: [ValidateCall] = []
     private var __innodi_validateIsStubbed = false
-    private var __innodi_validateThrownErrorStorage: Error?
-    var validateThrownError: Error? {
+    private var __innodi_validateThrownErrorStorage: _InnoDIMockError?
+    var validateThrownError: _InnoDIMockError? {
         get {
             __innodi_validateThrownErrorStorage
         }

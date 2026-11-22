@@ -45,11 +45,28 @@ coordinated build pipeline은 다음을 추가합니다.
 4. DAG validation
 5. metrics / summary artifact emission
 
+plugin은 빌드하는 target과 그 target이 의존하는 모든 target의 snapshot을
+검증합니다. hierarchy validation은 child reference와 input type을 그것을 선언한
+target 기준으로 해석합니다. `Cart` 같은 부분 표기는 그 target 자신의 nested
+`Checkout.Cart`에 닿지만, 다른 target의 선언에는 작성된 경로나 module-qualified
+경로로만 닿습니다. 따라서 dependency에 있는 nested `Shop.Cart`나
+`Client.Config`는 bare `Cart`나 `Config`에 대응하지 않습니다. component는
+snapshot에 그 component의 target이나 그 target에 의존하는 target에 선언된
+root-role 컨테이너가 있을 때만 `hierarchy.orphan-component`로 보고됩니다.
+dependency의 root는 빌드하는 target의 component를 mount할 수 없으며, 그
+component의 parent는 그것을 mount하는 target을 빌드할 때 검증됩니다. workspace
+root(`--root`)를 받은 coordinator 실행은 이 해석에 workspace 전체를 하나의
+scope로 쓰고, 모든 component를 모든 root에 대해 검사합니다.
+
 빌드 plugin의 소스 manifest는 package 내부 디렉터리의 symlink를 포함해
 선언된 소스의 package-relative 경로를 유지합니다. symlink는 해당 package
 내부로 해석되어야 하며, 서로 다른 선언 경로가 같은 실제 파일을 소유할 수는
 없습니다. package 외부로 향하는 symlink는 declared source로 지원하지
 않습니다.
+
+컨테이너 참조는 Swift의 이름 해석과 같이, 참조를 쓴 파일의 import와 같은
+target의 어느 파일에 있든 모든 `@_exported import`로 해석됩니다. target의 다른
+파일에 있는 일반 `import`는 포함되지 않습니다.
 
 ## Global DAG Validation
 
@@ -58,6 +75,22 @@ Global graph 검증에는 CLI를 사용하세요.
 ```bash
 swift run InnoDI-DependencyGraph --root . --validate-dag
 ```
+
+`--root` 입력은 디렉터리 아래의 모든 `.swift` 파일을 분석하며 다음은 건너뜁니다.
+
+- 이름이 `.`으로 시작하는 모든 최상위 디렉터리(`.build`, `.git`, `.swiftpm` 등)
+- 깊이와 관계없이 이름이 `.build`, `Derived`, `DerivedData`,
+  `SourcePackages`, `.tuist`, `.git`, `Pods`, `Carthage`, `.swiftpm`인
+  디렉터리와 모든 `Tuist/Dependencies` 디렉터리. `DerivedData`와
+  `SourcePackages`는 저장소 안에 둔 Xcode derived data와 package checkout을
+  가리킵니다.
+- 모든 `*.xcodeproj`, `*.xcworkspace` 번들
+
+모든 경로는 먼저 symbolic link를 따라 해석됩니다. root 안의 link로 도달한
+파일은 실제 경로로 한 번만 분석하며, 그 경로가 건너뛰는 디렉터리 안에 있으면
+건너뜁니다. root 밖으로 해석되는 `.swift` link는 분석하지 않습니다. CLI는 그
+link를 stderr의 `warning:` 줄에 표시하고 출력과 exit code는 바꾸지 않습니다.
+link된 디렉터리 안으로는 내려가지 않습니다.
 
 `validateDAG: false` 컨테이너는 global DAG validation에서 제외되지만, 지원하지
 않는 provider 선언과 명시적 sibling edge의 효과 불일치는 여전히 compile-time

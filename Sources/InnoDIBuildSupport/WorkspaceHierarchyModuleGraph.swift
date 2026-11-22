@@ -43,7 +43,12 @@ struct WorkspaceModuleGraphSnapshot: Equatable, Sendable {
     ) {
         self.modules = modules
         self.swiftPMProducts = swiftPMProducts
-        self.modulesByID = Dictionary(uniqueKeysWithValues: modules.map { ($0.moduleID, $0) })
+        // Both providers already deduplicate module IDs; keep the lookup
+        // non-trapping for any other caller-assembled list.
+        self.modulesByID = Dictionary(
+            modules.map { ($0.moduleID, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
         self.moduleIDsByTargetLookup = Self.buildTargetLookup(modules: modules)
         self.swiftPMProductsByLookup = Dictionary(grouping: swiftPMProducts) {
             WorkspaceSwiftPMProductLookup(

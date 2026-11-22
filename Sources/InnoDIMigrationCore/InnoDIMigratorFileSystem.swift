@@ -305,6 +305,8 @@ extension InnoDIMigrator {
         let excludedDirectories: Set<String> = [".build", ".git", ".swiftpm"]
         var sources: [URL] = []
         var nestedRepositoryRoots: [URL] = []
+        var coveredDirectoryLinks: [(link: URL, destination: URL)] = []
+        let symlinkSourceReason = "Symbolic-link sources are not rewritten automatically. Replace the link with an in-root source or migrate its resolved target explicitly."
         for case let url as URL in enumerator {
             let values: URLResourceValues
             do {
@@ -338,16 +340,36 @@ extension InnoDIMigrator {
                 continue
             }
             if values.isSymbolicLink == true {
+                let destination = url.resolvingSymlinksInPath().standardizedFileURL
                 var destinationIsDirectory: ObjCBool = false
                 let destinationExists = FileManager.default.fileExists(
-                    atPath: url.resolvingSymlinksInPath().path(percentEncoded: false),
+                    atPath: destination.path(percentEncoded: false),
                     isDirectory: &destinationIsDirectory
                 )
-                if url.pathExtension == "swift" || (destinationExists && destinationIsDirectory.boolValue) {
+                if url.pathExtension == "swift" {
                     throw MigrationError.cannotEnumerateRoot(
                         path: url.path(percentEncoded: false),
-                        reason: "Symbolic-link sources are not rewritten automatically. Replace the link with an in-root source or migrate its resolved target explicitly."
+                        reason: symlinkSourceReason
                     )
+                }
+                if destinationExists && destinationIsDirectory.boolValue {
+                    // A link to a directory this walk reaches by its real
+                    // path, such as a framework's `Versions/Current`, hides
+                    // no source: each file behind it is planned and written
+                    // through that real path. Any other directory link could
+                    // hide a source the compiler reads, so it blocks the run.
+                    let isScannedInRootDirectory = isSameDirectory(destination, root)
+                        || (isDescendant(destination, of: root)
+                            && !relativePath(for: destination, under: root)
+                                .split(separator: "/")
+                                .contains { excludedDirectories.contains(String($0)) })
+                    guard isScannedInRootDirectory else {
+                        throw MigrationError.cannotEnumerateRoot(
+                            path: url.path(percentEncoded: false),
+                            reason: symlinkSourceReason
+                        )
+                    }
+                    coveredDirectoryLinks.append((url, destination))
                 }
                 continue
             }
@@ -359,6 +381,18 @@ extension InnoDIMigrator {
             throw MigrationError.cannotEnumerateRoot(
                 path: enumerationFailure.path,
                 reason: enumerationFailure.reason
+            )
+        }
+        // A nested repository is skipped, so a link into one is not covered.
+        if let uncovered = coveredDirectoryLinks.first(where: { link in
+            nestedRepositoryRoots.contains { repositoryRoot in
+                isSameDirectory(link.destination, repositoryRoot)
+                    || isDescendant(link.destination, of: repositoryRoot)
+            }
+        }) {
+            throw MigrationError.cannotEnumerateRoot(
+                path: uncovered.link.path(percentEncoded: false),
+                reason: symlinkSourceReason
             )
         }
         return sources.filter { source in
@@ -375,6 +409,14 @@ extension InnoDIMigrator {
         let directoryPath = directory.standardizedFileURL.path(percentEncoded: false)
         let prefix = directoryPath.hasSuffix("/") ? directoryPath : directoryPath + "/"
         return path.hasPrefix(prefix)
+    }
+
+    func isSameDirectory(_ url: URL, _ directory: URL) -> Bool {
+        func trimmed(_ url: URL) -> String {
+            let path = url.standardizedFileURL.path(percentEncoded: false)
+            return path.count > 1 && path.hasSuffix("/") ? String(path.dropLast()) : path
+        }
+        return trimmed(url) == trimmed(directory)
     }
 
     func relativePath(for fileURL: URL, under root: URL) -> String {

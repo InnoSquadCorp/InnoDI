@@ -121,6 +121,11 @@ func parseArguments(
             || (option == "--output" && value == "-") else {
             return .failure(.missingOptionValue(option: option))
         }
+        // An empty path or selector is never meaningful; `--root ""` would
+        // otherwise analyze the current directory.
+        guard !value.isEmpty else {
+            return .failure(.missingOptionValue(option: option))
+        }
 
         return .success(value)
     }

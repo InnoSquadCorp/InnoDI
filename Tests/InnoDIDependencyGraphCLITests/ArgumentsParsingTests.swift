@@ -118,6 +118,25 @@ struct ArgumentsParsingTests {
         )
     }
 
+    @Test("An empty option value is a missing value, not the current directory")
+    func emptyOptionValueIsMissing() {
+        #expect(
+            parseArguments(["--root", "", "--validate-dag"])
+                == .failed(.missingOptionValue(option: "--root"))
+        )
+        #expect(
+            parseArguments(["--analysis-manifest", "", "--validate-dag"])
+                == .failed(.missingOptionValue(option: "--analysis-manifest"))
+        )
+        guard case .parsed(let args, _) = parseArguments([
+            "--root", ".", "--validate-dag",
+        ]) else {
+            Issue.record("Expected a non-empty root to parse")
+            return
+        }
+        #expect(args.rootPath == ".")
+    }
+
     @Test("Unknown options and positional arguments fail")
     func unknownInputsFail() {
         #expect(

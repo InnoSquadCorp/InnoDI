@@ -141,12 +141,22 @@ extension DIContainerMacro: MemberAttributeMacro {
                 declaration: declaration,
                 context: validationContext
             ) else { return [] }
-            return [
+            var attributes = [
                 assistedFactoryMetadataAttribute(
                     for: model,
                     isMainActor: model.isMainActor
                 ),
             ]
+            // A nested type does not inherit its container's global actor.
+            // Give the factory the container's custom actor so its generated
+            // initializer and callAsFunction can call the isolated child
+            // initializer, unless the factory already names an actor.
+            if let customActor = findCustomGlobalActorAttribute(in: declaration.attributes),
+               findCustomGlobalActorAttribute(in: factory.attributes) == nil,
+               findStandardMainActorAttribute(in: factory.attributes) == nil {
+                attributes.insert(customActor.trimmed, at: 0)
+            }
+            return attributes
         }
 
         guard let variable = member.as(VariableDeclSyntax.self) else {

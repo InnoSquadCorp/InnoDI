@@ -37,6 +37,7 @@ diagnostic.
     with dependencies: [AnyKeyPath] = [],
     initialization: DIInitialization = .eager,
     effect: DIProviderEffect = .none,
+    collection: DICollectionMetadata? = nil,
     factory: Any? = nil,
     asyncFactory: Any? = nil
 )

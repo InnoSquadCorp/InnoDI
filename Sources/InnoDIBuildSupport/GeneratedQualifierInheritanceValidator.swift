@@ -278,11 +278,14 @@ private func resolveFirstInheritance(
                 : result.state
             return .unverifiable(state)
         }
+        // Deduplicates by declaration identity; a repeated identity is the
+        // same declaration, not an ambiguity, and must not trap.
         let declarations = Dictionary(
-            uniqueKeysWithValues: declarationsByResolutionPath[
+            declarationsByResolutionPath[
                 path,
                 default: []
-            ].map { ($0.declaration.id, $0.declaration) }
+            ].map { ($0.declaration.id, $0.declaration) },
+            uniquingKeysWith: { first, _ in first }
         ).values
         guard declarations.count == 1,
               let resolved = declarations.first else {

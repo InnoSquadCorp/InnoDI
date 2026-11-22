@@ -708,16 +708,19 @@ private func makeInitDecl(
                 childType: member.type,
                 argumentMappings: selectedArguments,
                 trailingOverrideExpression: ExprSyntax(
-                    DeclReferenceExprSyntax(baseName: .identifier("apply"))
+                    DeclReferenceExprSyntax(baseName: .identifier("_innoDIApply"))
                 ),
                 parentMemberExpressions: parentExpressions
             )
+            // Parent inputs are referenced by their bare initializer
+            // parameter names inside the override branch, so its binding must
+            // stay in the reserved namespace.
             let assignStmt: CodeBlockItemSyntax = """
                 _innoDISubBuildCell_\(raw: member.name).bindResolver { () -> \(raw: childTypeDesc) in
                     if let direct = \(raw: member.name) {
                         return direct
                     }
-                    if let apply = \(raw: member.overrideClosureName) {
+                    if let _innoDIApply = \(raw: member.overrideClosureName) {
                         return \(overrideInitializer)
                     }
                     return \(baseInitializer)

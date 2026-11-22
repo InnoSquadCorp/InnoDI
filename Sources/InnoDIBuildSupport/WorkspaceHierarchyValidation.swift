@@ -7,6 +7,23 @@ func validateResolvedEdges(
     resolver: SemanticResolverIndex,
     typeCandidatePaths: Set<String>
 ) -> [ValidationIssue] {
+    validateResolvedEdges(
+        edges,
+        containersByID: containersByID,
+        moduleGraph: moduleGraph,
+        scopes: HierarchySemanticScopes(
+            resolver: resolver,
+            typeCandidatePaths: typeCandidatePaths
+        )
+    )
+}
+
+func validateResolvedEdges(
+    _ edges: [ResolvedHierarchyEdge],
+    containersByID: [String: WorkspaceHierarchyContainerRecord],
+    moduleGraph: WorkspaceModuleGraphSnapshot,
+    scopes: HierarchySemanticScopes
+) -> [ValidationIssue] {
     var issues: [ValidationIssue] = []
 
     for edge in edges {
@@ -80,8 +97,7 @@ func validateResolvedEdges(
                     parent: parent,
                     edge: edge,
                     child: child,
-                    resolver: resolver,
-                    typeCandidatePaths: typeCandidatePaths
+                    scopes: scopes
                 )
             )
         }
@@ -278,8 +294,7 @@ func validateDependencySatisfaction(
     parent: WorkspaceHierarchyContainerRecord,
     edge: ResolvedHierarchyEdge,
     child: WorkspaceHierarchyContainerRecord,
-    resolver: SemanticResolverIndex,
-    typeCandidatePaths: Set<String>
+    scopes: HierarchySemanticScopes
 ) -> [ValidationIssue] {
     let requiredInputs = child.inputMembers
     let resolvedMappings = resolvedDependencyMappings(
@@ -352,9 +367,10 @@ func validateDependencySatisfaction(
         guard let parentType = parent.providedMembers[mapping.parentName],
               hierarchyMemberTypesMatch(
                 parentType,
+                of: parent,
                 childType,
-                resolver: resolver,
-                typeCandidatePaths: typeCandidatePaths
+                of: child,
+                scopes: scopes
               ) else {
             let parentType = parent.providedMembers[mapping.parentName]?.rawTypeSpelling ?? "<missing>"
             issues.append(
@@ -443,12 +459,40 @@ func validateDuplicateParents(
     return issues
 }
 
+/// Modules whose containers a root declared in one of `rootModuleIDs` can
+/// mount.
+///
+/// A container declared in target T is mounted from T or from a target that
+/// depends on T, so a root's hierarchy stays inside the root's own module and
+/// the modules it depends on, directly or transitively.
+func hierarchyModulesMountable(
+    fromRootModules rootModuleIDs: [String],
+    moduleGraph: WorkspaceModuleGraphSnapshot
+) -> Set<String> {
+    var mountable: Set<String> = []
+    var queue = rootModuleIDs
+    while let moduleID = queue.popLast() {
+        guard mountable.insert(moduleID).inserted else {
+            continue
+        }
+        if let dependencies = moduleGraph.moduleRecord(moduleID: moduleID)?
+            .directDependencyModuleIDs {
+            queue.append(contentsOf: dependencies.sorted())
+        }
+    }
+    return mountable
+}
+
+/// - Parameter mountableModuleIDs: the modules whose containers a root in
+///   the snapshot can mount, or `nil` to check every component.
 func validateOrphanComponents(
     _ containers: [WorkspaceHierarchyContainerRecord],
-    reachableContainerIDs: Set<String>
+    reachableContainerIDs: Set<String>,
+    mountableModuleIDs: Set<String>? = nil
 ) -> [ValidationIssue] {
     containers
         .filter { $0.isComponent && !reachableContainerIDs.contains($0.containerID) }
+        .filter { mountableModuleIDs?.contains($0.moduleID) ?? true }
         .map { component in
             ValidationIssue(
                 code: "hierarchy.orphan-component",

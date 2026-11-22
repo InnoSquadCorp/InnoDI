@@ -57,25 +57,25 @@ struct AppContainer {
     }
 
     // MARK: - withOverrides
-    @_Concurrency.MainActor static func withOverrides<OperationResult>(store: Store, _innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: @_Concurrency.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @_Concurrency.MainActor (Self) -> OperationResult) -> OperationResult {
+    @_Concurrency.MainActor static func withOverrides<_InnoDIOperationResult>(store: Store, _innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: @_Concurrency.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @_Concurrency.MainActor (Self) -> _InnoDIOperationResult) -> _InnoDIOperationResult {
         let _innoDIContainer = Self(store: store, _innoDITrace: _innoDITrace, _innoDIApplyOverrides)
         return _innoDIOperation(_innoDIContainer)
     }
 
     // MARK: - withOverrides (throws)
-    @_Concurrency.MainActor static func withOverrides<OperationResult>(store: Store, _innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: @_Concurrency.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @_Concurrency.MainActor (Self) throws -> OperationResult) throws -> OperationResult {
+    @_Concurrency.MainActor static func withOverrides<_InnoDIOperationResult>(store: Store, _innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: @_Concurrency.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @_Concurrency.MainActor (Self) throws -> _InnoDIOperationResult) throws -> _InnoDIOperationResult {
         let _innoDIContainer = Self(store: store, _innoDITrace: _innoDITrace, _innoDIApplyOverrides)
         return try _innoDIOperation(_innoDIContainer)
     }
 
     // MARK: - withOverrides (async)
-    @_Concurrency.MainActor static func withOverrides<OperationResult>(store: Store, _innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: @_Concurrency.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @_Concurrency.MainActor (Self) async -> OperationResult) async -> OperationResult {
+    @_Concurrency.MainActor static func withOverrides<_InnoDIOperationResult>(store: Store, _innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: @_Concurrency.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @_Concurrency.MainActor (Self) async -> _InnoDIOperationResult) async -> _InnoDIOperationResult {
         let _innoDIContainer = Self(store: store, _innoDITrace: _innoDITrace, _innoDIApplyOverrides)
         return await _innoDIOperation(_innoDIContainer)
     }
 
     // MARK: - withOverrides (async throws)
-    @_Concurrency.MainActor static func withOverrides<OperationResult>(store: Store, _innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: @_Concurrency.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @_Concurrency.MainActor (Self) async throws -> OperationResult) async throws -> OperationResult {
+    @_Concurrency.MainActor static func withOverrides<_InnoDIOperationResult>(store: Store, _innoDITrace: DITraceContext = .disabled, _ _innoDIApplyOverrides: @_Concurrency.MainActor (inout Overrides) -> Void, operation _innoDIOperation: @_Concurrency.MainActor (Self) async throws -> _InnoDIOperationResult) async throws -> _InnoDIOperationResult {
         let _innoDIContainer = Self(store: store, _innoDITrace: _innoDITrace, _innoDIApplyOverrides)
         return try await _innoDIOperation(_innoDIContainer)
     }

@@ -101,4 +101,30 @@ struct DeferredWrapperAliasBuildValidatorTests {
         #expect(report.issues.first?.location.filePath == "Sources/A/Early.swift")
         #expect(report.issues.last?.location.filePath == "Sources/Z/Late.swift")
     }
+
+    @Test("build warnings cover the same alias set as InnoDI-DeferredAliasScan")
+    func buildWarningsMatchScannerContract() {
+        let snapshot = makeSnapshot([
+            ("Sources/Module/Aliases.swift", """
+            typealias TopLazy = Lazy<Int>
+            typealias Paren = (Provider<Int>)
+            typealias Chain = TopLazy
+            typealias Unrelated = Vendor.Provider
+            struct Vendor { struct Provider {} ; typealias NestedLazy = Lazy<Int> }
+            func f() { typealias LocalLazy = Lazy<Int> }
+            """)
+        ])
+
+        let report = DeferredWrapperAliasBuildValidator.validate(snapshot: snapshot)
+
+        #expect(
+            report.issues.compactMap { $0.metadata["aliasName"] }
+                == scanDeferredWrapperAliases(in: snapshot).map(\.aliasName)
+        )
+        #expect(
+            report.issues.compactMap { $0.metadata["aliasName"] }
+                == ["TopLazy", "Paren", "Chain", "NestedLazy"]
+        )
+        #expect(report.issues.allSatisfy { $0.code == "deferred-alias.workspace-finding" })
+    }
 }

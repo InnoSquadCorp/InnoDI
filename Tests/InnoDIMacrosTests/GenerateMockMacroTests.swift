@@ -38,9 +38,9 @@ struct GenerateMockMacroTests {
         let peer = peers.first?.description ?? ""
 
         #expect(peer.contains("func fetch(id: String) async throws -> String"))
-        #expect(peer.contains("var fetchResult: Result<String, Error>"))
+        #expect(peer.contains("var fetchResult: Result<String, _InnoDIMockError>"))
         #expect(peer.contains("try fetchResult.get()"))
-        #expect(peer.contains("struct _InnoDIMockNotStubbed: Error"))
+        #expect(peer.contains("struct _InnoDIMockNotStubbed: _InnoDIMockError"))
     }
 
     @Test("GenerateMock snapshots non-generic async-throwing shapes")
@@ -260,8 +260,8 @@ struct GenerateMockMacroTests {
         #expect(context.diagnostics.isEmpty)
         #expect(peer.contains("DIConcurrentValueBox<String?>(nil)"))
         #expect(peer.contains("DIConcurrentValueBox<Result<String, SharedFailure>?>(nil)"))
-        #expect(peer.contains("DIConcurrentValueBox<Result<String, Error>>"))
-        #expect(peer.contains("DIConcurrentValueBox<Error?>(nil)"))
+        #expect(peer.contains("DIConcurrentValueBox<Result<String, _InnoDIMockError>>"))
+        #expect(peer.contains("DIConcurrentValueBox<_InnoDIMockError?>(nil)"))
         #expect(peer.contains("return __innodi_fetchResultBox.snapshot()"))
         #expect(peer.contains("if let error { throw error }"))
         #expect(peer.contains("!__innodi_loadStubbedBox.snapshot() ? \"load\" : nil"))
@@ -572,8 +572,8 @@ struct GenerateMockMacroTests {
         )
         let peer = peers.first?.description ?? ""
 
-        #expect(peer.contains("private var __innodi_fetchIdStringResultStorage: Result<String, Error> = .failure(_InnoDIMockNotStubbed(selector: \"fetchIdStringResult\"))"))
-        #expect(peer.contains("private var __innodi_fetchPageIntResultStorage: Result<String, Error> = .failure(_InnoDIMockNotStubbed(selector: \"fetchPageIntResult\"))"))
+        #expect(peer.contains("private var __innodi_fetchIdStringResultStorage: Result<String, _InnoDIMockError> = .failure(_InnoDIMockNotStubbed(selector: \"fetchIdStringResult\"))"))
+        #expect(peer.contains("private var __innodi_fetchPageIntResultStorage: Result<String, _InnoDIMockError> = .failure(_InnoDIMockNotStubbed(selector: \"fetchPageIntResult\"))"))
     }
 
     @Test("GenerateMock keeps unnamed call-record fields unique")

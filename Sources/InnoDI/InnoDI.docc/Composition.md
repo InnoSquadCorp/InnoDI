@@ -1,7 +1,7 @@
 # Assisted Factories and Collections
 
 Use explicit composition when children need call-time inputs or modules export
-ordered contributions. These APIs are part of the current 7.0.1 surface; no
+ordered contributions. These APIs are part of the current public surface; no
 runtime registration or implicit module discovery is involved.
 
 ## Choose a Composition Boundary

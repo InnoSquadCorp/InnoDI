@@ -2,6 +2,9 @@
 # CI guard: Swift snippets marked with `<!-- innodi:compile -->` must compile
 # against the local package. `innodi:compile-all` compiles all Swift blocks in
 # one document together, for examples that intentionally share declarations.
+# `innodi:compile-library` compiles one block as an ordinary library source
+# file instead of `main.swift`, for file-scope declarations such as
+# `#PreviewWithContainer` that top-level code would read as a statement.
 # Other unmarked snippets remain illustrative.
 
 set -euo pipefail
@@ -18,6 +21,7 @@ count=0
 extract_snippets() {
     local file="$1"
     local marked=false
+    local library=false
     local in_block=false
     local current=""
     local group_path=""
@@ -66,8 +70,12 @@ extract_snippets() {
                     printf '// Source: %s:%d\n' "$file" "$line_no"
                     printf '\n'
                 } > "$current"
+                if [[ "$library" == true ]]; then
+                    : > "${current%.swift}.library"
+                fi
                 in_block=true
                 marked=false
+                library=false
             elif [[ "$line" =~ ^[[:space:]]*$ ]]; then
                 :
             else
@@ -79,6 +87,9 @@ extract_snippets() {
 
         if [[ "$line" == "<!-- innodi:compile -->" ]]; then
             marked=true
+        elif [[ "$line" == "<!-- innodi:compile-library -->" ]]; then
+            marked=true
+            library=true
         fi
     done < "$file"
 
@@ -125,12 +136,17 @@ mkdir -p "$package_dir/Sources"
 for snippet in "${snippets[@]}"; do
     target_name="DocSnippet$(basename "$snippet" .swift)"
     mkdir -p "$package_dir/Sources/$target_name"
-    cp "$snippet" "$package_dir/Sources/$target_name/main.swift"
+    if [[ -f "${snippet%.swift}.library" ]]; then
+        cp "$snippet" "$package_dir/Sources/$target_name/Snippet.swift"
+    else
+        cp "$snippet" "$package_dir/Sources/$target_name/main.swift"
+    fi
 done
 
-# Build every snippet as an isolated executable target in one package. This
-# preserves module isolation between examples while compiling InnoDI and
-# SwiftSyntax only once. Avoid a large here-document: Bash 5.3 on macOS can
+# Build every snippet as an isolated target in one package (an executable
+# target, or a library target for `innodi:compile-library`). This preserves
+# module isolation between examples while compiling InnoDI and SwiftSyntax
+# only once. Avoid a large here-document: Bash 5.3 on macOS can
 # block while feeding one to an external command before that command reads.
 {
     printf '%s\n' '// swift-tools-version: 6.2'
@@ -153,7 +169,11 @@ done
     printf '%s\n' '    targets: ['
     for snippet in "${snippets[@]}"; do
         target_name="DocSnippet$(basename "$snippet" .swift)"
-        printf '%s\n' '        .executableTarget('
+        if [[ -f "${snippet%.swift}.library" ]]; then
+            printf '%s\n' '        .target('
+        else
+            printf '%s\n' '        .executableTarget('
+        fi
         printf '            name: "%s",\n' "$target_name"
         printf '%s\n' '            dependencies: ['
         printf '%s\n' '                .product(name: "InnoDI", package: "InnoDI"),'

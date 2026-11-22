@@ -13,7 +13,7 @@ final class ScreenModelMock: ScreenModel {
 
     private var __innodiMockGeneration: UInt64 = 0
 
-    struct _InnoDIMockNotStubbed: Error, CustomStringConvertible {
+    struct _InnoDIMockNotStubbed: _InnoDIMockError, CustomStringConvertible {
         let selector: String
         var description: String {
             "InnoDI mock selector '\(selector)' was not stubbed before invocation."
@@ -52,8 +52,8 @@ final class ScreenModelMock: ScreenModel {
     }
     private(set) var refreshCalls: [RefreshCall] = []
     private var __innodi_refreshIsStubbed = false
-    private var __innodi_refreshResultStorage: Result<[String], Error> = .failure(_InnoDIMockNotStubbed(selector: "refreshResult"))
-    var refreshResult: Result<[String], Error> {
+    private var __innodi_refreshResultStorage: Result<[String], _InnoDIMockError> = .failure(_InnoDIMockNotStubbed(selector: "refreshResult"))
+    var refreshResult: Result<[String], _InnoDIMockError> {
         get {
             __innodi_refreshResultStorage
         }
