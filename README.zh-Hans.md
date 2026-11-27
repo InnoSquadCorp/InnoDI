@@ -2,6 +2,11 @@
 
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
+- **在运行前发现装配错误。** `@DIContainer` 和 `@Provide` 生成容器；宏验证在展开时发现局部错误，构建插件发现跨文件、跨模块的依赖图问题。
+- **可视化并守护依赖图。** `InnoDI-DependencyGraph` 以 Mermaid 渲染依赖图、验证全局 DAG、用 `--why` 解释依赖关系，并通过 `--diff --check-contract` 让未经审查的依赖图变更在 CI 中失败。
+- **内置 SwiftUI 与测试支持。** `InnoDISwiftUI` 去除根边界处重复的 environment 装配；`InnoDITesting` 提供类型化覆盖和并发安全的 mock。
+- **面向编码代理。** 附带的 [Claude Code 与 Codex 技能](skills/README.md) 向代理说明当前 API。
+
 <!-- innodi:guide version=7.0.2 -->
 ## 版本与适用范围
 

@@ -1,6 +1,6 @@
 # InnoDI
 
-[![Release](https://img.shields.io/github/v/release/InnoSquadCorp/InnoDI)](https://github.com/InnoSquadCorp/InnoDI/releases) [![License](https://img.shields.io/github/license/InnoSquadCorp/InnoDI)](LICENSE) [Swift Package Index](https://swiftpackageindex.com/InnoSquadCorp/InnoDI) · [CI and public operations](docs/automation-policy.md)
+[![Release](https://img.shields.io/github/v/release/InnoSquadCorp/InnoDI)](https://github.com/InnoSquadCorp/InnoDI/releases) [![License](https://img.shields.io/github/license/InnoSquadCorp/InnoDI)](LICENSE) [![Swift versions](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2FInnoSquadCorp%2FInnoDI%2Fbadge%3Ftype%3Dswift-versions)](https://swiftpackageindex.com/InnoSquadCorp/InnoDI) [![Platforms](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2FInnoSquadCorp%2FInnoDI%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/InnoSquadCorp/InnoDI) [Swift Package Index](https://swiftpackageindex.com/InnoSquadCorp/InnoDI) · [CI and public operations](docs/automation-policy.md)
 
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
@@ -11,6 +11,11 @@
 
 Macro-driven dependency injection for Swift with compile-time and build-time
 validation, dependency-graph tooling, hierarchy checks, and SwiftUI helpers.
+
+- **Catch wiring mistakes before launch.** `@DIContainer` and `@Provide` generate the container; macro validation catches local mistakes at expansion time, and the build plugin catches cross-file and cross-module graph issues.
+- **See and gate your graph.** `InnoDI-DependencyGraph` renders the graph as Mermaid, validates the global DAG, explains edges with `--why`, and fails CI on unreviewed graph changes with `--diff --check-contract`.
+- **SwiftUI and tests included.** `InnoDISwiftUI` removes repetitive root-boundary environment wiring; `InnoDITesting` adds typed overrides and concurrency-safe mocks.
+- **Ready for coding agents.** A bundled [Claude Code and Codex skill](skills/README.md) teaches agents the current API.
 
 ## Minimum Useful Example
 

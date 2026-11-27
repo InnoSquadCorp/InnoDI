@@ -2,6 +2,11 @@
 
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
+- **起動前に配線ミスを検出。** `@DIContainer` と `@Provide` がコンテナを生成し、マクロ検証が展開時にローカルなミスを、ビルドプラグインがファイルやモジュールをまたぐグラフの問題を検出します。
+- **グラフを可視化し、CI で守る。** `InnoDI-DependencyGraph` はグラフを Mermaid で描画し、グローバル DAG を検証し、`--why` で依存理由を説明し、`--diff --check-contract` で未レビューのグラフ変更を CI で失敗させます。
+- **SwiftUI とテストを同梱。** `InnoDISwiftUI` はルート境界で繰り返す environment の配線をなくし、`InnoDITesting` は型付きオーバーライドと並行安全なモックを提供します。
+- **コーディングエージェント対応。** 同梱の [Claude Code・Codex スキル](skills/README.md) がエージェントに現在の API を伝えます。
+
 <!-- innodi:guide version=7.0.2 -->
 ## バージョンと対象範囲
 

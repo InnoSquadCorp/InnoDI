@@ -1,6 +1,6 @@
 # InnoDI
 
-[![Release](https://img.shields.io/github/v/release/InnoSquadCorp/InnoDI)](https://github.com/InnoSquadCorp/InnoDI/releases) [![License](https://img.shields.io/github/license/InnoSquadCorp/InnoDI)](LICENSE) [Swift Package Index](https://swiftpackageindex.com/InnoSquadCorp/InnoDI) · [CI and public operations](docs/automation-policy.md)
+[![Release](https://img.shields.io/github/v/release/InnoSquadCorp/InnoDI)](https://github.com/InnoSquadCorp/InnoDI/releases) [![License](https://img.shields.io/github/license/InnoSquadCorp/InnoDI)](LICENSE) [![Swift versions](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2FInnoSquadCorp%2FInnoDI%2Fbadge%3Ftype%3Dswift-versions)](https://swiftpackageindex.com/InnoSquadCorp/InnoDI) [![Platforms](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2FInnoSquadCorp%2FInnoDI%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/InnoSquadCorp/InnoDI) [Swift Package Index](https://swiftpackageindex.com/InnoSquadCorp/InnoDI) · [CI and public operations](docs/automation-policy.md)
 
 [English](README.md) | [한국어](README.ko.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [简体中文](README.zh-Hans.md) | [日本語](README.ja.md) | [Русский](README.ru.md)
 
@@ -11,6 +11,11 @@
 
 컴파일 타임과 빌드 타임 검증, dependency graph 도구, hierarchy 검증,
 SwiftUI helper를 함께 제공하는 Swift용 매크로 기반 DI 프레임워크입니다.
+
+- **실행 전에 연결 실수를 잡습니다.** `@DIContainer`와 `@Provide`가 컨테이너를 생성하고, 매크로 검증은 확장 시점에 로컬 실수를, 빌드 플러그인은 파일·모듈을 넘나드는 그래프 문제를 잡습니다.
+- **그래프를 보고 CI로 지킵니다.** `InnoDI-DependencyGraph`는 그래프를 Mermaid로 그리고, 전역 DAG를 검증하고, `--why`로 연결 이유를 설명하며, `--diff --check-contract`로 검토되지 않은 그래프 변경을 CI에서 막습니다.
+- **SwiftUI와 테스트 지원 포함.** `InnoDISwiftUI`는 루트 경계의 반복적인 environment 연결을 없애고, `InnoDITesting`은 타입이 있는 override와 동시성 안전 mock을 제공합니다.
+- **코딩 에이전트 지원.** 함께 제공하는 [Claude Code·Codex 스킬](skills/README.md)이 에이전트에게 현재 API를 알려 줍니다.
 
 ## 최소 예제
 

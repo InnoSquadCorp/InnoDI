@@ -10,6 +10,11 @@ InnoDI genera código de inyección de dependencias mediante macros de Swift. Lo
 
 <!-- innodi:section requirements -->
 
+- **Detecta errores de cableado antes de ejecutar.** `@DIContainer` y `@Provide` generan el contenedor; la validación de macros detecta errores locales durante la expansión y el plugin de compilación detecta problemas del grafo entre archivos y módulos.
+- **Visualiza y protege tu grafo.** `InnoDI-DependencyGraph` dibuja el grafo en Mermaid, valida el DAG global, explica dependencias con `--why` y hace fallar la CI ante cambios no revisados con `--diff --check-contract`.
+- **SwiftUI y pruebas incluidos.** `InnoDISwiftUI` elimina el cableado repetitivo del entorno en la raíz; `InnoDITesting` añade overrides tipados y mocks seguros para concurrencia.
+- **Listo para agentes de código.** Incluye una [skill para Claude Code y Codex](skills/README.md) que enseña la API actual a los agentes.
+
 ## Requisitos
 
 - Versión de herramientas Swift **6.2 o posterior**; CI valida Swift 6.2, 6.3 y 6.4
